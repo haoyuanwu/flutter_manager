@@ -28,6 +28,7 @@ class HomePage extends ConsumerStatefulWidget {
 class _HomePageState extends ConsumerState<HomePage> {
   int _page = 0;
   final Set<String> _promptedMissingProjects = {};
+  bool _promptedMissingFvm = false;
 
   @override
   void initState() {
@@ -63,6 +64,18 @@ class _HomePageState extends ConsumerState<HomePage> {
         });
       },
     );
+    ref.listen<FvmState>(fvmControllerProvider, (previous, next) {
+      if (_promptedMissingFvm ||
+          next.loading ||
+          next.fvmInstalled ||
+          previous?.loading != true) {
+        return;
+      }
+      _promptedMissingFvm = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _showMissingFvmDialog();
+      });
+    });
     ref.listen<List<FlutterProject>>(
       fvmControllerProvider.select((value) => value.managedProjects),
       (previous, projects) {
@@ -140,6 +153,46 @@ class _HomePageState extends ConsumerState<HomePage> {
                 ),
               ],
             ),
+    );
+  }
+
+  Future<void> _showMissingFvmDialog() async {
+    final controller = ref.read(fvmControllerProvider.notifier);
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        icon: const Icon(Icons.hub_outlined, color: Colors.orange),
+        title: const Text('未检测到 FVM'),
+        content: const SizedBox(
+          width: 430,
+          child: Text(
+            '你可以通过 Dart Pub 安装 FVM；如果已经安装但应用没有识别到，'
+            '请选择包含 fvm 可执行文件的目录，例如 ~/.pub-cache/bin 或 /opt/homebrew/bin。',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('稍后处理'),
+          ),
+          OutlinedButton.icon(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              controller.selectLocalFvmDirectory();
+            },
+            icon: const Icon(Icons.folder_open),
+            label: const Text('选择本地 FVM'),
+          ),
+          FilledButton.icon(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              controller.installFvm();
+            },
+            icon: const Icon(Icons.download),
+            label: const Text('安装 FVM'),
+          ),
+        ],
+      ),
     );
   }
 

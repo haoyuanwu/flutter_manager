@@ -85,6 +85,21 @@ class LocalProjectService {
     }
   }
 
+  /// 在系统文件管理器中显示并选中文件。
+  Future<void> revealFile(String filePath) async {
+    late final ProcessResult result;
+    if (Platform.isMacOS) {
+      result = await Process.run('open', ['-R', filePath]);
+    } else if (Platform.isWindows) {
+      result = await Process.run('explorer.exe', ['/select,', filePath]);
+    } else {
+      result = await Process.run('xdg-open', [File(filePath).parent.path]);
+    }
+    if (result.exitCode != 0) {
+      throw Exception('无法打开文件所在目录：${result.stderr}');
+    }
+  }
+
   Future<void> openInAndroidStudio(String projectPath) async {
     // macOS: Android Studio 通常通过 `open -a` 调用
     final result = await Process.run('open', [
@@ -146,68 +161,120 @@ class LocalProjectService {
   /// 将 macOS .app 打包成 .dmg
   Future<String> packageMacosDmg(String projectPath, String appName) async {
     final separator = Platform.pathSeparator;
-    final appPath =
-        '$projectPath${separator}build${separator}macos${separator}Build'
-        '${separator}Products${separator}Release$separator$appName.app';
-    if (!Directory(appPath).existsSync()) {
-      throw Exception('未找到 $appName.app，请先完成 macOS Release 构建');
-    }
+    final app = await findMacosReleaseApp(projectPath, appName);
+    final appPath = app.path;
+    final bundleName = app.uri.pathSegments
+        .where((segment) => segment.isNotEmpty)
+        .last;
+    final productName = bundleName.substring(0, bundleName.length - 4);
     final dmgPath =
-        '$projectPath${separator}build$separator${appName.replaceAll(' ', '')}.dmg';
+        '$projectPath${separator}build$separator${productName.replaceAll(' ', '')}.dmg';
     // 删除旧的 dmg
     final oldDmg = File(dmgPath);
     if (oldDmg.existsSync()) await oldDmg.delete();
-    final result = await Process.run('hdiutil', [
-      'create',
-      '-volname',
-      appName,
-      '-srcfolder',
-      appPath,
-      '-ov',
-      '-format',
-      'UDZO',
-      dmgPath,
-    ]);
-    if (result.exitCode != 0) {
-      throw Exception('打包 DMG 失败：${result.stderr}');
+
+    // 使用临时目录组织标准的拖拽安装布局：应用 + Applications 快捷方式。
+    final stagingDirectory = await Directory.systemTemp.createTemp(
+      'flutter_manager_dmg_',
+    );
+    try {
+      final stagedAppPath = '${stagingDirectory.path}$separator$bundleName';
+      final copyResult = await Process.run('ditto', [appPath, stagedAppPath]);
+      if (copyResult.exitCode != 0) {
+        throw Exception('准备 DMG 应用文件失败：${copyResult.stderr}');
+      }
+      await Link(
+        '${stagingDirectory.path}${separator}Applications',
+      ).create('/Applications');
+
+      final result = await Process.run('hdiutil', [
+        'create',
+        '-volname',
+        productName,
+        '-srcfolder',
+        stagingDirectory.path,
+        '-ov',
+        '-format',
+        'UDZO',
+        dmgPath,
+      ]);
+      if (result.exitCode != 0) {
+        throw Exception('打包 DMG 失败：${result.stderr}');
+      }
+    } finally {
+      try {
+        await stagingDirectory.delete(recursive: true);
+      } on FileSystemException {
+        // 临时目录清理失败不应覆盖实际的打包结果或错误。
+      }
     }
     return dmgPath;
   }
 
-  /// 获取可用的 Flutter 设备列表。
-  Future<List<Map<String, String>>> listDevices(String projectPath) async {
-    final result = await Process.run('fvm', [
-      'flutter',
-      'devices',
-      '--machine',
-    ], workingDirectory: projectPath);
-    if (result.exitCode != 0) {
-      // 回退到直接用 flutter
-      final result2 = await Process.run('flutter', [
-        'devices',
-        '--machine',
-      ], workingDirectory: projectPath);
-      if (result2.exitCode != 0) return [];
-      return _parseDevices(result2.stdout as String);
+  /// 查找 Flutter/Xcode 实际生成的 macOS Release 应用。
+  ///
+  /// pubspec 的 `name` 是 Dart 包名（例如 `demo_app`），不一定等于
+  /// Xcode 的 `PRODUCT_NAME`（例如 `Demo App`），因此不能直接拼接文件名。
+  Future<Directory> findMacosReleaseApp(
+    String projectPath,
+    String appNameHint,
+  ) async {
+    final separator = Platform.pathSeparator;
+    final releaseDirectory = Directory(
+      '$projectPath${separator}build${separator}macos${separator}Build'
+      '${separator}Products${separator}Release',
+    );
+    if (!await releaseDirectory.exists()) {
+      throw Exception('未找到 macOS Release 构建目录，请先完成 macOS Release 构建');
     }
-    return _parseDevices(result.stdout as String);
+
+    final generatedNameFile = File(
+      '$projectPath${separator}macos${separator}Flutter${separator}ephemeral'
+      '$separator.app_filename',
+    );
+    if (await generatedNameFile.exists()) {
+      final generatedName = (await generatedNameFile.readAsString()).trim();
+      if (generatedName.isNotEmpty &&
+          !generatedName.contains('/') &&
+          !generatedName.contains('\\')) {
+        final generatedApp = Directory(
+          '${releaseDirectory.path}$separator$generatedName',
+        );
+        if (await generatedApp.exists()) return generatedApp;
+      }
+    }
+
+    final apps = await releaseDirectory
+        .list(followLinks: false)
+        .where((entity) => entity is Directory && entity.path.endsWith('.app'))
+        .cast<Directory>()
+        .toList();
+    final normalizedHint = _normalizeAppName(appNameHint);
+    final matchingApps = apps.where((app) {
+      final name = app.uri.pathSegments
+          .where((segment) => segment.isNotEmpty)
+          .last;
+      return _normalizeAppName(name.substring(0, name.length - 4)) ==
+          normalizedHint;
+    }).toList();
+    if (matchingApps.length == 1) return matchingApps.single;
+    if (apps.length == 1) return apps.single;
+
+    final found = apps
+        .map(
+          (app) =>
+              app.uri.pathSegments.where((segment) => segment.isNotEmpty).last,
+        )
+        .join('、');
+    throw Exception(
+      found.isEmpty
+          ? 'Release 目录中未找到 .app，请先完成 macOS Release 构建'
+          : 'Release 目录中存在多个 .app，无法确定要打包哪一个：$found',
+    );
   }
 
-  List<Map<String, String>> _parseDevices(String raw) {
-    try {
-      final list = jsonDecode(raw) as List;
-      return list.map((e) {
-        final m = (e as Map).cast<String, dynamic>();
-        return {
-          'id': (m['id'] ?? m['name'] ?? '').toString(),
-          'name': (m['name'] ?? '').toString(),
-          'platform': (m['platform'] ?? '').toString(),
-        };
-      }).toList();
-    } on Object {
-      return [];
-    }
-  }
+  String _normalizeAppName(String value) =>
+      value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
 
   /// 从项目文件中读取当前的 Bundle ID、Version、Build No。
   /// Version / Build No 直接读 pubspec.yaml；Bundle ID 读 android build.gradle。

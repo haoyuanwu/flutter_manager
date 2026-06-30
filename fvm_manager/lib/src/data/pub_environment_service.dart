@@ -15,6 +15,11 @@ class MirrorOption {
 }
 
 class PubEnvironmentService {
+  PubEnvironmentService({File? settingsFile})
+    : _customSettingsFile = settingsFile;
+
+  final File? _customSettingsFile;
+
   static const mirrors = [
     MirrorOption(id: 'official', name: '官方默认'),
     MirrorOption(
@@ -46,6 +51,7 @@ class PubEnvironmentService {
   String _mirrorId = 'official';
   String? _ignoredFvmVersion;
   String? _ignoredFlutterVersion;
+  String? _customFvmExecutable;
 
   String get mirrorId => _mirrorId;
   bool get useDomesticMirror => _mirrorId != 'official';
@@ -53,6 +59,7 @@ class PubEnvironmentService {
       mirrors.firstWhere((m) => m.id == _mirrorId, orElse: () => mirrors.first);
   String? get ignoredFvmVersion => _ignoredFvmVersion;
   String? get ignoredFlutterVersion => _ignoredFlutterVersion;
+  String? get customFvmExecutable => _customFvmExecutable;
 
   String get flutterStorageBaseUrl {
     final mirror = currentMirror;
@@ -61,6 +68,9 @@ class PubEnvironmentService {
 
   Map<String, String> get processEnvironment {
     final environment = Map<String, String>.from(Platform.environment);
+    environment['PATH'] = executableSearchPaths.join(
+      Platform.isWindows ? ';' : ':',
+    );
     final mirror = currentMirror;
     if (mirror.pubUrl != null) {
       environment['PUB_HOSTED_URL'] = mirror.pubUrl!;
@@ -73,6 +83,52 @@ class PubEnvironmentService {
       environment.remove('FLUTTER_STORAGE_BASE_URL');
     }
     return environment;
+  }
+
+  /// 为从 Finder 启动的 GUI 应用补齐常见命令行工具目录。
+  ///
+  /// Finder 不会读取用户 shell 的启动文件，因此它提供的 PATH 通常不含
+  /// Homebrew、Pub Cache，以及 FVM 全局 Flutter 中的 Dart。
+  List<String> get executableSearchPaths {
+    final separator = Platform.isWindows ? ';' : ':';
+    final paths = <String>{};
+    void add(String? path) {
+      if (path != null && path.trim().isNotEmpty) paths.add(path.trim());
+    }
+
+    if (_customFvmExecutable != null) {
+      add(File(_customFvmExecutable!).parent.path);
+    }
+    for (final path in (Platform.environment['PATH'] ?? '').split(separator)) {
+      add(path);
+    }
+    final home =
+        Platform.environment[Platform.isWindows ? 'USERPROFILE' : 'HOME'];
+    final pubCache =
+        Platform.environment['PUB_CACHE'] ??
+        (home == null
+            ? null
+            : Platform.isWindows
+            ? '$home\\AppData\\Local\\Pub\\Cache'
+            : '$home/.pub-cache');
+    if (pubCache != null) add('$pubCache${Platform.pathSeparator}bin');
+
+    if (home != null) {
+      if (Platform.isWindows) {
+        add('$home\\fvm\\default\\bin');
+        add('$home\\.fvm\\default\\bin');
+      } else {
+        add('$home/fvm/default/bin');
+        add('$home/.fvm/default/bin');
+      }
+    }
+    if (Platform.isMacOS) {
+      add('/opt/homebrew/bin');
+      add('/opt/homebrew/sbin');
+      add('/usr/local/bin');
+      add('/usr/local/sbin');
+    }
+    return paths.toList(growable: false);
   }
 
   Future<void> load() async {
@@ -93,6 +149,7 @@ class PubEnvironmentService {
       }
       _ignoredFvmVersion = settings['ignoredFvmVersion'] as String?;
       _ignoredFlutterVersion = settings['ignoredFlutterVersion'] as String?;
+      _customFvmExecutable = settings['customFvmExecutable'] as String?;
     } on Object {
       _mirrorId = 'official';
     }
@@ -119,6 +176,11 @@ class PubEnvironmentService {
 
   Future<void> ignoreFlutterVersion(String version) async {
     _ignoredFlutterVersion = version;
+    await _persist();
+  }
+
+  Future<void> setCustomFvmExecutable(String executable) async {
+    _customFvmExecutable = executable;
     await _persist();
   }
 
@@ -157,6 +219,7 @@ class PubEnvironmentService {
         'useDomesticMirror': useDomesticMirror, // 兼容旧版
         'ignoredFvmVersion': _ignoredFvmVersion,
         'ignoredFlutterVersion': _ignoredFlutterVersion,
+        'customFvmExecutable': _customFvmExecutable,
       }),
       flush: true,
     );
@@ -220,6 +283,7 @@ class PubEnvironmentService {
   }
 
   File get _settingsFile {
+    if (_customSettingsFile case final file?) return file;
     final home =
         Platform.environment[Platform.isWindows ? 'USERPROFILE' : 'HOME'];
     if (home == null) throw Exception('无法确定用户目录');

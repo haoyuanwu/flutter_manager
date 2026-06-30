@@ -48,6 +48,7 @@ abstract class FlutterProject with _$FlutterProject {
 
   const factory FlutterProject({
     required String name,
+    @Default('') String alias,
     required String path,
     required DateTime lastOpened,
     String? description,
@@ -69,8 +70,11 @@ abstract class FlutterProject with _$FlutterProject {
     @Default('') String customCommandCode,
   }) = _FlutterProject;
 
+  String get displayName => alias.trim().isEmpty ? name : alias.trim();
+
   factory FlutterProject.fromMap(Map<String, dynamic> map) => FlutterProject(
     name: map['name'] as String? ?? 'Flutter Project',
+    alias: map['alias'] as String? ?? '',
     path: map['path'] as String,
     lastOpened:
         DateTime.tryParse(map['lastOpened'] as String? ?? '') ??
@@ -108,6 +112,7 @@ abstract class FlutterProject with _$FlutterProject {
 
   Map<String, dynamic> toMap() => {
     'name': name,
+    'alias': alias,
     'path': path,
     'lastOpened': lastOpened.toIso8601String(),
     'description': description,

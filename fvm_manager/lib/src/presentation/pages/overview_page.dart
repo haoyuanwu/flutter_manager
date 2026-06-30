@@ -82,12 +82,29 @@ class _Overview extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  FilledButton.icon(
-                    onPressed: state.loading
-                        ? null
-                        : ref.read(fvmControllerProvider.notifier).installFvm,
-                    icon: const Icon(Icons.download),
-                    label: const Text('安装 FVM'),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: state.loading
+                            ? null
+                            : ref
+                                  .read(fvmControllerProvider.notifier)
+                                  .selectLocalFvmDirectory,
+                        icon: const Icon(Icons.folder_open),
+                        label: const Text('选择本地 FVM'),
+                      ),
+                      FilledButton.icon(
+                        onPressed: state.loading
+                            ? null
+                            : ref
+                                  .read(fvmControllerProvider.notifier)
+                                  .installFvm,
+                        icon: const Icon(Icons.download),
+                        label: const Text('安装 FVM'),
+                      ),
+                    ],
                   ),
                 ],
               ),

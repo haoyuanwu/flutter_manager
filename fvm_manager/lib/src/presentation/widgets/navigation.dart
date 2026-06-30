@@ -30,10 +30,14 @@ class _Sidebar extends StatelessWidget {
               leading: Stack(
                 clipBehavior: Clip.none,
                 children: [
-                  const Icon(
-                    Icons.flutter_dash,
-                    color: Color(0xff55c2ff),
-                    size: 32,
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Image.asset(
+                      'assets/images/app_logo.png',
+                      width: 36,
+                      height: 36,
+                      fit: BoxFit.cover,
+                    ),
                   ),
                   if (showFvmUpdate)
                     Positioned(

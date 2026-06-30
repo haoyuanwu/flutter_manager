@@ -1,12 +1,20 @@
 part of '../home_page.dart';
 
-class _ProjectManagement extends ConsumerWidget {
+class _ProjectManagement extends ConsumerStatefulWidget {
   const _ProjectManagement({required this.state});
 
   final FvmState state;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_ProjectManagement> createState() => _ProjectManagementState();
+}
+
+class _ProjectManagementState extends ConsumerState<_ProjectManagement> {
+  bool _projectListCollapsed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final state = widget.state;
     final controller = ref.read(fvmControllerProvider.notifier);
     final selected = state.managedProjects
         .where((project) => project.path == state.selectedManagedProjectPath)
@@ -89,19 +97,42 @@ class _ProjectManagement extends ConsumerWidget {
           ),
           const SizedBox(height: 18),
           Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                SizedBox(width: 260, child: _ProjectList(state: state)),
-                const SizedBox(width: 16),
-                Expanded(
-                  child: selected == null
-                      ? const Card(
-                          child: Center(child: Text('请添加或选择一个 Flutter 项目')),
-                        )
-                      : _ProjectDetail(state: state, project: selected),
-                ),
-              ],
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final automaticallyCollapsed = constraints.maxWidth < 860;
+                final collapsed =
+                    automaticallyCollapsed || _projectListCollapsed;
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      width: collapsed ? 56 : 260,
+                      child: collapsed
+                          ? _CollapsedProjectList(
+                              key: const ValueKey('collapsed-project-list'),
+                              state: state,
+                              canExpand: !automaticallyCollapsed,
+                              onExpand: () =>
+                                  setState(() => _projectListCollapsed = false),
+                            )
+                          : _ProjectList(
+                              key: const ValueKey('expanded-project-list'),
+                              state: state,
+                              onCollapse: () =>
+                                  setState(() => _projectListCollapsed = true),
+                            ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: selected == null
+                          ? const Card(
+                              child: Center(child: Text('请添加或选择一个 Flutter 项目')),
+                            )
+                          : _ProjectDetail(state: state, project: selected),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ],
@@ -111,52 +142,298 @@ class _ProjectManagement extends ConsumerWidget {
 }
 
 class _ProjectList extends ConsumerWidget {
-  const _ProjectList({required this.state});
+  const _ProjectList({
+    super.key,
+    required this.state,
+    required this.onCollapse,
+  });
 
   final FvmState state;
+  final VoidCallback onCollapse;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => Card(
-    child: state.managedProjects.isEmpty
-        ? const Center(
-            child: Padding(padding: EdgeInsets.all(20), child: Text('还没有项目记录')),
-          )
-        : ListView.separated(
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            itemCount: state.managedProjects.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final project = state.managedProjects[index];
-              final selected = project.path == state.selectedManagedProjectPath;
-              return ListTile(
-                selected: selected,
-                selectedTileColor: Theme.of(
-                  context,
-                ).colorScheme.primaryContainer.withValues(alpha: .45),
-                leading: Icon(
-                  project.pathExists
-                      ? Icons.folder_outlined
-                      : Icons.folder_off_outlined,
-                  color: project.pathExists ? null : Colors.red,
-                ),
-                title: Text(
-                  project.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Text(
-                  !project.pathExists
-                      ? '目录不存在'
-                      : project.fvmVersion == null
-                      ? '默认 Flutter'
-                      : 'FVM ${project.fvmVersion}',
-                ),
-                onTap: () => ref
-                    .read(fvmControllerProvider.notifier)
-                    .selectManagedProject(project.path),
-              );
-            },
+    child: Column(
+      children: [
+        Align(
+          alignment: Alignment.centerRight,
+          child: IconButton(
+            tooltip: '收起项目列表',
+            onPressed: onCollapse,
+            icon: const Icon(Icons.chevron_left),
           ),
+        ),
+        const Divider(height: 1),
+        Expanded(
+          child: state.managedProjects.isEmpty
+              ? const Center(
+                  child: Padding(
+                    padding: EdgeInsets.all(20),
+                    child: Text('还没有项目记录'),
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  itemCount: state.managedProjects.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final project = state.managedProjects[index];
+                    final selected =
+                        project.path == state.selectedManagedProjectPath;
+                    return ListTile(
+                      selected: selected,
+                      selectedTileColor: Theme.of(
+                        context,
+                      ).colorScheme.primaryContainer.withValues(alpha: .45),
+                      leading: Icon(
+                        project.pathExists
+                            ? Icons.folder_outlined
+                            : Icons.folder_off_outlined,
+                        color: project.pathExists ? null : Colors.red,
+                      ),
+                      title: Text(
+                        project.displayName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(
+                        [
+                          if (project.alias.trim().isNotEmpty) project.name,
+                          if (!project.pathExists)
+                            '目录不存在'
+                          else if (project.fvmVersion == null)
+                            '默认 Flutter'
+                          else
+                            'FVM ${project.fvmVersion}',
+                        ].join(' · '),
+                      ),
+                      trailing: _ProjectMoreMenu(project: project),
+                      onTap: () => ref
+                          .read(fvmControllerProvider.notifier)
+                          .selectManagedProject(project.path),
+                    );
+                  },
+                ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _CollapsedProjectList extends ConsumerWidget {
+  const _CollapsedProjectList({
+    super.key,
+    required this.state,
+    required this.canExpand,
+    required this.onExpand,
+  });
+
+  final FvmState state;
+  final bool canExpand;
+  final VoidCallback onExpand;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => Card(
+    child: Column(
+      children: [
+        if (canExpand)
+          IconButton(
+            tooltip: '展开项目列表',
+            onPressed: onExpand,
+            icon: const Icon(Icons.chevron_right),
+          ),
+        PopupMenuButton<String>(
+          tooltip: '选择项目',
+          enabled: state.managedProjects.isNotEmpty,
+          icon: const Icon(Icons.folder_copy_outlined),
+          onSelected: ref
+              .read(fvmControllerProvider.notifier)
+              .selectManagedProject,
+          itemBuilder: (context) => state.managedProjects
+              .map(
+                (project) => PopupMenuItem(
+                  value: project.path,
+                  child: Row(
+                    children: [
+                      Icon(
+                        project.pathExists
+                            ? Icons.folder_outlined
+                            : Icons.folder_off_outlined,
+                        color: project.pathExists ? null : Colors.red,
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Text(
+                          project.displayName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      if (project.path == state.selectedManagedProjectPath)
+                        const Icon(Icons.check, size: 18),
+                    ],
+                  ),
+                ),
+              )
+              .toList(),
+        ),
+      ],
+    ),
+  );
+}
+
+class _ProjectMoreMenu extends ConsumerWidget {
+  const _ProjectMoreMenu({required this.project});
+
+  final FlutterProject project;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) => PopupMenuButton<String>(
+    tooltip: '更多项目操作',
+    icon: const Icon(Icons.more_vert),
+    onSelected: (action) => _handleProjectAction(
+      context,
+      ref.read(fvmControllerProvider.notifier),
+      project,
+      action,
+    ),
+    itemBuilder: (context) => const [
+      PopupMenuItem(
+        value: 'rename',
+        child: ListTile(
+          leading: Icon(Icons.edit_outlined),
+          title: Text('备注名称'),
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+        ),
+      ),
+      PopupMenuDivider(),
+      PopupMenuItem(
+        value: 'folder',
+        child: ListTile(
+          leading: Icon(Icons.folder_open),
+          title: Text('打开项目文件夹'),
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+        ),
+      ),
+      PopupMenuItem(
+        value: 'android_studio',
+        child: ListTile(
+          leading: Icon(Icons.android),
+          title: Text('用 Android Studio 打开'),
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+        ),
+      ),
+      PopupMenuItem(
+        value: 'vscode',
+        child: ListTile(
+          leading: Icon(Icons.code),
+          title: Text('用 VS Code 打开'),
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+        ),
+      ),
+    ],
+  );
+}
+
+Future<void> _handleProjectAction(
+  BuildContext context,
+  FvmController controller,
+  FlutterProject project,
+  String action,
+) async {
+  switch (action) {
+    case 'rename':
+      await _showProjectAliasDialog(context, controller, project);
+      return;
+    case 'folder':
+      await controller.openProjectFolderAt(project.path);
+      return;
+    case 'android_studio':
+      await controller.openInAndroidStudioAt(project.path);
+      return;
+    case 'vscode':
+      await controller.openInVSCodeAt(project.path);
+      return;
+  }
+}
+
+Future<void> _showProjectAliasDialog(
+  BuildContext context,
+  FvmController controller,
+  FlutterProject project,
+) async {
+  final alias = await showDialog<String>(
+    context: context,
+    builder: (dialogContext) => _ProjectAliasDialog(project: project),
+  );
+  if (alias != null) await controller.renameManagedProject(project.path, alias);
+}
+
+class _ProjectAliasDialog extends StatefulWidget {
+  const _ProjectAliasDialog({required this.project});
+
+  final FlutterProject project;
+
+  @override
+  State<_ProjectAliasDialog> createState() => _ProjectAliasDialogState();
+}
+
+class _ProjectAliasDialogState extends State<_ProjectAliasDialog> {
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    final project = widget.project;
+    final pathSegments = project.path
+        .split(RegExp(r'[/\\]'))
+        .where((segment) => segment.isNotEmpty)
+        .toList();
+    final defaultAlias = project.alias.trim().isNotEmpty
+        ? project.alias
+        : pathSegments.isEmpty
+        ? project.name
+        : pathSegments.last;
+    _controller = TextEditingController(text: defaultAlias);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('设置项目备注名称'),
+    content: SizedBox(
+      width: 420,
+      child: TextField(
+        controller: _controller,
+        autofocus: true,
+        decoration: InputDecoration(
+          labelText: '备注名称',
+          hintText: widget.project.name,
+          helperText: '仅保存在 Flutter Manager 中，不会修改项目文件。留空可恢复原名。',
+          border: const OutlineInputBorder(),
+        ),
+        onSubmitted: (value) => Navigator.pop(context, value),
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('取消'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.pop(context, _controller.text),
+        child: const Text('保存'),
+      ),
+    ],
   );
 }
 
@@ -183,7 +460,7 @@ class _ProjectDetail extends ConsumerWidget {
               ),
               const SizedBox(height: 14),
               Text(
-                '${project.name} 的目录不存在',
+                '${project.displayName} 的目录不存在',
                 style: const TextStyle(
                   fontSize: 20,
                   fontWeight: FontWeight.w700,
@@ -228,7 +505,7 @@ class _ProjectDetail extends ConsumerWidget {
                     children: [
                       Expanded(
                         child: Text(
-                          project.name,
+                          project.displayName,
                           style: const TextStyle(
                             fontSize: 22,
                             fontWeight: FontWeight.w700,

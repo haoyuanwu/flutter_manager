@@ -11,81 +11,47 @@ part of 'project_models.dart';
 
 // dart format off
 T _$identity<T>(T value) => value;
-
 /// @nodoc
 mixin _$BuglyUploadConfig {
 
-  bool get enabled;
-
-  String get jarPath;
-
-  String get appId;
-
-  String get appKey;
-
-  String get bundleId;
-
-  String get version;
-
-  String get buildNo;
-
-  /// Create a copy of BuglyUploadConfig
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
-  @pragma('vm:prefer-inline')
-  $BuglyUploadConfigCopyWith<BuglyUploadConfig> get copyWith =>
-      _$BuglyUploadConfigCopyWithImpl<BuglyUploadConfig>(
-          this as BuglyUploadConfig, _$identity);
+ bool get enabled; String get jarPath; String get appId; String get appKey; String get bundleId; String get version; String get buildNo;
+/// Create a copy of BuglyUploadConfig
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$BuglyUploadConfigCopyWith<BuglyUploadConfig> get copyWith => _$BuglyUploadConfigCopyWithImpl<BuglyUploadConfig>(this as BuglyUploadConfig, _$identity);
 
 
-  @override
-  bool operator ==(Object other) {
-    return identical(this, other) ||
-        (other.runtimeType == runtimeType && other is BuglyUploadConfig &&
-            (identical(other.enabled, enabled) || other.enabled == enabled) &&
-            (identical(other.jarPath, jarPath) || other.jarPath == jarPath) &&
-            (identical(other.appId, appId) || other.appId == appId) &&
-            (identical(other.appKey, appKey) || other.appKey == appKey) &&
-            (identical(other.bundleId, bundleId) ||
-                other.bundleId == bundleId) &&
-            (identical(other.version, version) || other.version == version) &&
-            (identical(other.buildNo, buildNo) || other.buildNo == buildNo));
-  }
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is BuglyUploadConfig&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.jarPath, jarPath) || other.jarPath == jarPath)&&(identical(other.appId, appId) || other.appId == appId)&&(identical(other.appKey, appKey) || other.appKey == appKey)&&(identical(other.bundleId, bundleId) || other.bundleId == bundleId)&&(identical(other.version, version) || other.version == version)&&(identical(other.buildNo, buildNo) || other.buildNo == buildNo));
+}
 
 
-  @override
-  int get hashCode =>
-      Object.hash(
-          runtimeType,
-          enabled,
-          jarPath,
-          appId,
-          appKey,
-          bundleId,
-          version,
-          buildNo);
+@override
+int get hashCode => Object.hash(runtimeType,enabled,jarPath,appId,appKey,bundleId,version,buildNo);
 
-  @override
-  String toString() {
-    return 'BuglyUploadConfig(enabled: $enabled, jarPath: $jarPath, appId: $appId, appKey: $appKey, bundleId: $bundleId, version: $version, buildNo: $buildNo)';
-  }
+@override
+String toString() {
+  return 'BuglyUploadConfig(enabled: $enabled, jarPath: $jarPath, appId: $appId, appKey: $appKey, bundleId: $bundleId, version: $version, buildNo: $buildNo)';
+}
 
 
 }
 
 /// @nodoc
-abstract mixin class $BuglyUploadConfigCopyWith<$Res> {
-  factory $BuglyUploadConfigCopyWith(BuglyUploadConfig value,
-      $Res Function(BuglyUploadConfig) _then) = _$BuglyUploadConfigCopyWithImpl;
+abstract mixin class $BuglyUploadConfigCopyWith<$Res>  {
+  factory $BuglyUploadConfigCopyWith(BuglyUploadConfig value, $Res Function(BuglyUploadConfig) _then) = _$BuglyUploadConfigCopyWithImpl;
+@useResult
+$Res call({
+ bool enabled, String jarPath, String appId, String appKey, String bundleId, String version, String buildNo
+});
 
-  @useResult
-  $Res call({
-    bool enabled, String jarPath, String appId, String appKey, String bundleId, String version, String buildNo
-  });
+
 
 
 }
-
 /// @nodoc
 class _$BuglyUploadConfigCopyWithImpl<$Res>
     implements $BuglyUploadConfigCopyWith<$Res> {
@@ -94,188 +60,151 @@ class _$BuglyUploadConfigCopyWithImpl<$Res>
   final BuglyUploadConfig _self;
   final $Res Function(BuglyUploadConfig) _then;
 
-  /// Create a copy of BuglyUploadConfig
-  /// with the given fields replaced by the non-null parameter values.
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call(
-      {Object? enabled = null, Object? jarPath = null, Object? appId = null, Object? appKey = null, Object? bundleId = null, Object? version = null, Object? buildNo = null,}) {
-    return _then(_self.copyWith(
-      enabled: null == enabled
-          ? _self.enabled
-          : enabled // ignore: cast_nullable_to_non_nullable
-      as bool,
-      jarPath: null == jarPath
-          ? _self.jarPath
-          : jarPath // ignore: cast_nullable_to_non_nullable
-      as String,
-      appId: null == appId
-          ? _self.appId
-          : appId // ignore: cast_nullable_to_non_nullable
-      as String,
-      appKey: null == appKey
-          ? _self.appKey
-          : appKey // ignore: cast_nullable_to_non_nullable
-      as String,
-      bundleId: null == bundleId
-          ? _self.bundleId
-          : bundleId // ignore: cast_nullable_to_non_nullable
-      as String,
-      version: null == version
-          ? _self.version
-          : version // ignore: cast_nullable_to_non_nullable
-      as String,
-      buildNo: null == buildNo
-          ? _self.buildNo
-          : buildNo // ignore: cast_nullable_to_non_nullable
-      as String,
-    ));
-  }
+/// Create a copy of BuglyUploadConfig
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? enabled = null,Object? jarPath = null,Object? appId = null,Object? appKey = null,Object? bundleId = null,Object? version = null,Object? buildNo = null,}) {
+  return _then(_self.copyWith(
+enabled: null == enabled ? _self.enabled : enabled // ignore: cast_nullable_to_non_nullable
+as bool,jarPath: null == jarPath ? _self.jarPath : jarPath // ignore: cast_nullable_to_non_nullable
+as String,appId: null == appId ? _self.appId : appId // ignore: cast_nullable_to_non_nullable
+as String,appKey: null == appKey ? _self.appKey : appKey // ignore: cast_nullable_to_non_nullable
+as String,bundleId: null == bundleId ? _self.bundleId : bundleId // ignore: cast_nullable_to_non_nullable
+as String,version: null == version ? _self.version : version // ignore: cast_nullable_to_non_nullable
+as String,buildNo: null == buildNo ? _self.buildNo : buildNo // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
 
 }
 
 
 /// Adds pattern-matching-related methods to [BuglyUploadConfig].
 extension BuglyUploadConfigPatterns on BuglyUploadConfig {
-  /// A variant of `map` that fallback to returning `orElse`.
-  ///
-  /// It is equivalent to doing:
-  /// ```dart
-  /// switch (sealedClass) {
-  ///   case final Subclass value:
-  ///     return ...;
-  ///   case _:
-  ///     return orElse();
-  /// }
-  /// ```
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
 
-  @optionalTypeArgs TResult maybeMap
-
-  <
-
-  TResult
-
-  extends
-
-  Object?
-
-  >
-
-  (
-
-  TResult Function( _BuglyUploadConfig value)? $default,{required TResult orElse(),}){
-  final _that = this;
-  switch (_that) {
-  case _BuglyUploadConfig() when $default != null:
-  return $default(_that);case _:
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _BuglyUploadConfig value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _BuglyUploadConfig() when $default != null:
+return $default(_that);case _:
   return orElse();
 
-  }
-  }
-  /// A `switch`-like method, using callbacks.
-  ///
-  /// Callbacks receives the raw object, upcasted.
-  /// It is equivalent to doing:
-  /// ```dart
-  /// switch (sealedClass) {
-  ///   case final Subclass value:
-  ///     return ...;
-  ///   case final Subclass2 value:
-  ///     return ...;
-  /// }
-  /// ```
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
 
-  @optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _BuglyUploadConfig value) $default,){
-  final _that = this;
-  switch (_that) {
-  case _BuglyUploadConfig():
-  return $default(_that);case _:
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _BuglyUploadConfig value)  $default,){
+final _that = this;
+switch (_that) {
+case _BuglyUploadConfig():
+return $default(_that);case _:
   throw StateError('Unexpected subclass');
 
-  }
-  }
-  /// A variant of `map` that fallback to returning `null`.
-  ///
-  /// It is equivalent to doing:
-  /// ```dart
-  /// switch (sealedClass) {
-  ///   case final Subclass value:
-  ///     return ...;
-  ///   case _:
-  ///     return null;
-  /// }
-  /// ```
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
 
-  @optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _BuglyUploadConfig value)? $default,){
-  final _that = this;
-  switch (_that) {
-  case _BuglyUploadConfig() when $default != null:
-  return $default(_that);case _:
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _BuglyUploadConfig value)?  $default,){
+final _that = this;
+switch (_that) {
+case _BuglyUploadConfig() when $default != null:
+return $default(_that);case _:
   return null;
 
-  }
-  }
-  /// A variant of `when` that fallback to an `orElse` callback.
-  ///
-  /// It is equivalent to doing:
-  /// ```dart
-  /// switch (sealedClass) {
-  ///   case Subclass(:final field):
-  ///     return ...;
-  ///   case _:
-  ///     return orElse();
-  /// }
-  /// ```
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
 
-  @optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( bool enabled, String jarPath, String appId, String appKey, String bundleId, String version, String buildNo)? $default,{required TResult orElse(),}) {final _that = this;
-  switch (_that) {
-  case _BuglyUploadConfig() when $default != null:
-  return $default(_that.enabled,_that.jarPath,_that.appId,_that.appKey,_that.bundleId,_that.version,_that.buildNo);case _:
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( bool enabled,  String jarPath,  String appId,  String appKey,  String bundleId,  String version,  String buildNo)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _BuglyUploadConfig() when $default != null:
+return $default(_that.enabled,_that.jarPath,_that.appId,_that.appKey,_that.bundleId,_that.version,_that.buildNo);case _:
   return orElse();
 
-  }
-  }
-  /// A `switch`-like method, using callbacks.
-  ///
-  /// As opposed to `map`, this offers destructuring.
-  /// It is equivalent to doing:
-  /// ```dart
-  /// switch (sealedClass) {
-  ///   case Subclass(:final field):
-  ///     return ...;
-  ///   case Subclass2(:final field2):
-  ///     return ...;
-  /// }
-  /// ```
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
 
-  @optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( bool enabled, String jarPath, String appId, String appKey, String bundleId, String version, String buildNo) $default,) {final _that = this;
-  switch (_that) {
-  case _BuglyUploadConfig():
-  return $default(_that.enabled,_that.jarPath,_that.appId,_that.appKey,_that.bundleId,_that.version,_that.buildNo);case _:
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( bool enabled,  String jarPath,  String appId,  String appKey,  String bundleId,  String version,  String buildNo)  $default,) {final _that = this;
+switch (_that) {
+case _BuglyUploadConfig():
+return $default(_that.enabled,_that.jarPath,_that.appId,_that.appKey,_that.bundleId,_that.version,_that.buildNo);case _:
   throw StateError('Unexpected subclass');
 
-  }
-  }
-  /// A variant of `when` that fallback to returning `null`
-  ///
-  /// It is equivalent to doing:
-  /// ```dart
-  /// switch (sealedClass) {
-  ///   case Subclass(:final field):
-  ///     return ...;
-  ///   case _:
-  ///     return null;
-  /// }
-  /// ```
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
 
-  @optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( bool enabled, String jarPath, String appId, String appKey, String bundleId, String version, String buildNo)? $default,) {final _that = this;
-  switch (_that) {
-  case _BuglyUploadConfig() when $default != null:
-  return $default(_that.enabled,_that.jarPath,_that.appId,_that.appKey,_that.bundleId,_that.version,_that.buildNo);case _:
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( bool enabled,  String jarPath,  String appId,  String appKey,  String bundleId,  String version,  String buildNo)?  $default,) {final _that = this;
+switch (_that) {
+case _BuglyUploadConfig() when $default != null:
+return $default(_that.enabled,_that.jarPath,_that.appId,_that.appKey,_that.bundleId,_that.version,_that.buildNo);case _:
   return null;
 
-  }
-  }
+}
+}
 
 }
 
@@ -283,92 +212,54 @@ extension BuglyUploadConfigPatterns on BuglyUploadConfig {
 
 
 class _BuglyUploadConfig extends BuglyUploadConfig {
-  const _BuglyUploadConfig(
-      {this.enabled = false, this.jarPath = '', this.appId = '', this.appKey = '', this.bundleId = '', this.version = '', this.buildNo = ''})
-      : super._();
+  const _BuglyUploadConfig({this.enabled = false, this.jarPath = '', this.appId = '', this.appKey = '', this.bundleId = '', this.version = '', this.buildNo = ''}): super._();
 
 
-  @override
-  @JsonKey()
-  final bool enabled;
-  @override
-  @JsonKey()
-  final String jarPath;
-  @override
-  @JsonKey()
-  final String appId;
-  @override
-  @JsonKey()
-  final String appKey;
-  @override
-  @JsonKey()
-  final String bundleId;
-  @override
-  @JsonKey()
-  final String version;
-  @override
-  @JsonKey()
-  final String buildNo;
+@override@JsonKey() final  bool enabled;
+@override@JsonKey() final  String jarPath;
+@override@JsonKey() final  String appId;
+@override@JsonKey() final  String appKey;
+@override@JsonKey() final  String bundleId;
+@override@JsonKey() final  String version;
+@override@JsonKey() final  String buildNo;
 
-  /// Create a copy of BuglyUploadConfig
-  /// with the given fields replaced by the non-null parameter values.
-  @override
-  @JsonKey(includeFromJson: false, includeToJson: false)
-  @pragma('vm:prefer-inline')
-  _$BuglyUploadConfigCopyWith<_BuglyUploadConfig> get copyWith =>
-      __$BuglyUploadConfigCopyWithImpl<_BuglyUploadConfig>(this, _$identity);
+/// Create a copy of BuglyUploadConfig
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$BuglyUploadConfigCopyWith<_BuglyUploadConfig> get copyWith => __$BuglyUploadConfigCopyWithImpl<_BuglyUploadConfig>(this, _$identity);
 
 
-  @override
-  bool operator ==(Object other) {
-    return identical(this, other) ||
-        (other.runtimeType == runtimeType && other is _BuglyUploadConfig &&
-            (identical(other.enabled, enabled) || other.enabled == enabled) &&
-            (identical(other.jarPath, jarPath) || other.jarPath == jarPath) &&
-            (identical(other.appId, appId) || other.appId == appId) &&
-            (identical(other.appKey, appKey) || other.appKey == appKey) &&
-            (identical(other.bundleId, bundleId) ||
-                other.bundleId == bundleId) &&
-            (identical(other.version, version) || other.version == version) &&
-            (identical(other.buildNo, buildNo) || other.buildNo == buildNo));
-  }
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _BuglyUploadConfig&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.jarPath, jarPath) || other.jarPath == jarPath)&&(identical(other.appId, appId) || other.appId == appId)&&(identical(other.appKey, appKey) || other.appKey == appKey)&&(identical(other.bundleId, bundleId) || other.bundleId == bundleId)&&(identical(other.version, version) || other.version == version)&&(identical(other.buildNo, buildNo) || other.buildNo == buildNo));
+}
 
 
-  @override
-  int get hashCode =>
-      Object.hash(
-          runtimeType,
-          enabled,
-          jarPath,
-          appId,
-          appKey,
-          bundleId,
-          version,
-          buildNo);
+@override
+int get hashCode => Object.hash(runtimeType,enabled,jarPath,appId,appKey,bundleId,version,buildNo);
 
-  @override
-  String toString() {
-    return 'BuglyUploadConfig(enabled: $enabled, jarPath: $jarPath, appId: $appId, appKey: $appKey, bundleId: $bundleId, version: $version, buildNo: $buildNo)';
-  }
+@override
+String toString() {
+  return 'BuglyUploadConfig(enabled: $enabled, jarPath: $jarPath, appId: $appId, appKey: $appKey, bundleId: $bundleId, version: $version, buildNo: $buildNo)';
+}
 
 
 }
 
 /// @nodoc
-abstract mixin class _$BuglyUploadConfigCopyWith<$Res>
-    implements $BuglyUploadConfigCopyWith<$Res> {
-  factory _$BuglyUploadConfigCopyWith(_BuglyUploadConfig value,
-      $Res Function(_BuglyUploadConfig) _then) = __$BuglyUploadConfigCopyWithImpl;
+abstract mixin class _$BuglyUploadConfigCopyWith<$Res> implements $BuglyUploadConfigCopyWith<$Res> {
+  factory _$BuglyUploadConfigCopyWith(_BuglyUploadConfig value, $Res Function(_BuglyUploadConfig) _then) = __$BuglyUploadConfigCopyWithImpl;
+@override @useResult
+$Res call({
+ bool enabled, String jarPath, String appId, String appKey, String bundleId, String version, String buildNo
+});
 
-  @override
-  @useResult
-  $Res call({
-    bool enabled, String jarPath, String appId, String appKey, String bundleId, String version, String buildNo
-  });
+
 
 
 }
-
 /// @nodoc
 class __$BuglyUploadConfigCopyWithImpl<$Res>
     implements _$BuglyUploadConfigCopyWith<$Res> {
@@ -377,43 +268,20 @@ class __$BuglyUploadConfigCopyWithImpl<$Res>
   final _BuglyUploadConfig _self;
   final $Res Function(_BuglyUploadConfig) _then;
 
-  /// Create a copy of BuglyUploadConfig
-  /// with the given fields replaced by the non-null parameter values.
-  @override
-  @pragma('vm:prefer-inline')
-  $Res call(
-      {Object? enabled = null, Object? jarPath = null, Object? appId = null, Object? appKey = null, Object? bundleId = null, Object? version = null, Object? buildNo = null,}) {
-    return _then(_BuglyUploadConfig(
-      enabled: null == enabled
-          ? _self.enabled
-          : enabled // ignore: cast_nullable_to_non_nullable
-      as bool,
-      jarPath: null == jarPath
-          ? _self.jarPath
-          : jarPath // ignore: cast_nullable_to_non_nullable
-      as String,
-      appId: null == appId
-          ? _self.appId
-          : appId // ignore: cast_nullable_to_non_nullable
-      as String,
-      appKey: null == appKey
-          ? _self.appKey
-          : appKey // ignore: cast_nullable_to_non_nullable
-      as String,
-      bundleId: null == bundleId
-          ? _self.bundleId
-          : bundleId // ignore: cast_nullable_to_non_nullable
-      as String,
-      version: null == version
-          ? _self.version
-          : version // ignore: cast_nullable_to_non_nullable
-      as String,
-      buildNo: null == buildNo
-          ? _self.buildNo
-          : buildNo // ignore: cast_nullable_to_non_nullable
-      as String,
-    ));
-  }
+/// Create a copy of BuglyUploadConfig
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? enabled = null,Object? jarPath = null,Object? appId = null,Object? appKey = null,Object? bundleId = null,Object? version = null,Object? buildNo = null,}) {
+  return _then(_BuglyUploadConfig(
+enabled: null == enabled ? _self.enabled : enabled // ignore: cast_nullable_to_non_nullable
+as bool,jarPath: null == jarPath ? _self.jarPath : jarPath // ignore: cast_nullable_to_non_nullable
+as String,appId: null == appId ? _self.appId : appId // ignore: cast_nullable_to_non_nullable
+as String,appKey: null == appKey ? _self.appKey : appKey // ignore: cast_nullable_to_non_nullable
+as String,bundleId: null == bundleId ? _self.bundleId : bundleId // ignore: cast_nullable_to_non_nullable
+as String,version: null == version ? _self.version : version // ignore: cast_nullable_to_non_nullable
+as String,buildNo: null == buildNo ? _self.buildNo : buildNo // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
 
 
 }
@@ -421,150 +289,44 @@ class __$BuglyUploadConfigCopyWithImpl<$Res>
 /// @nodoc
 mixin _$FlutterProject {
 
-  String get name;
-
-  String get path;
-
-  DateTime get lastOpened;
-
-  String? get description;
-
-  String? get fvmVersion;
-
-  bool get hasAndroid;
-
-  bool get hasIos;
-
-  bool get hasWindows;
-
-  bool get hasMacos;
-
-  bool get pathExists;
-
-  List<String> get androidFlavors;
-
-  List<String> get androidBuildTypes;
-
-  BuglyUploadConfig get bugly;
-
-  List<String> get selectedFlavors;
-
-  ProjectBuildMode get lastBuildMode;
-
-  ProjectBuildTarget get lastBuildTarget;
-
-  bool get cleanBeforeBuild;
-
-  String get androidTargetPlatform;
-
-  bool get useCustomCommands;
-
-  String get customCommandCode;
-
-  /// Create a copy of FlutterProject
-  /// with the given fields replaced by the non-null parameter values.
-  @JsonKey(includeFromJson: false, includeToJson: false)
-  @pragma('vm:prefer-inline')
-  $FlutterProjectCopyWith<FlutterProject> get copyWith =>
-      _$FlutterProjectCopyWithImpl<FlutterProject>(
-          this as FlutterProject, _$identity);
+ String get name; String get alias; String get path; DateTime get lastOpened; String? get description; String? get fvmVersion; bool get hasAndroid; bool get hasIos; bool get hasWindows; bool get hasMacos; bool get pathExists; List<String> get androidFlavors; List<String> get androidBuildTypes; BuglyUploadConfig get bugly; List<String> get selectedFlavors; ProjectBuildMode get lastBuildMode; ProjectBuildTarget get lastBuildTarget; bool get cleanBeforeBuild; String get androidTargetPlatform; bool get useCustomCommands; String get customCommandCode;
+/// Create a copy of FlutterProject
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$FlutterProjectCopyWith<FlutterProject> get copyWith => _$FlutterProjectCopyWithImpl<FlutterProject>(this as FlutterProject, _$identity);
 
 
-  @override
-  bool operator ==(Object other) {
-    return identical(this, other) ||
-        (other.runtimeType == runtimeType && other is FlutterProject &&
-            (identical(other.name, name) || other.name == name) &&
-            (identical(other.path, path) || other.path == path) &&
-            (identical(other.lastOpened, lastOpened) ||
-                other.lastOpened == lastOpened) &&
-            (identical(other.description, description) ||
-                other.description == description) &&
-            (identical(other.fvmVersion, fvmVersion) ||
-                other.fvmVersion == fvmVersion) &&
-            (identical(other.hasAndroid, hasAndroid) ||
-                other.hasAndroid == hasAndroid) &&
-            (identical(other.hasIos, hasIos) || other.hasIos == hasIos) &&
-            (identical(other.hasWindows, hasWindows) ||
-                other.hasWindows == hasWindows) &&
-            (identical(other.hasMacos, hasMacos) ||
-                other.hasMacos == hasMacos) &&
-            (identical(other.pathExists, pathExists) ||
-                other.pathExists == pathExists) &&
-            const DeepCollectionEquality().equals(
-                other.androidFlavors, androidFlavors) &&
-            const DeepCollectionEquality().equals(
-                other.androidBuildTypes, androidBuildTypes) &&
-            (identical(other.bugly, bugly) || other.bugly == bugly) &&
-            const DeepCollectionEquality().equals(
-                other.selectedFlavors, selectedFlavors) &&
-            (identical(other.lastBuildMode, lastBuildMode) ||
-                other.lastBuildMode == lastBuildMode) &&
-            (identical(other.lastBuildTarget, lastBuildTarget) ||
-                other.lastBuildTarget == lastBuildTarget) &&
-            (identical(other.cleanBeforeBuild, cleanBeforeBuild) ||
-                other.cleanBeforeBuild == cleanBeforeBuild) &&
-            (identical(other.androidTargetPlatform, androidTargetPlatform) ||
-                other.androidTargetPlatform == androidTargetPlatform) &&
-            (identical(other.useCustomCommands, useCustomCommands) ||
-                other.useCustomCommands == useCustomCommands) &&
-            (identical(other.customCommandCode, customCommandCode) ||
-                other.customCommandCode == customCommandCode));
-  }
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is FlutterProject&&(identical(other.name, name) || other.name == name)&&(identical(other.alias, alias) || other.alias == alias)&&(identical(other.path, path) || other.path == path)&&(identical(other.lastOpened, lastOpened) || other.lastOpened == lastOpened)&&(identical(other.description, description) || other.description == description)&&(identical(other.fvmVersion, fvmVersion) || other.fvmVersion == fvmVersion)&&(identical(other.hasAndroid, hasAndroid) || other.hasAndroid == hasAndroid)&&(identical(other.hasIos, hasIos) || other.hasIos == hasIos)&&(identical(other.hasWindows, hasWindows) || other.hasWindows == hasWindows)&&(identical(other.hasMacos, hasMacos) || other.hasMacos == hasMacos)&&(identical(other.pathExists, pathExists) || other.pathExists == pathExists)&&const DeepCollectionEquality().equals(other.androidFlavors, androidFlavors)&&const DeepCollectionEquality().equals(other.androidBuildTypes, androidBuildTypes)&&(identical(other.bugly, bugly) || other.bugly == bugly)&&const DeepCollectionEquality().equals(other.selectedFlavors, selectedFlavors)&&(identical(other.lastBuildMode, lastBuildMode) || other.lastBuildMode == lastBuildMode)&&(identical(other.lastBuildTarget, lastBuildTarget) || other.lastBuildTarget == lastBuildTarget)&&(identical(other.cleanBeforeBuild, cleanBeforeBuild) || other.cleanBeforeBuild == cleanBeforeBuild)&&(identical(other.androidTargetPlatform, androidTargetPlatform) || other.androidTargetPlatform == androidTargetPlatform)&&(identical(other.useCustomCommands, useCustomCommands) || other.useCustomCommands == useCustomCommands)&&(identical(other.customCommandCode, customCommandCode) || other.customCommandCode == customCommandCode));
+}
 
 
-  @override
-  int get hashCode =>
-      Object.hashAll([
-    runtimeType,
-    name,
-    path,
-    lastOpened,
-    description,
-    fvmVersion,
-    hasAndroid,
-    hasIos,
-    hasWindows,
-    hasMacos,
-    pathExists,
-    const DeepCollectionEquality().hash(androidFlavors),
-    const DeepCollectionEquality().hash(androidBuildTypes),
-    bugly,
-    const DeepCollectionEquality().hash(selectedFlavors),
-    lastBuildMode,
-    lastBuildTarget,
-    cleanBeforeBuild,
-    androidTargetPlatform,
-    useCustomCommands,
-    customCommandCode
-  ]);
+@override
+int get hashCode => Object.hashAll([runtimeType,name,alias,path,lastOpened,description,fvmVersion,hasAndroid,hasIos,hasWindows,hasMacos,pathExists,const DeepCollectionEquality().hash(androidFlavors),const DeepCollectionEquality().hash(androidBuildTypes),bugly,const DeepCollectionEquality().hash(selectedFlavors),lastBuildMode,lastBuildTarget,cleanBeforeBuild,androidTargetPlatform,useCustomCommands,customCommandCode]);
 
-  @override
-  String toString() {
-    return 'FlutterProject(name: $name, path: $path, lastOpened: $lastOpened, description: $description, fvmVersion: $fvmVersion, hasAndroid: $hasAndroid, hasIos: $hasIos, hasWindows: $hasWindows, hasMacos: $hasMacos, pathExists: $pathExists, androidFlavors: $androidFlavors, androidBuildTypes: $androidBuildTypes, bugly: $bugly, selectedFlavors: $selectedFlavors, lastBuildMode: $lastBuildMode, lastBuildTarget: $lastBuildTarget, cleanBeforeBuild: $cleanBeforeBuild, androidTargetPlatform: $androidTargetPlatform, useCustomCommands: $useCustomCommands, customCommandCode: $customCommandCode)';
-  }
+@override
+String toString() {
+  return 'FlutterProject(name: $name, alias: $alias, path: $path, lastOpened: $lastOpened, description: $description, fvmVersion: $fvmVersion, hasAndroid: $hasAndroid, hasIos: $hasIos, hasWindows: $hasWindows, hasMacos: $hasMacos, pathExists: $pathExists, androidFlavors: $androidFlavors, androidBuildTypes: $androidBuildTypes, bugly: $bugly, selectedFlavors: $selectedFlavors, lastBuildMode: $lastBuildMode, lastBuildTarget: $lastBuildTarget, cleanBeforeBuild: $cleanBeforeBuild, androidTargetPlatform: $androidTargetPlatform, useCustomCommands: $useCustomCommands, customCommandCode: $customCommandCode)';
+}
 
 
 }
 
 /// @nodoc
-abstract mixin class $FlutterProjectCopyWith<$Res> {
-  factory $FlutterProjectCopyWith(FlutterProject value,
-      $Res Function(FlutterProject) _then) = _$FlutterProjectCopyWithImpl;
-
-  @useResult
-  $Res call({
-    String name, String path, DateTime lastOpened, String? description, String? fvmVersion, bool hasAndroid, bool hasIos, bool hasWindows, bool hasMacos, bool pathExists, List<
-        String> androidFlavors, List<
-        String> androidBuildTypes, BuglyUploadConfig bugly, List<
-        String> selectedFlavors, ProjectBuildMode lastBuildMode, ProjectBuildTarget lastBuildTarget, bool cleanBeforeBuild, String androidTargetPlatform, bool useCustomCommands, String customCommandCode
-  });
+abstract mixin class $FlutterProjectCopyWith<$Res>  {
+  factory $FlutterProjectCopyWith(FlutterProject value, $Res Function(FlutterProject) _then) = _$FlutterProjectCopyWithImpl;
+@useResult
+$Res call({
+ String name, String alias, String path, DateTime lastOpened, String? description, String? fvmVersion, bool hasAndroid, bool hasIos, bool hasWindows, bool hasMacos, bool pathExists, List<String> androidFlavors, List<String> androidBuildTypes, BuglyUploadConfig bugly, List<String> selectedFlavors, ProjectBuildMode lastBuildMode, ProjectBuildTarget lastBuildTarget, bool cleanBeforeBuild, String androidTargetPlatform, bool useCustomCommands, String customCommandCode
+});
 
 
-  $BuglyUploadConfigCopyWith<$Res> get bugly;
+$BuglyUploadConfigCopyWith<$Res> get bugly;
 
 }
-
 /// @nodoc
 class _$FlutterProjectCopyWithImpl<$Res>
     implements $FlutterProjectCopyWith<$Res> {
@@ -573,249 +335,174 @@ class _$FlutterProjectCopyWithImpl<$Res>
   final FlutterProject _self;
   final $Res Function(FlutterProject) _then;
 
-  /// Create a copy of FlutterProject
-  /// with the given fields replaced by the non-null parameter values.
-  @pragma('vm:prefer-inline')
-  @override
-  $Res call(
-      {Object? name = null, Object? path = null, Object? lastOpened = null, Object? description = freezed, Object? fvmVersion = freezed, Object? hasAndroid = null, Object? hasIos = null, Object? hasWindows = null, Object? hasMacos = null, Object? pathExists = null, Object? androidFlavors = null, Object? androidBuildTypes = null, Object? bugly = null, Object? selectedFlavors = null, Object? lastBuildMode = null, Object? lastBuildTarget = null, Object? cleanBeforeBuild = null, Object? androidTargetPlatform = null, Object? useCustomCommands = null, Object? customCommandCode = null,}) {
-    return _then(_self.copyWith(
-      name: null == name
-          ? _self.name
-          : name // ignore: cast_nullable_to_non_nullable
-      as String,
-      path: null == path
-          ? _self.path
-          : path // ignore: cast_nullable_to_non_nullable
-      as String,
-      lastOpened: null == lastOpened
-          ? _self.lastOpened
-          : lastOpened // ignore: cast_nullable_to_non_nullable
-      as DateTime,
-      description: freezed == description
-          ? _self.description
-          : description // ignore: cast_nullable_to_non_nullable
-      as String?,
-      fvmVersion: freezed == fvmVersion
-          ? _self.fvmVersion
-          : fvmVersion // ignore: cast_nullable_to_non_nullable
-      as String?,
-      hasAndroid: null == hasAndroid
-          ? _self.hasAndroid
-          : hasAndroid // ignore: cast_nullable_to_non_nullable
-      as bool,
-      hasIos: null == hasIos
-          ? _self.hasIos
-          : hasIos // ignore: cast_nullable_to_non_nullable
-      as bool,
-      hasWindows: null == hasWindows
-          ? _self.hasWindows
-          : hasWindows // ignore: cast_nullable_to_non_nullable
-      as bool,
-      hasMacos: null == hasMacos
-          ? _self.hasMacos
-          : hasMacos // ignore: cast_nullable_to_non_nullable
-      as bool,
-      pathExists: null == pathExists
-          ? _self.pathExists
-          : pathExists // ignore: cast_nullable_to_non_nullable
-      as bool,
-      androidFlavors: null == androidFlavors
-          ? _self.androidFlavors
-          : androidFlavors // ignore: cast_nullable_to_non_nullable
-      as List<String>,
-      androidBuildTypes: null == androidBuildTypes
-          ? _self.androidBuildTypes
-          : androidBuildTypes // ignore: cast_nullable_to_non_nullable
-      as List<String>,
-      bugly: null == bugly
-          ? _self.bugly
-          : bugly // ignore: cast_nullable_to_non_nullable
-      as BuglyUploadConfig,
-      selectedFlavors: null == selectedFlavors
-          ? _self.selectedFlavors
-          : selectedFlavors // ignore: cast_nullable_to_non_nullable
-      as List<String>,
-      lastBuildMode: null == lastBuildMode
-          ? _self.lastBuildMode
-          : lastBuildMode // ignore: cast_nullable_to_non_nullable
-      as ProjectBuildMode,
-      lastBuildTarget: null == lastBuildTarget
-          ? _self.lastBuildTarget
-          : lastBuildTarget // ignore: cast_nullable_to_non_nullable
-      as ProjectBuildTarget,
-      cleanBeforeBuild: null == cleanBeforeBuild
-          ? _self.cleanBeforeBuild
-          : cleanBeforeBuild // ignore: cast_nullable_to_non_nullable
-      as bool,
-      androidTargetPlatform: null == androidTargetPlatform
-          ? _self.androidTargetPlatform
-          : androidTargetPlatform // ignore: cast_nullable_to_non_nullable
-      as String,
-      useCustomCommands: null == useCustomCommands
-          ? _self.useCustomCommands
-          : useCustomCommands // ignore: cast_nullable_to_non_nullable
-      as bool,
-      customCommandCode: null == customCommandCode
-          ? _self.customCommandCode
-          : customCommandCode // ignore: cast_nullable_to_non_nullable
-      as String,
-    ));
-  }
+/// Create a copy of FlutterProject
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? name = null,Object? alias = null,Object? path = null,Object? lastOpened = null,Object? description = freezed,Object? fvmVersion = freezed,Object? hasAndroid = null,Object? hasIos = null,Object? hasWindows = null,Object? hasMacos = null,Object? pathExists = null,Object? androidFlavors = null,Object? androidBuildTypes = null,Object? bugly = null,Object? selectedFlavors = null,Object? lastBuildMode = null,Object? lastBuildTarget = null,Object? cleanBeforeBuild = null,Object? androidTargetPlatform = null,Object? useCustomCommands = null,Object? customCommandCode = null,}) {
+  return _then(_self.copyWith(
+name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
+as String,alias: null == alias ? _self.alias : alias // ignore: cast_nullable_to_non_nullable
+as String,path: null == path ? _self.path : path // ignore: cast_nullable_to_non_nullable
+as String,lastOpened: null == lastOpened ? _self.lastOpened : lastOpened // ignore: cast_nullable_to_non_nullable
+as DateTime,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
+as String?,fvmVersion: freezed == fvmVersion ? _self.fvmVersion : fvmVersion // ignore: cast_nullable_to_non_nullable
+as String?,hasAndroid: null == hasAndroid ? _self.hasAndroid : hasAndroid // ignore: cast_nullable_to_non_nullable
+as bool,hasIos: null == hasIos ? _self.hasIos : hasIos // ignore: cast_nullable_to_non_nullable
+as bool,hasWindows: null == hasWindows ? _self.hasWindows : hasWindows // ignore: cast_nullable_to_non_nullable
+as bool,hasMacos: null == hasMacos ? _self.hasMacos : hasMacos // ignore: cast_nullable_to_non_nullable
+as bool,pathExists: null == pathExists ? _self.pathExists : pathExists // ignore: cast_nullable_to_non_nullable
+as bool,androidFlavors: null == androidFlavors ? _self.androidFlavors : androidFlavors // ignore: cast_nullable_to_non_nullable
+as List<String>,androidBuildTypes: null == androidBuildTypes ? _self.androidBuildTypes : androidBuildTypes // ignore: cast_nullable_to_non_nullable
+as List<String>,bugly: null == bugly ? _self.bugly : bugly // ignore: cast_nullable_to_non_nullable
+as BuglyUploadConfig,selectedFlavors: null == selectedFlavors ? _self.selectedFlavors : selectedFlavors // ignore: cast_nullable_to_non_nullable
+as List<String>,lastBuildMode: null == lastBuildMode ? _self.lastBuildMode : lastBuildMode // ignore: cast_nullable_to_non_nullable
+as ProjectBuildMode,lastBuildTarget: null == lastBuildTarget ? _self.lastBuildTarget : lastBuildTarget // ignore: cast_nullable_to_non_nullable
+as ProjectBuildTarget,cleanBeforeBuild: null == cleanBeforeBuild ? _self.cleanBeforeBuild : cleanBeforeBuild // ignore: cast_nullable_to_non_nullable
+as bool,androidTargetPlatform: null == androidTargetPlatform ? _self.androidTargetPlatform : androidTargetPlatform // ignore: cast_nullable_to_non_nullable
+as String,useCustomCommands: null == useCustomCommands ? _self.useCustomCommands : useCustomCommands // ignore: cast_nullable_to_non_nullable
+as bool,customCommandCode: null == customCommandCode ? _self.customCommandCode : customCommandCode // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+/// Create a copy of FlutterProject
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$BuglyUploadConfigCopyWith<$Res> get bugly {
 
-  /// Create a copy of FlutterProject
-  /// with the given fields replaced by the non-null parameter values.
-  @override
-  @pragma('vm:prefer-inline')
-  $BuglyUploadConfigCopyWith<$Res> get bugly {
-    return $BuglyUploadConfigCopyWith<$Res>(_self.bugly, (value) {
-      return _then(_self.copyWith(bugly: value));
-    });
-  }
+  return $BuglyUploadConfigCopyWith<$Res>(_self.bugly, (value) {
+    return _then(_self.copyWith(bugly: value));
+  });
+}
 }
 
 
 /// Adds pattern-matching-related methods to [FlutterProject].
 extension FlutterProjectPatterns on FlutterProject {
-  /// A variant of `map` that fallback to returning `orElse`.
-  ///
-  /// It is equivalent to doing:
-  /// ```dart
-  /// switch (sealedClass) {
-  ///   case final Subclass value:
-  ///     return ...;
-  ///   case _:
-  ///     return orElse();
-  /// }
-  /// ```
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
 
-  @optionalTypeArgs TResult maybeMap
-
-  <
-
-  TResult
-
-  extends
-
-  Object?
-
-  >
-
-  (
-
-  TResult Function( _FlutterProject value)? $default,{required TResult orElse(),}){
-  final _that = this;
-  switch (_that) {
-  case _FlutterProject() when $default != null:
-  return $default(_that);case _:
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _FlutterProject value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _FlutterProject() when $default != null:
+return $default(_that);case _:
   return orElse();
 
-  }
-  }
-  /// A `switch`-like method, using callbacks.
-  ///
-  /// Callbacks receives the raw object, upcasted.
-  /// It is equivalent to doing:
-  /// ```dart
-  /// switch (sealedClass) {
-  ///   case final Subclass value:
-  ///     return ...;
-  ///   case final Subclass2 value:
-  ///     return ...;
-  /// }
-  /// ```
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
 
-  @optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _FlutterProject value) $default,){
-  final _that = this;
-  switch (_that) {
-  case _FlutterProject():
-  return $default(_that);case _:
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _FlutterProject value)  $default,){
+final _that = this;
+switch (_that) {
+case _FlutterProject():
+return $default(_that);case _:
   throw StateError('Unexpected subclass');
 
-  }
-  }
-  /// A variant of `map` that fallback to returning `null`.
-  ///
-  /// It is equivalent to doing:
-  /// ```dart
-  /// switch (sealedClass) {
-  ///   case final Subclass value:
-  ///     return ...;
-  ///   case _:
-  ///     return null;
-  /// }
-  /// ```
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
 
-  @optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _FlutterProject value)? $default,){
-  final _that = this;
-  switch (_that) {
-  case _FlutterProject() when $default != null:
-  return $default(_that);case _:
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _FlutterProject value)?  $default,){
+final _that = this;
+switch (_that) {
+case _FlutterProject() when $default != null:
+return $default(_that);case _:
   return null;
 
-  }
-  }
-  /// A variant of `when` that fallback to an `orElse` callback.
-  ///
-  /// It is equivalent to doing:
-  /// ```dart
-  /// switch (sealedClass) {
-  ///   case Subclass(:final field):
-  ///     return ...;
-  ///   case _:
-  ///     return orElse();
-  /// }
-  /// ```
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
 
-  @optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String name, String path, DateTime lastOpened, String? description, String? fvmVersion, bool hasAndroid, bool hasIos, bool hasWindows, bool hasMacos, bool pathExists, List<String> androidFlavors, List<String> androidBuildTypes, BuglyUploadConfig bugly, List<String> selectedFlavors, ProjectBuildMode lastBuildMode, ProjectBuildTarget lastBuildTarget, bool cleanBeforeBuild, String androidTargetPlatform, bool useCustomCommands, String customCommandCode)? $default,{required TResult orElse(),}) {final _that = this;
-  switch (_that) {
-  case _FlutterProject() when $default != null:
-  return $default(_that.name,_that.path,_that.lastOpened,_that.description,_that.fvmVersion,_that.hasAndroid,_that.hasIos,_that.hasWindows,_that.hasMacos,_that.pathExists,_that.androidFlavors,_that.androidBuildTypes,_that.bugly,_that.selectedFlavors,_that.lastBuildMode,_that.lastBuildTarget,_that.cleanBeforeBuild,_that.androidTargetPlatform,_that.useCustomCommands,_that.customCommandCode);case _:
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String name,  String alias,  String path,  DateTime lastOpened,  String? description,  String? fvmVersion,  bool hasAndroid,  bool hasIos,  bool hasWindows,  bool hasMacos,  bool pathExists,  List<String> androidFlavors,  List<String> androidBuildTypes,  BuglyUploadConfig bugly,  List<String> selectedFlavors,  ProjectBuildMode lastBuildMode,  ProjectBuildTarget lastBuildTarget,  bool cleanBeforeBuild,  String androidTargetPlatform,  bool useCustomCommands,  String customCommandCode)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _FlutterProject() when $default != null:
+return $default(_that.name,_that.alias,_that.path,_that.lastOpened,_that.description,_that.fvmVersion,_that.hasAndroid,_that.hasIos,_that.hasWindows,_that.hasMacos,_that.pathExists,_that.androidFlavors,_that.androidBuildTypes,_that.bugly,_that.selectedFlavors,_that.lastBuildMode,_that.lastBuildTarget,_that.cleanBeforeBuild,_that.androidTargetPlatform,_that.useCustomCommands,_that.customCommandCode);case _:
   return orElse();
 
-  }
-  }
-  /// A `switch`-like method, using callbacks.
-  ///
-  /// As opposed to `map`, this offers destructuring.
-  /// It is equivalent to doing:
-  /// ```dart
-  /// switch (sealedClass) {
-  ///   case Subclass(:final field):
-  ///     return ...;
-  ///   case Subclass2(:final field2):
-  ///     return ...;
-  /// }
-  /// ```
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
 
-  @optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String name, String path, DateTime lastOpened, String? description, String? fvmVersion, bool hasAndroid, bool hasIos, bool hasWindows, bool hasMacos, bool pathExists, List<String> androidFlavors, List<String> androidBuildTypes, BuglyUploadConfig bugly, List<String> selectedFlavors, ProjectBuildMode lastBuildMode, ProjectBuildTarget lastBuildTarget, bool cleanBeforeBuild, String androidTargetPlatform, bool useCustomCommands, String customCommandCode) $default,) {final _that = this;
-  switch (_that) {
-  case _FlutterProject():
-  return $default(_that.name,_that.path,_that.lastOpened,_that.description,_that.fvmVersion,_that.hasAndroid,_that.hasIos,_that.hasWindows,_that.hasMacos,_that.pathExists,_that.androidFlavors,_that.androidBuildTypes,_that.bugly,_that.selectedFlavors,_that.lastBuildMode,_that.lastBuildTarget,_that.cleanBeforeBuild,_that.androidTargetPlatform,_that.useCustomCommands,_that.customCommandCode);case _:
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String name,  String alias,  String path,  DateTime lastOpened,  String? description,  String? fvmVersion,  bool hasAndroid,  bool hasIos,  bool hasWindows,  bool hasMacos,  bool pathExists,  List<String> androidFlavors,  List<String> androidBuildTypes,  BuglyUploadConfig bugly,  List<String> selectedFlavors,  ProjectBuildMode lastBuildMode,  ProjectBuildTarget lastBuildTarget,  bool cleanBeforeBuild,  String androidTargetPlatform,  bool useCustomCommands,  String customCommandCode)  $default,) {final _that = this;
+switch (_that) {
+case _FlutterProject():
+return $default(_that.name,_that.alias,_that.path,_that.lastOpened,_that.description,_that.fvmVersion,_that.hasAndroid,_that.hasIos,_that.hasWindows,_that.hasMacos,_that.pathExists,_that.androidFlavors,_that.androidBuildTypes,_that.bugly,_that.selectedFlavors,_that.lastBuildMode,_that.lastBuildTarget,_that.cleanBeforeBuild,_that.androidTargetPlatform,_that.useCustomCommands,_that.customCommandCode);case _:
   throw StateError('Unexpected subclass');
 
-  }
-  }
-  /// A variant of `when` that fallback to returning `null`
-  ///
-  /// It is equivalent to doing:
-  /// ```dart
-  /// switch (sealedClass) {
-  ///   case Subclass(:final field):
-  ///     return ...;
-  ///   case _:
-  ///     return null;
-  /// }
-  /// ```
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
 
-  @optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String name, String path, DateTime lastOpened, String? description, String? fvmVersion, bool hasAndroid, bool hasIos, bool hasWindows, bool hasMacos, bool pathExists, List<String> androidFlavors, List<String> androidBuildTypes, BuglyUploadConfig bugly, List<String> selectedFlavors, ProjectBuildMode lastBuildMode, ProjectBuildTarget lastBuildTarget, bool cleanBeforeBuild, String androidTargetPlatform, bool useCustomCommands, String customCommandCode)? $default,) {final _that = this;
-  switch (_that) {
-  case _FlutterProject() when $default != null:
-  return $default(_that.name,_that.path,_that.lastOpened,_that.description,_that.fvmVersion,_that.hasAndroid,_that.hasIos,_that.hasWindows,_that.hasMacos,_that.pathExists,_that.androidFlavors,_that.androidBuildTypes,_that.bugly,_that.selectedFlavors,_that.lastBuildMode,_that.lastBuildTarget,_that.cleanBeforeBuild,_that.androidTargetPlatform,_that.useCustomCommands,_that.customCommandCode);case _:
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String name,  String alias,  String path,  DateTime lastOpened,  String? description,  String? fvmVersion,  bool hasAndroid,  bool hasIos,  bool hasWindows,  bool hasMacos,  bool pathExists,  List<String> androidFlavors,  List<String> androidBuildTypes,  BuglyUploadConfig bugly,  List<String> selectedFlavors,  ProjectBuildMode lastBuildMode,  ProjectBuildTarget lastBuildTarget,  bool cleanBeforeBuild,  String androidTargetPlatform,  bool useCustomCommands,  String customCommandCode)?  $default,) {final _that = this;
+switch (_that) {
+case _FlutterProject() when $default != null:
+return $default(_that.name,_that.alias,_that.path,_that.lastOpened,_that.description,_that.fvmVersion,_that.hasAndroid,_that.hasIos,_that.hasWindows,_that.hasMacos,_that.pathExists,_that.androidFlavors,_that.androidBuildTypes,_that.bugly,_that.selectedFlavors,_that.lastBuildMode,_that.lastBuildTarget,_that.cleanBeforeBuild,_that.androidTargetPlatform,_that.useCustomCommands,_that.customCommandCode);case _:
   return null;
 
-  }
-  }
+}
+}
 
 }
 
@@ -823,200 +510,86 @@ extension FlutterProjectPatterns on FlutterProject {
 
 
 class _FlutterProject extends FlutterProject {
-  const _FlutterProject(
-      {required this.name, required this.path, required this.lastOpened, this.description, this.fvmVersion, this.hasAndroid = false, this.hasIos = false, this.hasWindows = false, this.hasMacos = false, this.pathExists = true, final List<
-          String> androidFlavors = const <String>[], final List<
-          String> androidBuildTypes = const <String>[
-      ], this.bugly = const BuglyUploadConfig(), final List<
-          String> selectedFlavors = const <String>[
-      ], this.lastBuildMode = ProjectBuildMode
-          .release, this.lastBuildTarget = ProjectBuildTarget
-          .apk, this.cleanBeforeBuild = false, this.androidTargetPlatform = 'android-arm64', this.useCustomCommands = false, this.customCommandCode = ''})
-      : _androidFlavors = androidFlavors,
-        _androidBuildTypes = androidBuildTypes,
-        _selectedFlavors = selectedFlavors,
-        super._();
+  const _FlutterProject({required this.name, this.alias = '', required this.path, required this.lastOpened, this.description, this.fvmVersion, this.hasAndroid = false, this.hasIos = false, this.hasWindows = false, this.hasMacos = false, this.pathExists = true, final  List<String> androidFlavors = const <String>[], final  List<String> androidBuildTypes = const <String>[], this.bugly = const BuglyUploadConfig(), final  List<String> selectedFlavors = const <String>[], this.lastBuildMode = ProjectBuildMode.release, this.lastBuildTarget = ProjectBuildTarget.apk, this.cleanBeforeBuild = false, this.androidTargetPlatform = 'android-arm64', this.useCustomCommands = false, this.customCommandCode = ''}): _androidFlavors = androidFlavors,_androidBuildTypes = androidBuildTypes,_selectedFlavors = selectedFlavors,super._();
 
 
-  @override final String name;
-  @override final String path;
-  @override final DateTime lastOpened;
-  @override final String? description;
-  @override final String? fvmVersion;
-  @override
-  @JsonKey()
-  final bool hasAndroid;
-  @override
-  @JsonKey()
-  final bool hasIos;
-  @override
-  @JsonKey()
-  final bool hasWindows;
-  @override
-  @JsonKey()
-  final bool hasMacos;
-  @override
-  @JsonKey()
-  final bool pathExists;
-  final List<String> _androidFlavors;
+@override final  String name;
+@override@JsonKey() final  String alias;
+@override final  String path;
+@override final  DateTime lastOpened;
+@override final  String? description;
+@override final  String? fvmVersion;
+@override@JsonKey() final  bool hasAndroid;
+@override@JsonKey() final  bool hasIos;
+@override@JsonKey() final  bool hasWindows;
+@override@JsonKey() final  bool hasMacos;
+@override@JsonKey() final  bool pathExists;
+ final  List<String> _androidFlavors;
+@override@JsonKey() List<String> get androidFlavors {
+  if (_androidFlavors is EqualUnmodifiableListView) return _androidFlavors;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_androidFlavors);
+}
 
-  @override
-  @JsonKey()
-  List<String> get androidFlavors {
-    if (_androidFlavors is EqualUnmodifiableListView) return _androidFlavors;
-    // ignore: implicit_dynamic_type
-    return EqualUnmodifiableListView(_androidFlavors);
-  }
+ final  List<String> _androidBuildTypes;
+@override@JsonKey() List<String> get androidBuildTypes {
+  if (_androidBuildTypes is EqualUnmodifiableListView) return _androidBuildTypes;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_androidBuildTypes);
+}
 
-  final List<String> _androidBuildTypes;
+@override@JsonKey() final  BuglyUploadConfig bugly;
+ final  List<String> _selectedFlavors;
+@override@JsonKey() List<String> get selectedFlavors {
+  if (_selectedFlavors is EqualUnmodifiableListView) return _selectedFlavors;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_selectedFlavors);
+}
 
-  @override
-  @JsonKey()
-  List<String> get androidBuildTypes {
-    if (_androidBuildTypes is EqualUnmodifiableListView)
-      return _androidBuildTypes;
-    // ignore: implicit_dynamic_type
-    return EqualUnmodifiableListView(_androidBuildTypes);
-  }
+@override@JsonKey() final  ProjectBuildMode lastBuildMode;
+@override@JsonKey() final  ProjectBuildTarget lastBuildTarget;
+@override@JsonKey() final  bool cleanBeforeBuild;
+@override@JsonKey() final  String androidTargetPlatform;
+@override@JsonKey() final  bool useCustomCommands;
+@override@JsonKey() final  String customCommandCode;
 
-  @override
-  @JsonKey()
-  final BuglyUploadConfig bugly;
-  final List<String> _selectedFlavors;
-
-  @override
-  @JsonKey()
-  List<String> get selectedFlavors {
-    if (_selectedFlavors is EqualUnmodifiableListView) return _selectedFlavors;
-    // ignore: implicit_dynamic_type
-    return EqualUnmodifiableListView(_selectedFlavors);
-  }
-
-  @override
-  @JsonKey()
-  final ProjectBuildMode lastBuildMode;
-  @override
-  @JsonKey()
-  final ProjectBuildTarget lastBuildTarget;
-  @override
-  @JsonKey()
-  final bool cleanBeforeBuild;
-  @override
-  @JsonKey()
-  final String androidTargetPlatform;
-  @override
-  @JsonKey()
-  final bool useCustomCommands;
-  @override
-  @JsonKey()
-  final String customCommandCode;
-
-  /// Create a copy of FlutterProject
-  /// with the given fields replaced by the non-null parameter values.
-  @override
-  @JsonKey(includeFromJson: false, includeToJson: false)
-  @pragma('vm:prefer-inline')
-  _$FlutterProjectCopyWith<_FlutterProject> get copyWith =>
-      __$FlutterProjectCopyWithImpl<_FlutterProject>(this, _$identity);
+/// Create a copy of FlutterProject
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$FlutterProjectCopyWith<_FlutterProject> get copyWith => __$FlutterProjectCopyWithImpl<_FlutterProject>(this, _$identity);
 
 
-  @override
-  bool operator ==(Object other) {
-    return identical(this, other) ||
-        (other.runtimeType == runtimeType && other is _FlutterProject &&
-            (identical(other.name, name) || other.name == name) &&
-            (identical(other.path, path) || other.path == path) &&
-            (identical(other.lastOpened, lastOpened) ||
-                other.lastOpened == lastOpened) &&
-            (identical(other.description, description) ||
-                other.description == description) &&
-            (identical(other.fvmVersion, fvmVersion) ||
-                other.fvmVersion == fvmVersion) &&
-            (identical(other.hasAndroid, hasAndroid) ||
-                other.hasAndroid == hasAndroid) &&
-            (identical(other.hasIos, hasIos) || other.hasIos == hasIos) &&
-            (identical(other.hasWindows, hasWindows) ||
-                other.hasWindows == hasWindows) &&
-            (identical(other.hasMacos, hasMacos) ||
-                other.hasMacos == hasMacos) &&
-            (identical(other.pathExists, pathExists) ||
-                other.pathExists == pathExists) &&
-            const DeepCollectionEquality().equals(
-                other._androidFlavors, _androidFlavors) &&
-            const DeepCollectionEquality().equals(
-                other._androidBuildTypes, _androidBuildTypes) &&
-            (identical(other.bugly, bugly) || other.bugly == bugly) &&
-            const DeepCollectionEquality().equals(
-                other._selectedFlavors, _selectedFlavors) &&
-            (identical(other.lastBuildMode, lastBuildMode) ||
-                other.lastBuildMode == lastBuildMode) &&
-            (identical(other.lastBuildTarget, lastBuildTarget) ||
-                other.lastBuildTarget == lastBuildTarget) &&
-            (identical(other.cleanBeforeBuild, cleanBeforeBuild) ||
-                other.cleanBeforeBuild == cleanBeforeBuild) &&
-            (identical(other.androidTargetPlatform, androidTargetPlatform) ||
-                other.androidTargetPlatform == androidTargetPlatform) &&
-            (identical(other.useCustomCommands, useCustomCommands) ||
-                other.useCustomCommands == useCustomCommands) &&
-            (identical(other.customCommandCode, customCommandCode) ||
-                other.customCommandCode == customCommandCode));
-  }
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _FlutterProject&&(identical(other.name, name) || other.name == name)&&(identical(other.alias, alias) || other.alias == alias)&&(identical(other.path, path) || other.path == path)&&(identical(other.lastOpened, lastOpened) || other.lastOpened == lastOpened)&&(identical(other.description, description) || other.description == description)&&(identical(other.fvmVersion, fvmVersion) || other.fvmVersion == fvmVersion)&&(identical(other.hasAndroid, hasAndroid) || other.hasAndroid == hasAndroid)&&(identical(other.hasIos, hasIos) || other.hasIos == hasIos)&&(identical(other.hasWindows, hasWindows) || other.hasWindows == hasWindows)&&(identical(other.hasMacos, hasMacos) || other.hasMacos == hasMacos)&&(identical(other.pathExists, pathExists) || other.pathExists == pathExists)&&const DeepCollectionEquality().equals(other._androidFlavors, _androidFlavors)&&const DeepCollectionEquality().equals(other._androidBuildTypes, _androidBuildTypes)&&(identical(other.bugly, bugly) || other.bugly == bugly)&&const DeepCollectionEquality().equals(other._selectedFlavors, _selectedFlavors)&&(identical(other.lastBuildMode, lastBuildMode) || other.lastBuildMode == lastBuildMode)&&(identical(other.lastBuildTarget, lastBuildTarget) || other.lastBuildTarget == lastBuildTarget)&&(identical(other.cleanBeforeBuild, cleanBeforeBuild) || other.cleanBeforeBuild == cleanBeforeBuild)&&(identical(other.androidTargetPlatform, androidTargetPlatform) || other.androidTargetPlatform == androidTargetPlatform)&&(identical(other.useCustomCommands, useCustomCommands) || other.useCustomCommands == useCustomCommands)&&(identical(other.customCommandCode, customCommandCode) || other.customCommandCode == customCommandCode));
+}
 
 
-  @override
-  int get hashCode =>
-      Object.hashAll([
-    runtimeType,
-    name,
-    path,
-    lastOpened,
-    description,
-    fvmVersion,
-    hasAndroid,
-    hasIos,
-    hasWindows,
-    hasMacos,
-    pathExists,
-    const DeepCollectionEquality().hash(_androidFlavors),
-    const DeepCollectionEquality().hash(_androidBuildTypes),
-    bugly,
-    const DeepCollectionEquality().hash(_selectedFlavors),
-    lastBuildMode,
-    lastBuildTarget,
-    cleanBeforeBuild,
-    androidTargetPlatform,
-    useCustomCommands,
-    customCommandCode
-  ]);
+@override
+int get hashCode => Object.hashAll([runtimeType,name,alias,path,lastOpened,description,fvmVersion,hasAndroid,hasIos,hasWindows,hasMacos,pathExists,const DeepCollectionEquality().hash(_androidFlavors),const DeepCollectionEquality().hash(_androidBuildTypes),bugly,const DeepCollectionEquality().hash(_selectedFlavors),lastBuildMode,lastBuildTarget,cleanBeforeBuild,androidTargetPlatform,useCustomCommands,customCommandCode]);
 
-  @override
-  String toString() {
-    return 'FlutterProject(name: $name, path: $path, lastOpened: $lastOpened, description: $description, fvmVersion: $fvmVersion, hasAndroid: $hasAndroid, hasIos: $hasIos, hasWindows: $hasWindows, hasMacos: $hasMacos, pathExists: $pathExists, androidFlavors: $androidFlavors, androidBuildTypes: $androidBuildTypes, bugly: $bugly, selectedFlavors: $selectedFlavors, lastBuildMode: $lastBuildMode, lastBuildTarget: $lastBuildTarget, cleanBeforeBuild: $cleanBeforeBuild, androidTargetPlatform: $androidTargetPlatform, useCustomCommands: $useCustomCommands, customCommandCode: $customCommandCode)';
-  }
+@override
+String toString() {
+  return 'FlutterProject(name: $name, alias: $alias, path: $path, lastOpened: $lastOpened, description: $description, fvmVersion: $fvmVersion, hasAndroid: $hasAndroid, hasIos: $hasIos, hasWindows: $hasWindows, hasMacos: $hasMacos, pathExists: $pathExists, androidFlavors: $androidFlavors, androidBuildTypes: $androidBuildTypes, bugly: $bugly, selectedFlavors: $selectedFlavors, lastBuildMode: $lastBuildMode, lastBuildTarget: $lastBuildTarget, cleanBeforeBuild: $cleanBeforeBuild, androidTargetPlatform: $androidTargetPlatform, useCustomCommands: $useCustomCommands, customCommandCode: $customCommandCode)';
+}
 
 
 }
 
 /// @nodoc
-abstract mixin class _$FlutterProjectCopyWith<$Res>
-    implements $FlutterProjectCopyWith<$Res> {
-  factory _$FlutterProjectCopyWith(_FlutterProject value,
-      $Res Function(_FlutterProject) _then) = __$FlutterProjectCopyWithImpl;
-
-  @override
-  @useResult
-  $Res call({
-    String name, String path, DateTime lastOpened, String? description, String? fvmVersion, bool hasAndroid, bool hasIos, bool hasWindows, bool hasMacos, bool pathExists, List<
-        String> androidFlavors, List<
-        String> androidBuildTypes, BuglyUploadConfig bugly, List<
-        String> selectedFlavors, ProjectBuildMode lastBuildMode, ProjectBuildTarget lastBuildTarget, bool cleanBeforeBuild, String androidTargetPlatform, bool useCustomCommands, String customCommandCode
-  });
+abstract mixin class _$FlutterProjectCopyWith<$Res> implements $FlutterProjectCopyWith<$Res> {
+  factory _$FlutterProjectCopyWith(_FlutterProject value, $Res Function(_FlutterProject) _then) = __$FlutterProjectCopyWithImpl;
+@override @useResult
+$Res call({
+ String name, String alias, String path, DateTime lastOpened, String? description, String? fvmVersion, bool hasAndroid, bool hasIos, bool hasWindows, bool hasMacos, bool pathExists, List<String> androidFlavors, List<String> androidBuildTypes, BuglyUploadConfig bugly, List<String> selectedFlavors, ProjectBuildMode lastBuildMode, ProjectBuildTarget lastBuildTarget, bool cleanBeforeBuild, String androidTargetPlatform, bool useCustomCommands, String customCommandCode
+});
 
 
-  @override $BuglyUploadConfigCopyWith<$Res> get bugly;
+@override $BuglyUploadConfigCopyWith<$Res> get bugly;
 
 }
-
 /// @nodoc
 class __$FlutterProjectCopyWithImpl<$Res>
     implements _$FlutterProjectCopyWith<$Res> {
@@ -1025,105 +598,45 @@ class __$FlutterProjectCopyWithImpl<$Res>
   final _FlutterProject _self;
   final $Res Function(_FlutterProject) _then;
 
-  /// Create a copy of FlutterProject
-  /// with the given fields replaced by the non-null parameter values.
-  @override
-  @pragma('vm:prefer-inline')
-  $Res call(
-      {Object? name = null, Object? path = null, Object? lastOpened = null, Object? description = freezed, Object? fvmVersion = freezed, Object? hasAndroid = null, Object? hasIos = null, Object? hasWindows = null, Object? hasMacos = null, Object? pathExists = null, Object? androidFlavors = null, Object? androidBuildTypes = null, Object? bugly = null, Object? selectedFlavors = null, Object? lastBuildMode = null, Object? lastBuildTarget = null, Object? cleanBeforeBuild = null, Object? androidTargetPlatform = null, Object? useCustomCommands = null, Object? customCommandCode = null,}) {
-    return _then(_FlutterProject(
-      name: null == name
-          ? _self.name
-          : name // ignore: cast_nullable_to_non_nullable
-      as String,
-      path: null == path
-          ? _self.path
-          : path // ignore: cast_nullable_to_non_nullable
-      as String,
-      lastOpened: null == lastOpened
-          ? _self.lastOpened
-          : lastOpened // ignore: cast_nullable_to_non_nullable
-      as DateTime,
-      description: freezed == description
-          ? _self.description
-          : description // ignore: cast_nullable_to_non_nullable
-      as String?,
-      fvmVersion: freezed == fvmVersion
-          ? _self.fvmVersion
-          : fvmVersion // ignore: cast_nullable_to_non_nullable
-      as String?,
-      hasAndroid: null == hasAndroid
-          ? _self.hasAndroid
-          : hasAndroid // ignore: cast_nullable_to_non_nullable
-      as bool,
-      hasIos: null == hasIos
-          ? _self.hasIos
-          : hasIos // ignore: cast_nullable_to_non_nullable
-      as bool,
-      hasWindows: null == hasWindows
-          ? _self.hasWindows
-          : hasWindows // ignore: cast_nullable_to_non_nullable
-      as bool,
-      hasMacos: null == hasMacos
-          ? _self.hasMacos
-          : hasMacos // ignore: cast_nullable_to_non_nullable
-      as bool,
-      pathExists: null == pathExists
-          ? _self.pathExists
-          : pathExists // ignore: cast_nullable_to_non_nullable
-      as bool,
-      androidFlavors: null == androidFlavors
-          ? _self._androidFlavors
-          : androidFlavors // ignore: cast_nullable_to_non_nullable
-      as List<String>,
-      androidBuildTypes: null == androidBuildTypes
-          ? _self._androidBuildTypes
-          : androidBuildTypes // ignore: cast_nullable_to_non_nullable
-      as List<String>,
-      bugly: null == bugly
-          ? _self.bugly
-          : bugly // ignore: cast_nullable_to_non_nullable
-      as BuglyUploadConfig,
-      selectedFlavors: null == selectedFlavors
-          ? _self._selectedFlavors
-          : selectedFlavors // ignore: cast_nullable_to_non_nullable
-      as List<String>,
-      lastBuildMode: null == lastBuildMode
-          ? _self.lastBuildMode
-          : lastBuildMode // ignore: cast_nullable_to_non_nullable
-      as ProjectBuildMode,
-      lastBuildTarget: null == lastBuildTarget
-          ? _self.lastBuildTarget
-          : lastBuildTarget // ignore: cast_nullable_to_non_nullable
-      as ProjectBuildTarget,
-      cleanBeforeBuild: null == cleanBeforeBuild
-          ? _self.cleanBeforeBuild
-          : cleanBeforeBuild // ignore: cast_nullable_to_non_nullable
-      as bool,
-      androidTargetPlatform: null == androidTargetPlatform
-          ? _self.androidTargetPlatform
-          : androidTargetPlatform // ignore: cast_nullable_to_non_nullable
-      as String,
-      useCustomCommands: null == useCustomCommands
-          ? _self.useCustomCommands
-          : useCustomCommands // ignore: cast_nullable_to_non_nullable
-      as bool,
-      customCommandCode: null == customCommandCode
-          ? _self.customCommandCode
-          : customCommandCode // ignore: cast_nullable_to_non_nullable
-      as String,
-    ));
-  }
+/// Create a copy of FlutterProject
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? name = null,Object? alias = null,Object? path = null,Object? lastOpened = null,Object? description = freezed,Object? fvmVersion = freezed,Object? hasAndroid = null,Object? hasIos = null,Object? hasWindows = null,Object? hasMacos = null,Object? pathExists = null,Object? androidFlavors = null,Object? androidBuildTypes = null,Object? bugly = null,Object? selectedFlavors = null,Object? lastBuildMode = null,Object? lastBuildTarget = null,Object? cleanBeforeBuild = null,Object? androidTargetPlatform = null,Object? useCustomCommands = null,Object? customCommandCode = null,}) {
+  return _then(_FlutterProject(
+name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
+as String,alias: null == alias ? _self.alias : alias // ignore: cast_nullable_to_non_nullable
+as String,path: null == path ? _self.path : path // ignore: cast_nullable_to_non_nullable
+as String,lastOpened: null == lastOpened ? _self.lastOpened : lastOpened // ignore: cast_nullable_to_non_nullable
+as DateTime,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
+as String?,fvmVersion: freezed == fvmVersion ? _self.fvmVersion : fvmVersion // ignore: cast_nullable_to_non_nullable
+as String?,hasAndroid: null == hasAndroid ? _self.hasAndroid : hasAndroid // ignore: cast_nullable_to_non_nullable
+as bool,hasIos: null == hasIos ? _self.hasIos : hasIos // ignore: cast_nullable_to_non_nullable
+as bool,hasWindows: null == hasWindows ? _self.hasWindows : hasWindows // ignore: cast_nullable_to_non_nullable
+as bool,hasMacos: null == hasMacos ? _self.hasMacos : hasMacos // ignore: cast_nullable_to_non_nullable
+as bool,pathExists: null == pathExists ? _self.pathExists : pathExists // ignore: cast_nullable_to_non_nullable
+as bool,androidFlavors: null == androidFlavors ? _self._androidFlavors : androidFlavors // ignore: cast_nullable_to_non_nullable
+as List<String>,androidBuildTypes: null == androidBuildTypes ? _self._androidBuildTypes : androidBuildTypes // ignore: cast_nullable_to_non_nullable
+as List<String>,bugly: null == bugly ? _self.bugly : bugly // ignore: cast_nullable_to_non_nullable
+as BuglyUploadConfig,selectedFlavors: null == selectedFlavors ? _self._selectedFlavors : selectedFlavors // ignore: cast_nullable_to_non_nullable
+as List<String>,lastBuildMode: null == lastBuildMode ? _self.lastBuildMode : lastBuildMode // ignore: cast_nullable_to_non_nullable
+as ProjectBuildMode,lastBuildTarget: null == lastBuildTarget ? _self.lastBuildTarget : lastBuildTarget // ignore: cast_nullable_to_non_nullable
+as ProjectBuildTarget,cleanBeforeBuild: null == cleanBeforeBuild ? _self.cleanBeforeBuild : cleanBeforeBuild // ignore: cast_nullable_to_non_nullable
+as bool,androidTargetPlatform: null == androidTargetPlatform ? _self.androidTargetPlatform : androidTargetPlatform // ignore: cast_nullable_to_non_nullable
+as String,useCustomCommands: null == useCustomCommands ? _self.useCustomCommands : useCustomCommands // ignore: cast_nullable_to_non_nullable
+as bool,customCommandCode: null == customCommandCode ? _self.customCommandCode : customCommandCode // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
 
-  /// Create a copy of FlutterProject
-  /// with the given fields replaced by the non-null parameter values.
-  @override
-  @pragma('vm:prefer-inline')
-  $BuglyUploadConfigCopyWith<$Res> get bugly {
-    return $BuglyUploadConfigCopyWith<$Res>(_self.bugly, (value) {
-      return _then(_self.copyWith(bugly: value));
-    });
-  }
+/// Create a copy of FlutterProject
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$BuglyUploadConfigCopyWith<$Res> get bugly {
+
+  return $BuglyUploadConfigCopyWith<$Res>(_self.bugly, (value) {
+    return _then(_self.copyWith(bugly: value));
+  });
+}
 }
 
 // dart format on

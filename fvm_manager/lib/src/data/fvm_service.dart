@@ -27,7 +27,43 @@ class FvmService {
         // Try the next well-known location.
       }
     }
+    _executable = null;
     return null;
+  }
+
+  Future<String> useLocalDirectory(String directoryPath) async {
+    final executableName = Platform.isWindows ? 'fvm.bat' : 'fvm';
+    final separator = Platform.pathSeparator;
+    final candidates = <String>[
+      '$directoryPath$separator$executableName',
+      '$directoryPath${separator}bin$separator$executableName',
+    ];
+    String? failure;
+    for (final candidate in candidates) {
+      if (!await File(candidate).exists()) continue;
+      try {
+        final result = await Process.run(
+          candidate,
+          const ['--version'],
+          environment: _environment.processEnvironment,
+          includeParentEnvironment: false,
+        );
+        if (result.exitCode == 0) {
+          final version = result.stdout.toString().trim();
+          await _environment.setCustomFvmExecutable(candidate);
+          _executable = candidate;
+          return version;
+        }
+        failure = result.stderr.toString().trim();
+      } on ProcessException catch (error) {
+        failure = error.message;
+      }
+    }
+    throw Exception(
+      failure?.isNotEmpty == true
+          ? '所选目录中的 FVM 无法运行：$failure'
+          : '所选目录中未找到 $executableName，请选择包含该文件的目录或其上级目录',
+    );
   }
 
   Future<void> install({required void Function(String) onOutput}) async {
@@ -42,8 +78,12 @@ class FvmService {
     required String operation,
     required void Function(String) onOutput,
   }) async {
+    final dartExecutable = _findExecutable('dart');
+    if (dartExecutable == null) {
+      throw Exception('未检测到 Dart，无法通过 Dart Pub 安装 FVM');
+    }
     final process = await Process.start(
-      'dart',
+      dartExecutable,
       const ['pub', 'global', 'activate', 'fvm'],
       runInShell: Platform.isWindows,
       environment: _environment.processEnvironment,
@@ -162,14 +202,50 @@ class FvmService {
         runInShell: Platform.isWindows,
       );
     }
+    final flutterExecutable = _findExecutable('flutter');
+    if (flutterExecutable == null) {
+      throw Exception('未检测到 Flutter，请先安装 Flutter 或配置 FVM 全局版本');
+    }
     return Process.start(
-      'flutter',
+      flutterExecutable,
       arguments,
       workingDirectory: projectPath,
       environment: _environment.processEnvironment,
       includeParentEnvironment: false,
       runInShell: Platform.isWindows,
     );
+  }
+
+  Future<List<Map<String, String>>> listDevices(String projectPath) async {
+    final process = await startFlutterCommand(
+      projectPath: projectPath,
+      arguments: const ['devices', '--machine'],
+    );
+    final stdoutFuture = process.stdout.transform(utf8.decoder).join();
+    final stderrFuture = process.stderr.transform(utf8.decoder).join();
+    final exitCode = await process.exitCode;
+    final stdout = await stdoutFuture;
+    final stderr = await stderrFuture;
+    if (exitCode != 0) {
+      throw Exception(
+        stderr.trim().isEmpty
+            ? '获取 Flutter 设备失败（退出码 $exitCode）'
+            : stderr.trim(),
+      );
+    }
+    try {
+      final list = jsonDecode(stdout) as List;
+      return list.map((entry) {
+        final device = (entry as Map).cast<String, dynamic>();
+        return {
+          'id': (device['id'] ?? device['name'] ?? '').toString(),
+          'name': (device['name'] ?? '').toString(),
+          'platform': (device['platform'] ?? '').toString(),
+        };
+      }).toList();
+    } on Object {
+      return const [];
+    }
   }
 
   Future<String> _run(
@@ -197,19 +273,19 @@ class FvmService {
   }
 
   Iterable<String> _candidates() sync* {
-    yield 'fvm';
-    final home =
-        Platform.environment[Platform.isWindows ? 'USERPROFILE' : 'HOME'];
-    final pubCache =
-        Platform.environment['PUB_CACHE'] ??
-        (home == null
-            ? null
-            : Platform.isWindows
-            ? '$home\\AppData\\Local\\Pub\\Cache'
-            : '$home/.pub-cache');
-    if (pubCache != null) {
-      yield '$pubCache${Platform.pathSeparator}bin${Platform.pathSeparator}'
-          '${Platform.isWindows ? 'fvm.bat' : 'fvm'}';
+    if (_environment.customFvmExecutable case final custom?) yield custom;
+    final executableName = Platform.isWindows ? 'fvm.bat' : 'fvm';
+    for (final directory in _environment.executableSearchPaths) {
+      yield '$directory${Platform.pathSeparator}$executableName';
     }
+  }
+
+  String? _findExecutable(String name) {
+    final executableName = Platform.isWindows ? '$name.bat' : name;
+    for (final directory in _environment.executableSearchPaths) {
+      final candidate = '$directory${Platform.pathSeparator}$executableName';
+      if (File(candidate).existsSync()) return candidate;
+    }
+    return null;
   }
 }

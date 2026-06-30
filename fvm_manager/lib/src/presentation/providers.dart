@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:dio/dio.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:pub_semver/pub_semver.dart';
 
@@ -157,10 +158,37 @@ class FvmController extends Notifier<FvmState> {
                 state = state.copyWith(statusMessage: message.trim()),
           );
       final version = await ref.read(fvmServiceProvider).detect();
+      if (version == null) throw Exception('FVM 安装完成，但仍无法检测到可执行文件');
       state = state.copyWith(
         fvmInstalled: true,
         fvmVersion: version,
         statusMessage: 'FVM 安装完成',
+      );
+      await refreshInstalled();
+      _syncUpdateState();
+    } catch (error) {
+      state = state.copyWith(errorMessage: _message(error));
+    } finally {
+      state = state.copyWith(loading: false);
+    }
+  }
+
+  Future<void> selectLocalFvmDirectory() async {
+    try {
+      final directory = await getDirectoryPath(confirmButtonText: '使用此目录');
+      if (directory == null) return;
+      state = state.copyWith(
+        loading: true,
+        errorMessage: null,
+        statusMessage: '正在验证本地 FVM…',
+      );
+      final version = await ref
+          .read(fvmServiceProvider)
+          .useLocalDirectory(directory);
+      state = state.copyWith(
+        fvmInstalled: true,
+        fvmVersion: version,
+        statusMessage: '已使用本地 FVM $version',
       );
       await refreshInstalled();
       _syncUpdateState();
@@ -308,6 +336,7 @@ class FvmController extends Notifier<FvmState> {
       final project = previous == null
           ? inspected
           : inspected.copyWith(
+              alias: previous.alias,
               bugly: previous.bugly,
               selectedFlavors: previous.selectedFlavors,
               lastBuildMode: previous.lastBuildMode,
@@ -365,6 +394,7 @@ class FvmController extends Notifier<FvmState> {
       if (path == null) return;
       final inspected = await service.inspectProject(path);
       final relocated = inspected.copyWith(
+        alias: missingProject.alias,
         bugly: missingProject.bugly,
         selectedFlavors: missingProject.selectedFlavors,
         lastBuildMode: missingProject.lastBuildMode,
@@ -764,10 +794,7 @@ class FvmController extends Notifier<FvmState> {
           .read(localProjectServiceProvider)
           .packageMacosDmg(project.path, project.name);
       state = state.copyWith(statusMessage: 'DMG 已生成：$dmgPath');
-      // 打开 dmg 所在目录
-      await ref
-          .read(localProjectServiceProvider)
-          .openBuildOutput(project.path, 'macos');
+      await ref.read(localProjectServiceProvider).revealFile(dmgPath);
     } catch (error) {
       state = state.copyWith(errorMessage: _message(error));
     } finally {
@@ -778,6 +805,10 @@ class FvmController extends Notifier<FvmState> {
   Future<void> openProjectFolder() async {
     final path = state.selectedManagedProjectPath;
     if (path == null) return;
+    await openProjectFolderAt(path);
+  }
+
+  Future<void> openProjectFolderAt(String path) async {
     try {
       await ref.read(localProjectServiceProvider).openProjectFolder(path);
     } catch (error) {
@@ -788,6 +819,10 @@ class FvmController extends Notifier<FvmState> {
   Future<void> openInAndroidStudio() async {
     final path = state.selectedManagedProjectPath;
     if (path == null) return;
+    await openInAndroidStudioAt(path);
+  }
+
+  Future<void> openInAndroidStudioAt(String path) async {
     try {
       await ref.read(localProjectServiceProvider).openInAndroidStudio(path);
     } catch (error) {
@@ -798,6 +833,10 @@ class FvmController extends Notifier<FvmState> {
   Future<void> openInVSCode() async {
     final path = state.selectedManagedProjectPath;
     if (path == null) return;
+    await openInVSCodeAt(path);
+  }
+
+  Future<void> openInVSCodeAt(String path) async {
     try {
       await ref.read(localProjectServiceProvider).openInVSCode(path);
     } catch (error) {
@@ -805,14 +844,30 @@ class FvmController extends Notifier<FvmState> {
     }
   }
 
+  Future<void> renameManagedProject(String path, String alias) async {
+    final project = state.managedProjects
+        .where((item) => item.path == path)
+        .firstOrNull;
+    if (project == null) return;
+    final normalizedAlias = alias.trim();
+    final updated = project.copyWith(alias: normalizedAlias);
+    final projects = await ref
+        .read(projectRepositoryProvider)
+        .upsert(state.managedProjects, updated);
+    state = state.copyWith(
+      managedProjects: projects,
+      statusMessage: normalizedAlias.isEmpty
+          ? '已恢复显示项目原名 ${project.name}'
+          : '项目备注名称已更新为 $normalizedAlias',
+    );
+  }
+
   Future<void> loadDevices() async {
     final path = state.selectedManagedProjectPath;
     if (path == null) return;
     state = state.copyWith(devicesLoading: true);
     try {
-      final devices = await ref
-          .read(localProjectServiceProvider)
-          .listDevices(path);
+      final devices = await ref.read(fvmServiceProvider).listDevices(path);
       state = state.copyWith(devices: devices, devicesLoading: false);
     } catch (error) {
       state = state.copyWith(
