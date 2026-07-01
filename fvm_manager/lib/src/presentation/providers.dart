@@ -291,7 +291,7 @@ class FvmController extends Notifier<FvmState> {
         projectBuildMode: project.lastBuildMode,
         cleanBeforeBuild: project.cleanBeforeBuild,
         androidTargetPlatform: project.androidTargetPlatform,
-        statusMessage: '已添加项目 ${project.name}',
+        statusMessage: '已添加项目 ${project.displayName}',
       );
     } catch (error) {
       state = state.copyWith(errorMessage: _message(error));
@@ -513,6 +513,44 @@ class FvmController extends Notifier<FvmState> {
       );
     } catch (error) {
       state = state.copyWith(errorMessage: _message(error));
+    }
+  }
+
+  Future<void> updateProjectBuildVersion(String version, String buildNo) async {
+    final project = _selectedManagedProject;
+    if (project == null) return;
+    state = state.copyWith(
+      loading: true,
+      errorMessage: null,
+      statusMessage: '正在更新项目版本…',
+    );
+    try {
+      final androidSynchronized = await ref
+          .read(localProjectServiceProvider)
+          .updateProjectVersion(
+            project.path,
+            version: version,
+            buildNo: buildNo,
+          );
+      final updated = project.copyWith(
+        bugly: project.bugly.copyWith(
+          version: version.trim(),
+          buildNo: buildNo.trim(),
+        ),
+      );
+      final projects = await ref
+          .read(projectRepositoryProvider)
+          .upsert(state.managedProjects, updated);
+      state = state.copyWith(
+        managedProjects: projects,
+        statusMessage:
+            '版本已更新为 ${version.trim()}+${buildNo.trim()}'
+            '${androidSynchronized ? '，已同步 Android Gradle' : ''}',
+      );
+    } catch (error) {
+      state = state.copyWith(errorMessage: _message(error));
+    } finally {
+      state = state.copyWith(loading: false);
     }
   }
 

@@ -562,6 +562,8 @@ class _ProjectDetail extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
+          _ProjectVersionSettings(project: project, state: state),
+          const SizedBox(height: 12),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -1052,6 +1054,120 @@ class _ProjectDetail extends ConsumerWidget {
       ),
     );
   }
+}
+
+class _ProjectVersionSettings extends ConsumerStatefulWidget {
+  const _ProjectVersionSettings({required this.project, required this.state});
+
+  final FlutterProject project;
+  final FvmState state;
+
+  @override
+  ConsumerState<_ProjectVersionSettings> createState() =>
+      _ProjectVersionSettingsState();
+}
+
+class _ProjectVersionSettingsState
+    extends ConsumerState<_ProjectVersionSettings> {
+  late final TextEditingController _versionController;
+  late final TextEditingController _buildNoController;
+
+  @override
+  void initState() {
+    super.initState();
+    _versionController = TextEditingController(
+      text: widget.project.bugly.version,
+    );
+    _buildNoController = TextEditingController(
+      text: widget.project.bugly.buildNo,
+    );
+  }
+
+  @override
+  void didUpdateWidget(covariant _ProjectVersionSettings oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.project.path != widget.project.path ||
+        oldWidget.project.bugly.version != widget.project.bugly.version) {
+      _versionController.text = widget.project.bugly.version;
+    }
+    if (oldWidget.project.path != widget.project.path ||
+        oldWidget.project.bugly.buildNo != widget.project.bugly.buildNo) {
+      _buildNoController.text = widget.project.bugly.buildNo;
+    }
+  }
+
+  @override
+  void dispose() {
+    _versionController.dispose();
+    _buildNoController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            '打包版本',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            '保存后修改项目 pubspec.yaml；Android 若写死版本号，也会同步对应 Gradle 配置。',
+            style: TextStyle(color: Colors.black54),
+          ),
+          const SizedBox(height: 14),
+          Wrap(
+            spacing: 12,
+            runSpacing: 12,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              SizedBox(
+                width: 220,
+                child: TextField(
+                  key: const ValueKey('project-build-version-field'),
+                  controller: _versionController,
+                  decoration: const InputDecoration(
+                    labelText: 'Version',
+                    hintText: '1.2.3',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              SizedBox(
+                width: 160,
+                child: TextField(
+                  key: const ValueKey('project-build-number-field'),
+                  controller: _buildNoController,
+                  keyboardType: TextInputType.number,
+                  decoration: const InputDecoration(
+                    labelText: 'Build No',
+                    hintText: '1',
+                    border: OutlineInputBorder(),
+                  ),
+                ),
+              ),
+              FilledButton.icon(
+                onPressed: widget.state.loading || widget.state.commandRunning
+                    ? null
+                    : () => ref
+                          .read(fvmControllerProvider.notifier)
+                          .updateProjectBuildVersion(
+                            _versionController.text,
+                            _buildNoController.text,
+                          ),
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('保存版本'),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ),
+  );
 }
 
 class _PackageGuideContent extends StatelessWidget {

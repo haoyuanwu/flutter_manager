@@ -54,7 +54,7 @@ class _ProjectConfiguration extends ConsumerWidget {
                           .map(
                             (p) => DropdownMenuItem(
                               value: p.path,
-                              child: Text(p.name),
+                              child: Text(p.displayName),
                             ),
                           )
                           .toList(),

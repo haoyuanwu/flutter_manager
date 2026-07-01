@@ -63,39 +63,51 @@ class _Sidebar extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 28),
-            _NavItem(
-              icon: Icons.dashboard_outlined,
-              label: '概览',
-              selected: selected == 0,
-              onTap: () => onSelected(0),
+            Expanded(
+              child: ListView(
+                padding: EdgeInsets.zero,
+                children: [
+                  _NavItem(
+                    icon: Icons.dashboard_outlined,
+                    label: '概览',
+                    selected: selected == 0,
+                    onTap: () => onSelected(0),
+                  ),
+                  _NavItem(
+                    icon: Icons.layers_outlined,
+                    label: 'Flutter 版本',
+                    selected: selected == 1,
+                    showDot: showFlutterUpdate,
+                    onIgnoreUpdate: onIgnoreFlutterUpdate,
+                    onTap: () => onSelected(1),
+                  ),
+                  _NavItem(
+                    icon: Icons.workspaces_outline,
+                    label: '项目管理',
+                    selected: selected == 2,
+                    onTap: () => onSelected(2),
+                  ),
+                  _NavItem(
+                    icon: Icons.folder_copy_outlined,
+                    label: '项目 FVM',
+                    selected: selected == 3,
+                    onTap: () => onSelected(3),
+                  ),
+                  _NavItem(
+                    icon: Icons.article_outlined,
+                    label: '日志',
+                    selected: selected == 4,
+                    onTap: () => onSelected(4),
+                  ),
+                  _NavItem(
+                    icon: Icons.terminal,
+                    label: '环境配置',
+                    selected: selected == 5,
+                    onTap: () => onSelected(5),
+                  ),
+                ],
+              ),
             ),
-            _NavItem(
-              icon: Icons.layers_outlined,
-              label: 'Flutter 版本',
-              selected: selected == 1,
-              showDot: showFlutterUpdate,
-              onIgnoreUpdate: onIgnoreFlutterUpdate,
-              onTap: () => onSelected(1),
-            ),
-            _NavItem(
-              icon: Icons.workspaces_outline,
-              label: '项目管理',
-              selected: selected == 2,
-              onTap: () => onSelected(2),
-            ),
-            _NavItem(
-              icon: Icons.folder_copy_outlined,
-              label: '项目 FVM',
-              selected: selected == 3,
-              onTap: () => onSelected(3),
-            ),
-            _NavItem(
-              icon: Icons.terminal,
-              label: '环境配置',
-              selected: selected == 4,
-              onTap: () => onSelected(4),
-            ),
-            const Spacer(),
             Text(
               Platform.isWindows ? 'Windows' : 'macOS',
               style: const TextStyle(color: Colors.white38),

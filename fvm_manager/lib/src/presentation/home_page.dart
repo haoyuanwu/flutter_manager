@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../domain/models.dart';
 import '../domain/project_models.dart';
+import '../data/log_service.dart';
 import '../data/pub_environment_service.dart';
 import 'providers.dart';
 
@@ -13,6 +14,7 @@ part 'pages/environment_guide_page.dart';
 part 'pages/overview_page.dart';
 part 'pages/project_configuration_page.dart';
 part 'pages/project_management_page.dart';
+part 'pages/log_page.dart';
 part 'pages/versions_page.dart';
 part 'widgets/navigation.dart';
 part 'widgets/status_widgets.dart';
@@ -145,6 +147,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                             state: state,
                             onAddProject: _openProjectManagerAndAdd,
                           ),
+                          4 => const _LogPage(),
                           _ => _EnvironmentGuide(state: state),
                         },
                       ),
@@ -207,7 +210,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('项目：${project.name}'),
+            Text('项目：${project.displayName}'),
             const SizedBox(height: 8),
             SelectableText(project.path),
           ],

@@ -312,6 +312,74 @@ class LocalProjectService {
     return (bundleId: bundleId, version: version, buildNo: buildNo);
   }
 
+  /// 更新 Flutter 项目的打包版本，并同步 Android 中写死的版本字面量。
+  Future<bool> updateProjectVersion(
+    String path, {
+    required String version,
+    required String buildNo,
+  }) async {
+    final normalizedVersion = version.trim();
+    final normalizedBuildNo = buildNo.trim();
+    if (!RegExp(
+      r'^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$',
+    ).hasMatch(normalizedVersion)) {
+      throw Exception('Version 格式无效，请输入类似 1.2.3 或 1.2.3-beta.1');
+    }
+    if (!RegExp(r'^\d+$').hasMatch(normalizedBuildNo) ||
+        int.parse(normalizedBuildNo) < 1) {
+      throw Exception('Build No 必须是大于 0 的整数');
+    }
+
+    final separator = Platform.pathSeparator;
+    final pubspecFile = File('$path${separator}pubspec.yaml');
+    if (!await pubspecFile.exists()) throw Exception('未找到项目 pubspec.yaml');
+    final pubspecSource = await pubspecFile.readAsString();
+    final versionLine = RegExp(r'^version\s*:\s*.*$', multiLine: true);
+    if (!versionLine.hasMatch(pubspecSource)) {
+      throw Exception('pubspec.yaml 中未找到 version 配置');
+    }
+    final updatedPubspec = pubspecSource.replaceFirst(
+      versionLine,
+      'version: $normalizedVersion+$normalizedBuildNo',
+    );
+
+    File? androidFile;
+    String? updatedAndroidSource;
+    var androidSynchronized = false;
+    for (final candidate in [
+      '$path${separator}android${separator}app${separator}build.gradle',
+      '$path${separator}android${separator}app${separator}build.gradle.kts',
+    ]) {
+      final file = File(candidate);
+      if (!await file.exists()) continue;
+      final source = await file.readAsString();
+      var updated = source.replaceFirstMapped(
+        RegExp(
+          r'''^(\s*versionName\s*(?:=\s*)?)["'][^"']*["'](\s*(?://.*)?)$''',
+          multiLine: true,
+        ),
+        (match) => '${match.group(1)}"$normalizedVersion"${match.group(2)}',
+      );
+      updated = updated.replaceFirstMapped(
+        RegExp(
+          r'^(\s*versionCode\s*(?:=\s*)?)\d+(\s*(?://.*)?)$',
+          multiLine: true,
+        ),
+        (match) => '${match.group(1)}$normalizedBuildNo${match.group(2)}',
+      );
+      androidFile = file;
+      updatedAndroidSource = updated;
+      androidSynchronized = updated != source;
+      break;
+    }
+
+    await pubspecFile.writeAsString(updatedPubspec, flush: true);
+    if (androidFile != null && androidSynchronized) {
+      await androidFile.writeAsString(updatedAndroidSource!, flush: true);
+    }
+    return androidSynchronized;
+  }
+
   Future<String?> chooseBuglyJar() async {
     try {
       final file = await openFile(
