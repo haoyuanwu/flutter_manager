@@ -83,16 +83,6 @@ class _SettingsPage extends ConsumerWidget {
                       title: const Text('版本编码'),
                       subtitle: Text(packageInfo.buildNumber),
                     ),
-                    ListTile(
-                      leading: const Icon(Icons.apps_outlined),
-                      title: const Text('应用名称'),
-                      subtitle: Text(packageInfo.appName),
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.phone_android_outlined),
-                      title: const Text('包名'),
-                      subtitle: Text(packageInfo.packageName),
-                    ),
                   ],
                 ),
                 loading: () => const Center(child: CircularProgressIndicator()),
