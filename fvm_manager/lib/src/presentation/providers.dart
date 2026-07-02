@@ -4,17 +4,20 @@ import 'dart:io';
 import 'package:dio/dio.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:pub_semver/pub_semver.dart';
 
 import '../data/flutter_release_service.dart';
 import '../data/fvm_service.dart';
 import '../data/flutter_command_service.dart';
+import '../data/flutter_device_monitor.dart';
 import '../data/custom_command_parser.dart';
 import '../data/local_project_service.dart';
 import '../data/project_repository.dart';
 import '../data/pub_environment_service.dart';
 import '../domain/models.dart';
 import '../domain/project_models.dart';
+import 'console_window_service.dart';
 
 final dioProvider = Provider<Dio>(
   (ref) => Dio(
@@ -45,6 +48,12 @@ final flutterCommandServiceProvider = Provider<FlutterCommandService>(
   (ref) => FlutterCommandService(ref.watch(fvmServiceProvider)),
 );
 
+final flutterDeviceMonitorProvider = Provider<FlutterDeviceMonitor>((ref) {
+  final monitor = FlutterDeviceMonitor(ref.watch(fvmServiceProvider));
+  ref.onDispose(() => unawaited(monitor.dispose()));
+  return monitor;
+});
+
 final customCommandParserProvider = Provider<CustomCommandParser>(
   (ref) => CustomCommandParser(),
 );
@@ -61,11 +70,74 @@ final fvmControllerProvider = NotifierProvider<FvmController, FvmState>(
 );
 
 class FvmController extends Notifier<FvmState> {
+  final ProjectCommandLogBuffer _commandLogs = ProjectCommandLogBuffer();
+  final Map<String, ({String projectPath, String label})> _activeCommandTasks =
+      {};
+  final Map<String, String> _consoleModes = {};
+  String? _mainBuildConsoleProjectPath;
+
+  bool get selectedProjectCommandRunning =>
+      activeTasksForSelectedProject.isNotEmpty;
+
+  bool get selectedProjectBuildConsoleVisible =>
+      state.buildConsoleVisible &&
+      _mainBuildConsoleProjectPath == state.selectedManagedProjectPath;
+
+  bool selectedTaskActive(String kind) {
+    final path = state.selectedManagedProjectPath;
+    return path != null && _activeCommandTasks.containsKey(_taskId(kind, path));
+  }
+
+  List<({String id, String label})> get activeTasksForSelectedProject {
+    final path = state.selectedManagedProjectPath;
+    if (path == null) return const [];
+    return _activeCommandTasks.entries
+        .where((entry) => entry.value.projectPath == path)
+        .map((entry) => (id: entry.key, label: entry.value.label))
+        .toList(growable: false);
+  }
+
+  List<({String id, String label})> _tasksForProject(String projectPath) =>
+      _activeCommandTasks.entries
+          .where((entry) => entry.value.projectPath == projectPath)
+          .map((entry) => (id: entry.key, label: entry.value.label))
+          .toList(growable: false);
+
   @override
   FvmState build() => const FvmState();
 
   Future<void> initialize() async {
     if (state.loading) return;
+    try {
+      await ConsoleWindowService.instance.registerMainHandler((call) async {
+        final arguments = call.arguments as Map<dynamic, dynamic>? ?? const {};
+        switch (call.method) {
+          case 'stopCommand':
+            final taskId = arguments['taskId'] as String?;
+            if (taskId != null) await stopProjectCommand(taskId);
+            return;
+          case 'clearCommandLog':
+            final projectPath = arguments['projectPath'] as String?;
+            if (projectPath != null) _clearCommandLogFor(projectPath);
+            return;
+          case 'runProjectAction':
+            final projectPath = arguments['projectPath'] as String?;
+            final action = arguments['action'] as String?;
+            if (projectPath != null && action != null) {
+              await _runProjectActionFromConsole(projectPath, action);
+            }
+            return;
+          case 'consoleReady':
+            final projectPath = arguments['projectPath'] as String?;
+            if (projectPath != null) {
+              ConsoleWindowService.instance.markReady(projectPath);
+            }
+            return;
+        }
+      });
+    } on MissingPluginException {
+      // Widget tests do not load desktop window plugins.
+    }
     state = state.copyWith(loading: true, errorMessage: null);
     final fvm = ref.read(fvmServiceProvider);
     try {
@@ -75,6 +147,10 @@ class FvmController extends Notifier<FvmState> {
       state = state.copyWith(
         useDomesticMirror: environment.useDomesticMirror,
         mirrorId: environment.mirrorId,
+        autoOpenConsoleWindow: environment.autoOpenConsoleWindow,
+        showMainWindowConsole: environment.showMainWindowConsole,
+        showConsoleQuickCommands: environment.showConsoleQuickCommands,
+        buildOpensConsoleWindow: environment.buildOpensConsoleWindow,
         managedProjects: projects,
         selectedManagedProjectPath:
             state.selectedManagedProjectPath ?? projects.firstOrNull?.path,
@@ -106,7 +182,11 @@ class FvmController extends Notifier<FvmState> {
         latestFvmVersion: results[2] as String?,
         latestFlutterVersion: latestStable?.version,
       );
-      if (version != null) await refreshInstalled();
+      if (version != null) {
+        await refreshInstalled();
+      } else {
+        unawaited(_startDeviceMonitoring());
+      }
       _syncUpdateState(showNotice: true);
     } catch (error) {
       state = state.copyWith(errorMessage: _message(error));
@@ -129,8 +209,7 @@ class FvmController extends Notifier<FvmState> {
         globalVersion: results[1] as String?,
         errorMessage: null,
       );
-      // 全局加载一次设备列表
-      loadDevices();
+      unawaited(_startDeviceMonitoring());
     } catch (error) {
       state = state.copyWith(errorMessage: _message(error));
     }
@@ -318,7 +397,11 @@ class FvmController extends Notifier<FvmState> {
         cleanBeforeBuild: updated.cleanBeforeBuild,
         androidTargetPlatform: updated.androidTargetPlatform,
         selectedDeviceId: null,
+        commandLog: _commandLogs.logFor(path),
+        commandRunning: _hasActiveTasks(path),
+        activeCommand: _activeLabels(path),
       );
+      unawaited(_startDeviceMonitoring());
     }
   }
 
@@ -576,7 +659,45 @@ class FvmController extends Notifier<FvmState> {
   Future<void> projectPubGet() =>
       _runProjectCommand(const ['pub', 'get'], label: 'Pub Get');
 
+  Future<void> openProjectDevTools() async {
+    final path = state.selectedManagedProjectPath;
+    if (path == null || _selectedManagedProject?.pathExists != true) return;
+    const label = 'DevTools';
+    final taskId = 'devtools:${DateTime.now().microsecondsSinceEpoch}:$path';
+    _startCommandTask(taskId, path, label);
+    state = state.copyWith(statusMessage: '正在浏览器中打开 DevTools…');
+    try {
+      final vmUri = state.vmServiceUris?[path];
+      final arguments = <String>[
+        'devtools',
+        '--launch-browser',
+        '--port=0',
+        ?vmUri,
+      ];
+      final code = await ref
+          .read(flutterCommandServiceProvider)
+          .runDart(
+            taskId: taskId,
+            projectPath: path,
+            arguments: arguments,
+            onOutput: (output) => _appendCommandLog(path, output),
+          );
+      if (code != 0) throw Exception('$label 启动失败（退出码 $code）');
+      state = state.copyWith(statusMessage: '$label 已停止');
+    } catch (error) {
+      state = state.copyWith(errorMessage: _message(error));
+    } finally {
+      _finishCommandTask(taskId);
+    }
+  }
+
   Future<void> runManagedProject() {
+    final path = state.selectedManagedProjectPath;
+    if (path != null) {
+      final uris = Map<String, String>.from(state.vmServiceUris ?? const {});
+      uris.remove(path);
+      state = state.copyWith(vmServiceUris: uris);
+    }
     final arguments = <String>['run'];
     final deviceId = state.selectedDeviceId;
     if (deviceId != null && deviceId.isNotEmpty) {
@@ -585,20 +706,45 @@ class FvmController extends Notifier<FvmState> {
     if (state.selectedAndroidFlavors.length == 1) {
       arguments.addAll(['--flavor', state.selectedAndroidFlavors.single]);
     }
-    return _runProjectCommand(arguments, label: '运行项目');
+    return _runProjectCommand(arguments, label: '运行项目', taskKind: 'run');
   }
 
   Future<void> hotReloadManagedProject() => _sendRuntimeCommand(reload: true);
 
   Future<void> hotRestartManagedProject() => _sendRuntimeCommand(reload: false);
 
+  Future<void> rerunManagedProject() async {
+    final path = state.selectedManagedProjectPath;
+    if (path == null) return;
+    final taskId = _taskId('run', path);
+    if (_activeCommandTasks.containsKey(taskId)) {
+      _appendCommandLog(path, '\n[正在结束当前进程并重新运行]\n');
+      await ref.read(flutterCommandServiceProvider).stop(taskId);
+      for (var attempt = 0; attempt < 50; attempt++) {
+        if (!_activeCommandTasks.containsKey(taskId)) break;
+        await Future<void>.delayed(const Duration(milliseconds: 100));
+      }
+      if (_activeCommandTasks.containsKey(taskId)) {
+        state = state.copyWith(errorMessage: '当前运行进程未能及时结束，请稍后重试');
+        return;
+      }
+    }
+    state = state.copyWith(errorMessage: null, statusMessage: '正在重新运行项目…');
+    await runManagedProject();
+  }
+
   Future<void> _sendRuntimeCommand({required bool reload}) async {
-    if (!state.commandRunning || state.activeCommand != '运行项目') return;
+    final path = state.selectedManagedProjectPath;
+    if (path == null) return;
+    final taskId = _taskId('run', path);
+    if (!_activeCommandTasks.containsKey(taskId)) return;
     try {
       final service = ref.read(flutterCommandServiceProvider);
-      reload ? await service.hotReload() : await service.hotRestart();
+      reload
+          ? await service.hotReload(taskId)
+          : await service.hotRestart(taskId);
       final action = reload ? '热重载' : '项目热重启';
-      _appendCommandLog('\n[$action 已触发]\n');
+      _appendCommandLog(path, '\n[$action 已触发]\n');
       state = state.copyWith(statusMessage: '$action 命令已发送');
     } catch (error) {
       state = state.copyWith(errorMessage: _message(error));
@@ -645,6 +791,7 @@ class FvmController extends Notifier<FvmState> {
     return _runProjectCommands(
       workflow,
       label: flavors.length > 1 ? '批量构建 ${flavors.length} 个渠道' : '构建 $target',
+      taskKind: 'build',
       afterEach: project.bugly.enabled
           ? (index) async {
               if (index >= prefixCount) {
@@ -660,7 +807,11 @@ class FvmController extends Notifier<FvmState> {
 
   Future<void> runCustomBuildWorkflow() async {
     final project = _selectedManagedProject;
-    if (project == null || !project.pathExists || state.commandRunning) return;
+    if (project == null ||
+        !project.pathExists ||
+        selectedTaskActive('workflow')) {
+      return;
+    }
     try {
       final commands = ref
           .read(customCommandParserProvider)
@@ -685,42 +836,41 @@ class FvmController extends Notifier<FvmState> {
     FlutterProject project,
     List<EditableCommand> commands,
   ) async {
-    state = state.copyWith(
-      commandRunning: true,
-      commandLog: '',
-      activeCommand: '自定义构建工作流',
-      errorMessage: null,
-    );
+    final taskId = _taskId('workflow', project.path);
+    _startCommandTask(taskId, project.path, '自定义构建工作流');
     try {
       for (var index = 0; index < commands.length; index++) {
         final command = commands[index];
-        state = state.copyWith(
-          activeCommand: '自定义工作流（${index + 1}/${commands.length}）',
+        _updateCommandTaskLabel(
+          taskId,
+          '自定义工作流（${index + 1}/${commands.length}）',
         );
         final service = ref.read(flutterCommandServiceProvider);
         final code = command.executable == 'flutter'
             ? await service.run(
+                taskId: taskId,
                 projectPath: project.path,
                 arguments: command.arguments,
-                onOutput: _appendCommandLog,
+                onOutput: (output) => _appendCommandLog(project.path, output),
               )
             : await service.runExternal(
+                taskId: taskId,
                 executable: command.executable,
                 workingDirectory: project.path,
                 arguments: command.arguments,
                 displayArguments: _maskSensitiveArguments(command.arguments),
-                onOutput: _appendCommandLog,
+                onOutput: (output) => _appendCommandLog(project.path, output),
               );
         if (code != 0) {
           throw Exception('${command.executable} 执行失败（退出码 $code）');
         }
-        _appendCommandLog('\n${List.filled(72, '─').join()}\n\n');
+        _appendCommandLog(project.path, '\n${List.filled(72, '─').join()}\n\n');
       }
       state = state.copyWith(statusMessage: '自定义构建工作流完成');
     } catch (error) {
       state = state.copyWith(errorMessage: _message(error));
     } finally {
-      state = state.copyWith(commandRunning: false, activeCommand: null);
+      _finishCommandTask(taskId);
     }
   }
 
@@ -734,70 +884,277 @@ class FvmController extends Notifier<FvmState> {
   Future<void> _runProjectCommand(
     List<String> arguments, {
     required String label,
-  }) => _runProjectCommands([arguments], label: label);
+    String taskKind = 'operation',
+  }) => _runProjectCommands([arguments], label: label, taskKind: taskKind);
 
   Future<void> _runProjectCommands(
     List<List<String>> commands, {
     required String label,
+    String taskKind = 'operation',
     Future<void> Function(int index)? afterEach,
   }) async {
     final path = state.selectedManagedProjectPath;
     if (path == null || _selectedManagedProject?.pathExists != true) {
       return;
     }
-    // 如果有旧命令在运行，先停掉
-    if (state.commandRunning) {
-      await ref.read(flutterCommandServiceProvider).stop();
-      // 等待旧进程退出
-      await Future<void>.delayed(const Duration(milliseconds: 300));
-    }
-    state = state.copyWith(
-      commandRunning: true,
-      commandLog: '',
-      activeCommand: label,
-      errorMessage: null,
-      statusMessage: '$label 已启动',
-    );
+    final taskId = _taskId(taskKind, path);
+    if (_activeCommandTasks.containsKey(taskId)) return;
+    _startCommandTask(taskId, path, label);
     try {
       for (var index = 0; index < commands.length; index++) {
-        state = state.copyWith(
-          activeCommand: commands.length == 1
+        _updateCommandTaskLabel(
+          taskId,
+          commands.length == 1
               ? label
               : '$label（${index + 1}/${commands.length}）',
         );
         final code = await ref
             .read(flutterCommandServiceProvider)
             .run(
+              taskId: taskId,
               projectPath: path,
               arguments: commands[index],
-              onOutput: _appendCommandLog,
+              onOutput: (output) => _appendCommandLog(path, output),
             );
         if (code != 0) throw Exception('$label 失败（退出码 $code）');
         if (afterEach != null) await afterEach(index);
         if (index < commands.length - 1) {
-          _appendCommandLog('\n${List.filled(72, '─').join()}\n\n');
+          _appendCommandLog(path, '\n${List.filled(72, '─').join()}\n\n');
         }
       }
       state = state.copyWith(statusMessage: '$label 完成');
     } catch (error) {
       state = state.copyWith(errorMessage: _message(error));
     } finally {
-      state = state.copyWith(commandRunning: false, activeCommand: null);
+      _finishCommandTask(taskId);
     }
   }
 
-  void _appendCommandLog(String output) {
-    var log = state.commandLog + output;
-    if (log.length > 120000) log = log.substring(log.length - 120000);
-    state = state.copyWith(commandLog: log);
+  void _appendCommandLog(String projectPath, String output) {
+    final log = _commandLogs.append(projectPath, output);
+    if (state.selectedManagedProjectPath == projectPath) {
+      state = state.copyWith(commandLog: log);
+    }
+    final tail = log.length > 2000 ? log.substring(log.length - 2000) : log;
+    _parseVmServiceUri(projectPath, tail);
+    _syncConsoleWindow(projectPath);
   }
 
-  Future<void> stopProjectCommand() async {
-    await ref.read(flutterCommandServiceProvider).stop();
+  String _projectTitle(String projectPath) =>
+      state.managedProjects
+          .where((project) => project.path == projectPath)
+          .firstOrNull
+          ?.displayName ??
+      '控制台';
+
+  List<Map<String, String>> _serializedTasks(String projectPath) =>
+      _tasksForProject(projectPath)
+          .map((task) => {'id': task.id, 'label': task.label})
+          .toList(growable: false);
+
+  String _consoleMode(String projectPath) =>
+      _consoleModes[projectPath] ?? 'run';
+
+  String _projectBuildTarget(String projectPath) {
+    if (state.selectedManagedProjectPath == projectPath) {
+      return state.projectBuildTarget.name;
+    }
+    return state.managedProjects
+            .where((project) => project.path == projectPath)
+            .firstOrNull
+            ?.lastBuildTarget
+            .name ??
+        ProjectBuildTarget.apk.name;
+  }
+
+  void _syncConsoleWindow(String projectPath) {
+    unawaited(
+      ConsoleWindowService.instance.sync(
+        projectPath: projectPath,
+        projectTitle: _projectTitle(projectPath),
+        commandLog: _commandLogs.logFor(projectPath),
+        tasks: _serializedTasks(projectPath),
+        showQuickCommands: state.showConsoleQuickCommands,
+        consoleMode: _consoleMode(projectPath),
+        buildTarget: _projectBuildTarget(projectPath),
+      ),
+    );
+  }
+
+  Future<void> _openConsoleWindow(String projectPath) async {
+    try {
+      await ConsoleWindowService.instance.openOrFocus(
+        projectPath: projectPath,
+        projectTitle: _projectTitle(projectPath),
+        commandLog: _commandLogs.logFor(projectPath),
+        tasks: _serializedTasks(projectPath),
+        showQuickCommands: state.showConsoleQuickCommands,
+        consoleMode: _consoleMode(projectPath),
+        buildTarget: _projectBuildTarget(projectPath),
+      );
+    } catch (error) {
+      state = state.copyWith(errorMessage: _message(error));
+    }
+  }
+
+  Future<void> openSelectedProjectConsole() async {
+    final path = state.selectedManagedProjectPath;
+    if (path != null) await _openConsoleWindow(path);
+  }
+
+  Future<void> _runProjectActionFromConsole(
+    String projectPath,
+    String action,
+  ) async {
+    if (state.selectedManagedProjectPath != projectPath) {
+      await selectManagedProject(projectPath);
+    }
+    final Future<void>? command = switch (action) {
+      'run' => runManagedProject(),
+      'hotReload' => hotReloadManagedProject(),
+      'hotRestart' => hotRestartManagedProject(),
+      'rerun' => rerunManagedProject(),
+      'pubGet' => projectPubGet(),
+      'clean' => projectClean(),
+      'devtools' => openProjectDevTools(),
+      'openBuildOutput' => openBuildOutput(),
+      'openApkOutput' => openProjectApkFolder(),
+      _ => null,
+    };
+    if (command != null) unawaited(command);
+  }
+
+  Future<void> setAutoOpenConsoleWindow(bool enabled) async {
+    await ref
+        .read(pubEnvironmentServiceProvider)
+        .setAutoOpenConsoleWindow(enabled);
+    state = state.copyWith(autoOpenConsoleWindow: enabled);
+  }
+
+  Future<void> setShowMainWindowConsole(bool enabled) async {
+    await ref
+        .read(pubEnvironmentServiceProvider)
+        .setShowMainWindowConsole(enabled);
+    state = state.copyWith(showMainWindowConsole: enabled);
+  }
+
+  Future<void> setShowConsoleQuickCommands(bool enabled) async {
+    await ref
+        .read(pubEnvironmentServiceProvider)
+        .setShowConsoleQuickCommands(enabled);
+    state = state.copyWith(showConsoleQuickCommands: enabled);
+    for (final project in state.managedProjects) {
+      _syncConsoleWindow(project.path);
+    }
+  }
+
+  Future<void> setBuildOpensConsoleWindow(bool enabled) async {
+    await ref
+        .read(pubEnvironmentServiceProvider)
+        .setBuildOpensConsoleWindow(enabled);
+    state = state.copyWith(
+      buildOpensConsoleWindow: enabled,
+      buildConsoleVisible: enabled ? false : state.buildConsoleVisible,
+    );
+    if (enabled) _mainBuildConsoleProjectPath = null;
+  }
+
+  static final _vmServiceUriPattern = RegExp(
+    r'(?:Dart VM service.*?(?:at:|on)|Observatory listening on)\s*(https?://\S+)',
+    caseSensitive: false,
+  );
+
+  void _parseVmServiceUri(String projectPath, String output) {
+    for (final line in output.split('\n')) {
+      final match = _vmServiceUriPattern.firstMatch(line);
+      if (match != null) {
+        var uri = match.group(1) ?? '';
+        uri = uri.replaceAll(RegExp(r'[,\s]+$'), '');
+        if (uri.isNotEmpty) {
+          final uris = Map<String, String>.from(state.vmServiceUris ?? {});
+          uris[projectPath] = uri;
+          state = state.copyWith(vmServiceUris: uris);
+        }
+      }
+    }
+  }
+
+  String _taskId(String kind, String projectPath) => '$kind::$projectPath';
+
+  bool _hasActiveTasks(String projectPath) =>
+      _activeCommandTasks.values.any((task) => task.projectPath == projectPath);
+
+  String? _activeLabels(String projectPath) {
+    final labels = _activeCommandTasks.values
+        .where((task) => task.projectPath == projectPath)
+        .map((task) => task.label)
+        .toList();
+    return labels.isEmpty ? null : labels.join('、');
+  }
+
+  void _startCommandTask(String taskId, String projectPath, String label) {
+    final isBuildTask =
+        taskId.startsWith('build::') || taskId.startsWith('workflow::');
+    final isRunTask =
+        taskId.startsWith('run::') || taskId.startsWith('devtools:');
+    _consoleModes[projectPath] = isBuildTask ? 'build' : 'run';
+    _activeCommandTasks[taskId] = (projectPath: projectPath, label: label);
+    _appendCommandLog(projectPath, '\n▶ $label\n');
+    _syncSelectedCommandState();
+    state = state.copyWith(errorMessage: null, statusMessage: '$label 已启动');
+    if (isBuildTask) {
+      if (state.buildOpensConsoleWindow) {
+        unawaited(_openConsoleWindow(projectPath));
+      } else if (state.selectedManagedProjectPath == projectPath) {
+        _mainBuildConsoleProjectPath = projectPath;
+        state = state.copyWith(buildConsoleVisible: true);
+      }
+    } else if (isRunTask && state.autoOpenConsoleWindow) {
+      unawaited(_openConsoleWindow(projectPath));
+    }
+  }
+
+  void _updateCommandTaskLabel(String taskId, String label) {
+    final task = _activeCommandTasks[taskId];
+    if (task == null) return;
+    _activeCommandTasks[taskId] = (projectPath: task.projectPath, label: label);
+    _syncSelectedCommandState();
+    _syncConsoleWindow(task.projectPath);
+  }
+
+  void _finishCommandTask(String taskId) {
+    final task = _activeCommandTasks.remove(taskId);
+    _syncSelectedCommandState();
+    if (task != null) _syncConsoleWindow(task.projectPath);
+  }
+
+  void _syncSelectedCommandState() {
+    final path = state.selectedManagedProjectPath;
+    state = state.copyWith(
+      commandRunning: path != null && _hasActiveTasks(path),
+      activeCommand: path == null ? null : _activeLabels(path),
+    );
+  }
+
+  Future<void> stopProjectCommand(String taskId) async {
+    await ref.read(flutterCommandServiceProvider).stop(taskId);
     state = state.copyWith(statusMessage: '正在停止命令…');
   }
 
-  void clearCommandLog() => state = state.copyWith(commandLog: '');
+  void clearCommandLog() {
+    final path = state.selectedManagedProjectPath;
+    if (path == null) return;
+    _clearCommandLogFor(path);
+  }
+
+  void _clearCommandLogFor(String path) {
+    _commandLogs.clear(path);
+    if (state.selectedManagedProjectPath == path) {
+      state = state.copyWith(commandLog: '');
+    }
+    _syncConsoleWindow(path);
+  }
+
   void clearStatus() => state = state.copyWith(statusMessage: null);
   void clearError() => state = state.copyWith(errorMessage: null);
 
@@ -826,6 +1183,13 @@ class FvmController extends Notifier<FvmState> {
   Future<void> packageMacosDmg() async {
     final project = _selectedManagedProject;
     if (project == null) return;
+    _consoleModes[project.path] = 'build';
+    if (state.buildOpensConsoleWindow) {
+      unawaited(_openConsoleWindow(project.path));
+    } else {
+      _mainBuildConsoleProjectPath = project.path;
+      state = state.copyWith(buildConsoleVisible: true);
+    }
     state = state.copyWith(loading: true, statusMessage: '正在打包 DMG…');
     try {
       final dmgPath = await ref
@@ -868,6 +1232,54 @@ class FvmController extends Notifier<FvmState> {
     }
   }
 
+  Future<void> openAndroidProjectInAndroidStudio() async {
+    final path = state.selectedManagedProjectPath;
+    if (path == null) return;
+    try {
+      await ref
+          .read(localProjectServiceProvider)
+          .openAndroidModuleInAndroidStudio(path);
+      state = state.copyWith(statusMessage: '已在 Android Studio 中打开安卓工程');
+    } catch (error) {
+      state = state.copyWith(errorMessage: _message(error));
+    }
+  }
+
+  Future<void> openIosProjectInXcode() async {
+    final path = state.selectedManagedProjectPath;
+    if (path == null) return;
+    try {
+      await ref.read(localProjectServiceProvider).openIosProjectInXcode(path);
+      state = state.copyWith(statusMessage: '已在 Xcode 中打开 iOS 工程');
+    } catch (error) {
+      state = state.copyWith(errorMessage: _message(error));
+    }
+  }
+
+  Future<void> openMacosProjectInXcode() async {
+    final path = state.selectedManagedProjectPath;
+    if (path == null) return;
+    try {
+      await ref.read(localProjectServiceProvider).openMacosProjectInXcode(path);
+      state = state.copyWith(statusMessage: '已在 Xcode 中打开 macOS 工程');
+    } catch (error) {
+      state = state.copyWith(errorMessage: _message(error));
+    }
+  }
+
+  Future<void> openWindowsProjectInVisualStudio() async {
+    final path = state.selectedManagedProjectPath;
+    if (path == null) return;
+    try {
+      await ref
+          .read(localProjectServiceProvider)
+          .openWindowsProjectInVisualStudio(path);
+      state = state.copyWith(statusMessage: '已在 Visual Studio 中打开 Windows 工程');
+    } catch (error) {
+      state = state.copyWith(errorMessage: _message(error));
+    }
+  }
+
   Future<void> openInVSCode() async {
     final path = state.selectedManagedProjectPath;
     if (path == null) return;
@@ -901,13 +1313,48 @@ class FvmController extends Notifier<FvmState> {
   }
 
   Future<void> loadDevices() async {
+    await _startDeviceMonitoring();
+  }
+
+  Future<void> _startDeviceMonitoring() async {
     final path = state.selectedManagedProjectPath;
     if (path == null) return;
-    state = state.copyWith(devicesLoading: true);
+    state = state.copyWith(
+      devicesLoading: true,
+      devices: const [],
+      selectedDeviceId: null,
+    );
+    await ref
+        .read(flutterDeviceMonitorProvider)
+        .start(
+          projectPath: path,
+          onDevices: (devices) {
+            if (state.selectedManagedProjectPath != path) return;
+            final selected = state.selectedDeviceId;
+            state = state.copyWith(
+              devices: devices,
+              devicesLoading: false,
+              selectedDeviceId:
+                  selected != null &&
+                      devices.any((device) => device['id'] == selected)
+                  ? selected
+                  : null,
+            );
+          },
+          onError: (error) {
+            if (state.selectedManagedProjectPath != path) return;
+            unawaited(_loadDevicesOnce(path));
+          },
+        );
+  }
+
+  Future<void> _loadDevicesOnce(String path) async {
     try {
       final devices = await ref.read(fvmServiceProvider).listDevices(path);
+      if (state.selectedManagedProjectPath != path) return;
       state = state.copyWith(devices: devices, devicesLoading: false);
     } catch (error) {
+      if (state.selectedManagedProjectPath != path) return;
       state = state.copyWith(
         devicesLoading: false,
         errorMessage: _message(error),
@@ -1010,18 +1457,20 @@ class FvmController extends Notifier<FvmState> {
     ];
     final displayArguments = [...arguments];
     displayArguments[displayArguments.indexOf('-appkey') + 1] = '********';
-    _appendCommandLog('\n[开始上传 Bugly 符号：$flavor]\n');
+    final taskId = _taskId('build', project.path);
+    _appendCommandLog(project.path, '\n[开始上传 Bugly 符号：$flavor]\n');
     final code = await ref
         .read(flutterCommandServiceProvider)
         .runExternal(
+          taskId: taskId,
           executable: 'java',
           workingDirectory: project.path,
           arguments: arguments,
           displayArguments: displayArguments,
-          onOutput: _appendCommandLog,
+          onOutput: (output) => _appendCommandLog(project.path, output),
         );
     if (code != 0) throw Exception('Bugly 上传失败：$flavor（退出码 $code）');
-    _appendCommandLog('\n✅ 上传完成: $flavor\n');
+    _appendCommandLog(project.path, '\n✅ 上传完成: $flavor\n');
   }
 
   FlutterProject? get _selectedManagedProject {
@@ -1309,4 +1758,6 @@ class FvmController extends Notifier<FvmState> {
       return null;
     }
   }
+
+  FlutterProject? get selectedManagedProject => _selectedManagedProject;
 }

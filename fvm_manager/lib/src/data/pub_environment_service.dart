@@ -52,6 +52,10 @@ class PubEnvironmentService {
   String? _ignoredFvmVersion;
   String? _ignoredFlutterVersion;
   String? _customFvmExecutable;
+  bool _autoOpenConsoleWindow = true;
+  bool _showMainWindowConsole = false;
+  bool _showConsoleQuickCommands = true;
+  bool _buildOpensConsoleWindow = false;
 
   String get mirrorId => _mirrorId;
   bool get useDomesticMirror => _mirrorId != 'official';
@@ -60,6 +64,10 @@ class PubEnvironmentService {
   String? get ignoredFvmVersion => _ignoredFvmVersion;
   String? get ignoredFlutterVersion => _ignoredFlutterVersion;
   String? get customFvmExecutable => _customFvmExecutable;
+  bool get autoOpenConsoleWindow => _autoOpenConsoleWindow;
+  bool get showMainWindowConsole => _showMainWindowConsole;
+  bool get showConsoleQuickCommands => _showConsoleQuickCommands;
+  bool get buildOpensConsoleWindow => _buildOpensConsoleWindow;
 
   String get flutterStorageBaseUrl {
     final mirror = currentMirror;
@@ -150,6 +158,14 @@ class PubEnvironmentService {
       _ignoredFvmVersion = settings['ignoredFvmVersion'] as String?;
       _ignoredFlutterVersion = settings['ignoredFlutterVersion'] as String?;
       _customFvmExecutable = settings['customFvmExecutable'] as String?;
+      _autoOpenConsoleWindow =
+          settings['autoOpenConsoleWindow'] as bool? ?? true;
+      _showMainWindowConsole =
+          settings['showMainWindowConsole'] as bool? ?? false;
+      _showConsoleQuickCommands =
+          settings['showConsoleQuickCommands'] as bool? ?? true;
+      _buildOpensConsoleWindow =
+          settings['buildOpensConsoleWindow'] as bool? ?? false;
     } on Object {
       _mirrorId = 'official';
     }
@@ -181,6 +197,26 @@ class PubEnvironmentService {
 
   Future<void> setCustomFvmExecutable(String executable) async {
     _customFvmExecutable = executable;
+    await _persist();
+  }
+
+  Future<void> setAutoOpenConsoleWindow(bool enabled) async {
+    _autoOpenConsoleWindow = enabled;
+    await _persist();
+  }
+
+  Future<void> setShowMainWindowConsole(bool enabled) async {
+    _showMainWindowConsole = enabled;
+    await _persist();
+  }
+
+  Future<void> setShowConsoleQuickCommands(bool enabled) async {
+    _showConsoleQuickCommands = enabled;
+    await _persist();
+  }
+
+  Future<void> setBuildOpensConsoleWindow(bool enabled) async {
+    _buildOpensConsoleWindow = enabled;
     await _persist();
   }
 
@@ -220,6 +256,10 @@ class PubEnvironmentService {
         'ignoredFvmVersion': _ignoredFvmVersion,
         'ignoredFlutterVersion': _ignoredFlutterVersion,
         'customFvmExecutable': _customFvmExecutable,
+        'autoOpenConsoleWindow': _autoOpenConsoleWindow,
+        'showMainWindowConsole': _showMainWindowConsole,
+        'showConsoleQuickCommands': _showConsoleQuickCommands,
+        'buildOpensConsoleWindow': _buildOpensConsoleWindow,
       }),
       flush: true,
     );

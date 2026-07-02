@@ -42,57 +42,195 @@ class _ProjectManagementState extends ConsumerState<_ProjectManagement> {
                   ],
                 ),
               ),
-              FilledButton.icon(
-                onPressed: state.loading ? null : controller.addManagedProject,
-                icon: const Icon(Icons.add),
-                label: const Text('添加项目'),
-              ),
+
               if (selected != null) ...[
                 const SizedBox(width: 8),
                 PopupMenuButton<String>(
-                  tooltip: '用外部工具打开项目',
-                  icon: const Icon(Icons.open_in_new),
+                  tooltip: '选择打开 Flutter 项目的工具',
+                  padding: EdgeInsets.zero,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 14,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).colorScheme.secondaryContainer,
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.open_in_new,
+                          size: 18,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSecondaryContainer,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          '打开 Flutter 项目',
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSecondaryContainer,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        Icon(
+                          Icons.arrow_drop_down,
+                          size: 20,
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.onSecondaryContainer,
+                        ),
+                      ],
+                    ),
+                  ),
                   onSelected: (value) {
                     switch (value) {
-                      case 'folder':
-                        controller.openProjectFolder();
-                      case 'android_studio':
+                      case 'android_studio_flutter':
                         controller.openInAndroidStudio();
                       case 'vscode':
                         controller.openInVSCode();
+                      case 'folder':
+                        controller.openProjectFolder();
                     }
                   },
-                  itemBuilder: (_) => const [
-                    PopupMenuItem(
-                      value: 'folder',
-                      child: ListTile(
-                        leading: Icon(Icons.folder_open),
-                        title: Text('打开项目文件夹'),
-                        dense: true,
-                        contentPadding: EdgeInsets.zero,
-                      ),
-                    ),
-                    PopupMenuItem(
-                      value: 'android_studio',
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(
+                      value: 'android_studio_flutter',
                       child: ListTile(
                         leading: Icon(Icons.android),
-                        title: Text('用 Android Studio 打开'),
+                        title: Text('Android Studio 打开 Flutter 项目'),
                         dense: true,
                         contentPadding: EdgeInsets.zero,
                       ),
                     ),
-                    PopupMenuItem(
+                    const PopupMenuItem(
                       value: 'vscode',
                       child: ListTile(
                         leading: Icon(Icons.code),
-                        title: Text('用 VS Code 打开'),
+                        title: Text('VS Code 打开 Flutter 项目'),
+                        dense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                    const PopupMenuItem(
+                      value: 'folder',
+                      child: ListTile(
+                        leading: Icon(Icons.folder_open),
+                        title: Text('在文件夹中打开'),
                         dense: true,
                         contentPadding: EdgeInsets.zero,
                       ),
                     ),
                   ],
                 ),
+                if (selected.hasAndroid ||
+                    selected.hasIos ||
+                    selected.hasMacos ||
+                    selected.hasWindows) ...[
+                  const SizedBox(width: 8),
+                  PopupMenuButton<String>(
+                    tooltip: '选择原生平台及对应开发工具',
+                    padding: EdgeInsets.zero,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 14,
+                        vertical: 10,
+                      ),
+                      decoration: BoxDecoration(
+                        border: Border.all(
+                          color: Theme.of(context).colorScheme.outlineVariant,
+                        ),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.developer_mode, size: 18),
+                          SizedBox(width: 8),
+                          Text(
+                            '打开原生项目',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          SizedBox(width: 4),
+                          Icon(Icons.arrow_drop_down, size: 20),
+                        ],
+                      ),
+                    ),
+                    onSelected: (value) {
+                      switch (value) {
+                        case 'xcode_ios':
+                          controller.openIosProjectInXcode();
+                        case 'xcode_macos':
+                          controller.openMacosProjectInXcode();
+                        case 'android_studio_native':
+                          controller.openAndroidProjectInAndroidStudio();
+                        case 'visual_studio_windows':
+                          controller.openWindowsProjectInVisualStudio();
+                      }
+                    },
+                    itemBuilder: (_) => [
+                      if (selected.hasAndroid)
+                        const PopupMenuItem(
+                          value: 'android_studio_native',
+                          child: ListTile(
+                            leading: Icon(Icons.android),
+                            title: Text('Android · Android Studio'),
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                      if (selected.hasIos)
+                        const PopupMenuItem(
+                          value: 'xcode_ios',
+                          child: ListTile(
+                            leading: Icon(Icons.phone_iphone),
+                            title: Text('iOS · Xcode'),
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                      if (selected.hasMacos)
+                        const PopupMenuItem(
+                          value: 'xcode_macos',
+                          child: ListTile(
+                            leading: Icon(Icons.desktop_mac_outlined),
+                            title: Text('macOS · Xcode'),
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                      if (selected.hasWindows)
+                        PopupMenuItem(
+                          value: 'visual_studio_windows',
+                          enabled: Platform.isWindows,
+                          child: const ListTile(
+                            leading: Icon(Icons.window),
+                            title: Text('Windows · Visual Studio'),
+                            subtitle: Text('仅可在 Windows 系统打开'),
+                            dense: true,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
               ],
+
+              Padding(
+                padding: const EdgeInsets.only(left: 8.0),
+                child: FilledButton.icon(
+                  onPressed: state.loading
+                      ? null
+                      : controller.addManagedProject,
+                  icon: const Icon(Icons.add),
+                  label: const Text('添加项目'),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: 18),
@@ -321,7 +459,7 @@ class _ProjectMoreMenu extends ConsumerWidget {
         value: 'android_studio',
         child: ListTile(
           leading: Icon(Icons.android),
-          title: Text('用 Android Studio 打开'),
+          title: Text('Android Studio 打开 Flutter 项目'),
           dense: true,
           contentPadding: EdgeInsets.zero,
         ),
@@ -330,7 +468,7 @@ class _ProjectMoreMenu extends ConsumerWidget {
         value: 'vscode',
         child: ListTile(
           leading: Icon(Icons.code),
-          title: Text('用 VS Code 打开'),
+          title: Text('VS Code 打开 Flutter 项目'),
           dense: true,
           contentPadding: EdgeInsets.zero,
         ),
@@ -478,8 +616,11 @@ class _ProjectDetail extends ConsumerWidget {
                     label: const Text('重新定位'),
                   ),
                   OutlinedButton.icon(
-                    onPressed: () =>
-                        controller.removeManagedProject(project.path),
+                    onPressed: () => _confirmRemoveManagedProject(
+                      context,
+                      controller,
+                      project,
+                    ),
                     icon: const Icon(Icons.delete_outline),
                     label: const Text('删除记录'),
                   ),
@@ -523,8 +664,11 @@ class _ProjectDetail extends ConsumerWidget {
                         tooltip: '移除记录（不会删除文件）',
                         onPressed: state.commandRunning
                             ? null
-                            : () =>
-                                  controller.removeManagedProject(project.path),
+                            : () => _confirmRemoveManagedProject(
+                                context,
+                                controller,
+                                project,
+                              ),
                         icon: const Icon(Icons.delete_outline),
                       ),
                     ],
@@ -570,9 +714,22 @@ class _ProjectDetail extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    '常用命令',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+                  Row(
+                    children: [
+                      const Text(
+                        '运行与调试',
+                        style: TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      const Spacer(),
+                      IconButton(
+                        tooltip: '在新窗口中打开',
+                        onPressed: controller.openSelectedProjectConsole,
+                        icon: const Icon(Icons.open_in_new, size: 20),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 12),
                   Padding(
@@ -584,7 +741,7 @@ class _ProjectDetail extends ConsumerWidget {
                           child: state.devicesLoading
                               ? InputDecorator(
                                   decoration: const InputDecoration(
-                                    labelText: '运行设备',
+                                    labelText: '运行设备（自动监听）',
                                     border: OutlineInputBorder(),
                                     isDense: true,
                                   ),
@@ -599,7 +756,7 @@ class _ProjectDetail extends ConsumerWidget {
                                       ),
                                       SizedBox(width: 8),
                                       Text(
-                                        '正在检测设备…',
+                                        '正在连接设备监听…',
                                         style: TextStyle(color: Colors.black54),
                                       ),
                                     ],
@@ -610,7 +767,7 @@ class _ProjectDetail extends ConsumerWidget {
                                   isExpanded: true,
                                   initialValue: state.selectedDeviceId,
                                   decoration: const InputDecoration(
-                                    labelText: '运行设备',
+                                    labelText: '运行设备（自动监听）',
                                     border: OutlineInputBorder(),
                                     isDense: true,
                                   ),
@@ -628,13 +785,14 @@ class _ProjectDetail extends ConsumerWidget {
                                       ),
                                     ),
                                   ],
-                                  onChanged: state.commandRunning
+                                  onChanged:
+                                      controller.selectedTaskActive('run')
                                       ? null
                                       : controller.selectDevice,
                                 )
                               : InputDecorator(
                                   decoration: const InputDecoration(
-                                    labelText: '运行设备',
+                                    labelText: '运行设备（自动监听）',
                                     border: OutlineInputBorder(),
                                     isDense: true,
                                   ),
@@ -646,7 +804,7 @@ class _ProjectDetail extends ConsumerWidget {
                         ),
                         const SizedBox(width: 8),
                         IconButton(
-                          tooltip: '刷新设备列表',
+                          tooltip: '重新连接设备监听',
                           onPressed: state.commandRunning
                               ? null
                               : controller.loadDevices,
@@ -660,43 +818,59 @@ class _ProjectDetail extends ConsumerWidget {
                     runSpacing: 10,
                     children: [
                       FilledButton.icon(
-                        onPressed: state.commandRunning
+                        onPressed: controller.selectedTaskActive('run')
                             ? null
                             : controller.runManagedProject,
                         icon: const Icon(Icons.play_arrow),
                         label: const Text('Flutter Run'),
                       ),
                       OutlinedButton.icon(
-                        onPressed:
-                            state.commandRunning &&
-                                state.activeCommand == '运行项目'
+                        onPressed: controller.selectedTaskActive('run')
                             ? controller.hotReloadManagedProject
                             : null,
                         icon: const Icon(Icons.bolt),
                         label: const Text('热重载'),
                       ),
                       OutlinedButton.icon(
-                        onPressed:
-                            state.commandRunning &&
-                                state.activeCommand == '运行项目'
+                        onPressed: controller.selectedTaskActive('run')
                             ? controller.hotRestartManagedProject
                             : null,
                         icon: const Icon(Icons.restart_alt),
                         label: const Text('热重启'),
                       ),
                       OutlinedButton.icon(
-                        onPressed: state.commandRunning
+                        onPressed: controller.selectedTaskActive('run')
+                            ? controller.rerunManagedProject
+                            : null,
+                        icon: const Icon(Icons.replay),
+                        label: const Text('Rerun'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed:
+                            controller.selectedTaskActive('operation') ||
+                                controller.selectedTaskActive('build')
                             ? null
                             : controller.projectPubGet,
                         icon: const Icon(Icons.download),
                         label: const Text('Pub Get'),
                       ),
                       OutlinedButton.icon(
-                        onPressed: state.commandRunning
+                        onPressed:
+                            controller.selectedTaskActive('operation') ||
+                                controller.selectedTaskActive('build')
                             ? null
                             : controller.projectClean,
                         icon: const Icon(Icons.cleaning_services_outlined),
                         label: const Text('Clean'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: controller.openProjectDevTools,
+                        icon: const Icon(Icons.open_in_browser),
+                        label: const Text('DevTools'),
+                      ),
+                      _CommandStopButton(
+                        tasks: controller.activeTasksForSelectedProject,
+                        controller: controller,
                       ),
                     ],
                   ),
@@ -705,251 +879,269 @@ class _ProjectDetail extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '构建产物',
-                    style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: DropdownButtonFormField<ProjectBuildTarget>(
-                          isExpanded: true,
-                          initialValue:
-                              targets.contains(state.projectBuildTarget)
-                              ? state.projectBuildTarget
-                              : targets.firstOrNull,
-                          decoration: const InputDecoration(
-                            labelText: '构建平台',
-                            border: OutlineInputBorder(),
-                          ),
-                          items: targets
-                              .map(
-                                (target) => DropdownMenuItem(
-                                  value: target,
-                                  child: Text(_targetLabel(target)),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: state.commandRunning
-                              ? null
-                              : (value) {
-                                  if (value != null) {
-                                    controller.selectProjectBuildTarget(value);
-                                  }
-                                },
-                        ),
+          _CollapsibleProjectSection(
+            key: ValueKey('build-section-${project.path}'),
+            title: '构建与打包',
+            subtitle: '构建平台、模式、渠道、产物目录及打包操作',
+            icon: Icons.inventory_2_outlined,
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '构建产物',
+                      style: TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: DropdownButtonFormField<ProjectBuildMode>(
-                          isExpanded: true,
-                          initialValue: state.projectBuildMode,
-                          decoration: const InputDecoration(
-                            labelText: '构建模式',
-                            border: OutlineInputBorder(),
-                          ),
-                          items: ProjectBuildMode.values
-                              .map(
-                                (mode) => DropdownMenuItem(
-                                  value: mode,
-                                  child: Text(mode.name),
-                                ),
-                              )
-                              .toList(),
-                          onChanged: state.commandRunning
-                              ? null
-                              : (value) {
-                                  if (value != null) {
-                                    controller.selectProjectBuildMode(value);
-                                  }
-                                },
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (project.androidFlavors.isNotEmpty &&
-                      (state.projectBuildTarget == ProjectBuildTarget.apk ||
-                          state.projectBuildTarget ==
-                              ProjectBuildTarget.appbundle)) ...[
-                    const SizedBox(height: 16),
+                    ),
+                    const SizedBox(height: 12),
                     Row(
-                      children: [
-                        const Text(
-                          'Android 渠道（可多选）',
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          state.selectedAndroidFlavors.isEmpty
-                              ? '未选择时构建默认渠道'
-                              : '已选择 ${state.selectedAndroidFlavors.length} 个',
-                          style: const TextStyle(color: Colors.black54),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: project.androidFlavors
-                          .map(
-                            (flavor) => FilterChip(
-                              label: Text(flavor),
-                              selected: state.selectedAndroidFlavors.contains(
-                                flavor,
-                              ),
-                              onSelected: state.commandRunning
-                                  ? null
-                                  : (_) =>
-                                        controller.toggleAndroidFlavor(flavor),
-                            ),
-                          )
-                          .toList(),
-                    ),
-                  ],
-                  if (project.hasAndroid &&
-                      (state.projectBuildTarget == ProjectBuildTarget.apk ||
-                          state.projectBuildTarget ==
-                              ProjectBuildTarget.appbundle)) ...[
-                    const SizedBox(height: 10),
-                    Text(
-                      '检测到 Build Types：${project.androidBuildTypes.join(', ')}'
-                      '${project.androidFlavors.isEmpty ? '；未检测到 Product Flavors' : ''}',
-                      style: const TextStyle(color: Colors.black54),
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Expanded(
-                          child: SwitchListTile(
-                            contentPadding: EdgeInsets.zero,
-                            title: const Text('构建前执行 Clean + Pub Get'),
-                            value: state.cleanBeforeBuild,
-                            onChanged: state.commandRunning
-                                ? null
-                                : controller.setCleanBeforeBuild,
-                          ),
-                        ),
-                        const SizedBox(width: 16),
-                        SizedBox(
-                          width: 260,
-                          child: DropdownButtonFormField<String>(
+                          child: DropdownButtonFormField<ProjectBuildTarget>(
                             isExpanded: true,
-                            initialValue: state.androidTargetPlatform,
+                            initialValue:
+                                targets.contains(state.projectBuildTarget)
+                                ? state.projectBuildTarget
+                                : targets.firstOrNull,
                             decoration: const InputDecoration(
-                              labelText: 'Android 目标架构',
+                              labelText: '构建平台',
                               border: OutlineInputBorder(),
                             ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: 'android-arm64',
-                                child: Text('arm64-v8a'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'android-arm',
-                                child: Text('armeabi-v7a'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'android-arm,android-arm64',
-                                child: Text('32 位 + 64 位'),
-                              ),
-                              DropdownMenuItem(
-                                value: 'android-x64',
-                                child: Text('x86_64'),
-                              ),
-                            ],
-                            onChanged: state.commandRunning
+                            items: targets
+                                .map(
+                                  (target) => DropdownMenuItem(
+                                    value: target,
+                                    child: Text(_targetLabel(target)),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: controller.selectedTaskActive('build')
                                 ? null
                                 : (value) {
                                     if (value != null) {
-                                      controller.setAndroidTargetPlatform(
+                                      controller.selectProjectBuildTarget(
                                         value,
                                       );
                                     }
                                   },
                           ),
                         ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: DropdownButtonFormField<ProjectBuildMode>(
+                            isExpanded: true,
+                            initialValue: state.projectBuildMode,
+                            decoration: const InputDecoration(
+                              labelText: '构建模式',
+                              border: OutlineInputBorder(),
+                            ),
+                            items: ProjectBuildMode.values
+                                .map(
+                                  (mode) => DropdownMenuItem(
+                                    value: mode,
+                                    child: Text(mode.name),
+                                  ),
+                                )
+                                .toList(),
+                            onChanged: controller.selectedTaskActive('build')
+                                ? null
+                                : (value) {
+                                    if (value != null) {
+                                      controller.selectProjectBuildMode(value);
+                                    }
+                                  },
+                          ),
+                        ),
                       ],
                     ),
-                  ],
-                  const SizedBox(height: 14),
-                  Row(
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: state.commandRunning
-                            ? null
-                            : controller.openBuildOutput,
-                        icon: const Icon(Icons.folder_open),
-                        label: Text(switch (state.projectBuildTarget) {
-                          ProjectBuildTarget.apk => '打开 APK 目录',
-                          ProjectBuildTarget.appbundle => '打开 AAB 目录',
-                          ProjectBuildTarget.ios => '打开 iOS 构建目录',
-                          ProjectBuildTarget.macos => '打开 macOS 构建目录',
-                          ProjectBuildTarget.windows => '打开 Windows 构建目录',
-                        }),
+                    if (project.androidFlavors.isNotEmpty &&
+                        (state.projectBuildTarget == ProjectBuildTarget.apk ||
+                            state.projectBuildTarget ==
+                                ProjectBuildTarget.appbundle)) ...[
+                      const SizedBox(height: 16),
+                      Row(
+                        children: [
+                          const Text(
+                            'Android 渠道（可多选）',
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                          const SizedBox(width: 8),
+                          Text(
+                            state.selectedAndroidFlavors.isEmpty
+                                ? '未选择时构建默认渠道'
+                                : '已选择 ${state.selectedAndroidFlavors.length} 个',
+                            style: const TextStyle(color: Colors.black54),
+                          ),
+                        ],
                       ),
-                      if (state.projectBuildTarget ==
-                          ProjectBuildTarget.macos) ...[
-                        const SizedBox(width: 8),
-                        OutlinedButton.icon(
-                          onPressed: state.commandRunning
-                              ? null
-                              : controller.packageMacosDmg,
-                          icon: const Icon(Icons.archive_outlined),
-                          label: const Text('打包成 DMG'),
-                        ),
-                      ],
-                      const SizedBox(width: 8),
-                      OutlinedButton.icon(
-                        onPressed: () => _showPackageGuide(
-                          context,
-                          state.projectBuildTarget,
-                        ),
-                        icon: const Icon(Icons.menu_book),
-                        label: const Text('打包指南'),
-                      ),
-                      const Spacer(),
-                      FilledButton.icon(
-                        onPressed: state.commandRunning || targets.isEmpty
-                            ? null
-                            : controller.buildManagedProject,
-                        icon: const Icon(Icons.inventory_2_outlined),
-                        label: Text(
-                          state.selectedAndroidFlavors.length > 1
-                              ? '连续构建 ${state.selectedAndroidFlavors.length} 个渠道'
-                              : project.bugly.enabled
-                              ? '构建并上传 Bugly'
-                              : '开始构建',
-                        ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: project.androidFlavors
+                            .map(
+                              (flavor) => FilterChip(
+                                label: Text(flavor),
+                                selected: state.selectedAndroidFlavors.contains(
+                                  flavor,
+                                ),
+                                onSelected:
+                                    controller.selectedTaskActive('build')
+                                    ? null
+                                    : (_) => controller.toggleAndroidFlavor(
+                                        flavor,
+                                      ),
+                              ),
+                            )
+                            .toList(),
                       ),
                     ],
-                  ),
-                ],
+                    if (project.hasAndroid &&
+                        (state.projectBuildTarget == ProjectBuildTarget.apk ||
+                            state.projectBuildTarget ==
+                                ProjectBuildTarget.appbundle)) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        '检测到 Build Types：${project.androidBuildTypes.join(', ')}'
+                        '${project.androidFlavors.isEmpty ? '；未检测到 Product Flavors' : ''}',
+                        style: const TextStyle(color: Colors.black54),
+                      ),
+                      const SizedBox(height: 14),
+                      Row(
+                        children: [
+                          Expanded(
+                            child: SwitchListTile(
+                              contentPadding: EdgeInsets.zero,
+                              title: const Text('构建前执行 Clean + Pub Get'),
+                              value: state.cleanBeforeBuild,
+                              onChanged: controller.selectedTaskActive('build')
+                                  ? null
+                                  : controller.setCleanBeforeBuild,
+                            ),
+                          ),
+                          const SizedBox(width: 16),
+                          SizedBox(
+                            width: 260,
+                            child: DropdownButtonFormField<String>(
+                              isExpanded: true,
+                              initialValue: state.androidTargetPlatform,
+                              decoration: const InputDecoration(
+                                labelText: 'Android 目标架构',
+                                border: OutlineInputBorder(),
+                              ),
+                              items: const [
+                                DropdownMenuItem(
+                                  value: 'android-arm64',
+                                  child: Text('arm64-v8a'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'android-arm',
+                                  child: Text('armeabi-v7a'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'android-arm,android-arm64',
+                                  child: Text('32 位 + 64 位'),
+                                ),
+                                DropdownMenuItem(
+                                  value: 'android-x64',
+                                  child: Text('x86_64'),
+                                ),
+                              ],
+                              onChanged: controller.selectedTaskActive('build')
+                                  ? null
+                                  : (value) {
+                                      if (value != null) {
+                                        controller.setAndroidTargetPlatform(
+                                          value,
+                                        );
+                                      }
+                                    },
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        OutlinedButton.icon(
+                          onPressed: controller.selectedTaskActive('build')
+                              ? null
+                              : controller.openBuildOutput,
+                          icon: const Icon(Icons.folder_open),
+                          label: Text(switch (state.projectBuildTarget) {
+                            ProjectBuildTarget.apk => '打开 APK 目录',
+                            ProjectBuildTarget.appbundle => '打开 AAB 目录',
+                            ProjectBuildTarget.ios => '打开 iOS 构建目录',
+                            ProjectBuildTarget.macos => '打开 macOS 构建目录',
+                            ProjectBuildTarget.windows => '打开 Windows 构建目录',
+                          }),
+                        ),
+                        if (state.projectBuildTarget ==
+                            ProjectBuildTarget.macos) ...[
+                          const SizedBox(width: 8),
+                          OutlinedButton.icon(
+                            onPressed: controller.selectedTaskActive('build')
+                                ? null
+                                : controller.packageMacosDmg,
+                            icon: const Icon(Icons.archive_outlined),
+                            label: const Text('打包成 DMG'),
+                          ),
+                        ],
+                        const SizedBox(width: 8),
+                        OutlinedButton.icon(
+                          onPressed: () => _showPackageGuide(
+                            context,
+                            state.projectBuildTarget,
+                          ),
+                          icon: const Icon(Icons.menu_book),
+                          label: const Text('打包指南'),
+                        ),
+                        const Spacer(),
+                        FilledButton.icon(
+                          onPressed:
+                              controller.selectedTaskActive('build') ||
+                                  targets.isEmpty
+                              ? null
+                              : controller.buildManagedProject,
+                          icon: const Icon(Icons.inventory_2_outlined),
+                          label: Text(
+                            state.selectedAndroidFlavors.length > 1
+                                ? '连续构建 ${state.selectedAndroidFlavors.length} 个渠道'
+                                : project.bugly.enabled
+                                ? '构建并上传 Bugly'
+                                : '开始构建',
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (project.hasAndroid &&
+                        (state.projectBuildTarget == ProjectBuildTarget.apk ||
+                            state.projectBuildTarget ==
+                                ProjectBuildTarget.appbundle)) ...[
+                      const Divider(height: 32),
+                      _BuglySettings(project: project, state: state),
+                    ],
+                    if (state.projectBuildTarget == ProjectBuildTarget.apk ||
+                        state.projectBuildTarget ==
+                            ProjectBuildTarget.appbundle) ...[
+                      const Divider(height: 32),
+                      _CustomCommandEditor(project: project, state: state),
+                    ],
+                  ],
+                ),
               ),
             ),
           ),
           const SizedBox(height: 12),
-          if (project.hasAndroid &&
-              (state.projectBuildTarget == ProjectBuildTarget.apk ||
-                  state.projectBuildTarget ==
-                      ProjectBuildTarget.appbundle)) ...[
-            _BuglySettings(project: project, state: state),
-            const SizedBox(height: 12),
-          ],
-          if (state.projectBuildTarget == ProjectBuildTarget.apk ||
-              state.projectBuildTarget == ProjectBuildTarget.appbundle) ...[
-            _CustomCommandEditor(project: project, state: state),
-            const SizedBox(height: 12),
-          ],
-          _CommandConsole(state: state),
+          if (state.showMainWindowConsole ||
+              controller.selectedProjectBuildConsoleVisible)
+            _CommandConsole(state: state, project: project),
         ],
       ),
     );
@@ -1056,6 +1248,22 @@ class _ProjectDetail extends ConsumerWidget {
   }
 }
 
+Future<void> _confirmRemoveManagedProject(
+  BuildContext context,
+  FvmController controller,
+  FlutterProject project,
+) async {
+  final confirmed = await confirmDeletion(
+    context,
+    title: '确认删除项目记录？',
+    message:
+        '将从项目管理列表中删除“${project.displayName}”。\n\n'
+        '不会删除项目目录或其中的任何文件。\n${project.path}',
+    confirmLabel: '删除记录',
+  );
+  if (confirmed) await controller.removeManagedProject(project.path);
+}
+
 class _ProjectVersionSettings extends ConsumerStatefulWidget {
   const _ProjectVersionSettings({required this.project, required this.state});
 
@@ -1065,6 +1273,53 @@ class _ProjectVersionSettings extends ConsumerStatefulWidget {
   @override
   ConsumerState<_ProjectVersionSettings> createState() =>
       _ProjectVersionSettingsState();
+}
+
+class _CollapsibleProjectSection extends StatefulWidget {
+  const _CollapsibleProjectSection({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.child,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Widget child;
+
+  @override
+  State<_CollapsibleProjectSection> createState() =>
+      _CollapsibleProjectSectionState();
+}
+
+class _CollapsibleProjectSectionState
+    extends State<_CollapsibleProjectSection> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Card(
+        child: ListTile(
+          leading: Icon(widget.icon),
+          title: Text(
+            widget.title,
+            style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+          ),
+          subtitle: Text(widget.subtitle),
+          trailing: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
+          onTap: () => setState(() => _expanded = !_expanded),
+        ),
+      ),
+      Offstage(
+        offstage: !_expanded,
+        child: TickerMode(enabled: _expanded, child: widget.child),
+      ),
+    ],
+  );
 }
 
 class _ProjectVersionSettingsState
@@ -1255,71 +1510,66 @@ await runCommand('flutter', [
   @override
   Widget build(BuildContext context) {
     final controller = ref.read(fvmControllerProvider.notifier);
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text(
-                '使用自定义 runCommand 工作流',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
-              ),
-              subtitle: const Text('只解析并执行 runCommand("命令", [...]) 代码块。'),
-              value: widget.project.useCustomCommands,
-              onChanged: widget.state.commandRunning
-                  ? null
-                  : controller.setUseCustomCommands,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text(
+            '使用自定义 runCommand 工作流',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+          ),
+          subtitle: const Text('只解析并执行 runCommand("命令", [...]) 代码块。'),
+          value: widget.project.useCustomCommands,
+          onChanged: controller.selectedTaskActive('workflow')
+              ? null
+              : controller.setUseCustomCommands,
+        ),
+        if (widget.project.useCustomCommands) ...[
+          const SizedBox(height: 10),
+          TextField(
+            controller: _controller,
+            minLines: 8,
+            maxLines: 18,
+            style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+              labelText: '执行代码',
+              alignLabelWithHint: true,
             ),
-            if (widget.project.useCustomCommands) ...[
-              const SizedBox(height: 10),
-              TextField(
-                controller: _controller,
-                minLines: 8,
-                maxLines: 18,
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-                decoration: const InputDecoration(
-                  border: OutlineInputBorder(),
-                  labelText: '执行代码',
-                  alignLabelWithHint: true,
-                ),
+          ),
+          const SizedBox(height: 10),
+          const Text(
+            r'占位符：{flavor}、${flavor}、{version}、{buildNo}、{bundleId}、{projectPath}、{targetPlatform}',
+            style: TextStyle(color: Colors.black54),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () =>
+                    controller.saveCustomCommandCode(_controller.text),
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('保存工作流'),
               ),
-              const SizedBox(height: 10),
-              const Text(
-                r'占位符：{flavor}、${flavor}、{version}、{buildNo}、{bundleId}、{projectPath}、{targetPlatform}',
-                style: TextStyle(color: Colors.black54),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  OutlinedButton.icon(
-                    onPressed: () =>
-                        controller.saveCustomCommandCode(_controller.text),
-                    icon: const Icon(Icons.save_outlined),
-                    label: const Text('保存工作流'),
-                  ),
-                  const SizedBox(width: 10),
-                  FilledButton.icon(
-                    onPressed: widget.state.commandRunning
-                        ? null
-                        : () async {
-                            await controller.saveCustomCommandCode(
-                              _controller.text,
-                            );
-                            await controller.runCustomBuildWorkflow();
-                          },
-                    icon: const Icon(Icons.play_arrow),
-                    label: const Text('执行自定义工作流'),
-                  ),
-                ],
+              const SizedBox(width: 10),
+              FilledButton.icon(
+                onPressed: controller.selectedTaskActive('workflow')
+                    ? null
+                    : () async {
+                        await controller.saveCustomCommandCode(
+                          _controller.text,
+                        );
+                        await controller.runCustomBuildWorkflow();
+                      },
+                icon: const Icon(Icons.play_arrow),
+                label: const Text('执行自定义工作流'),
               ),
             ],
-          ],
-        ),
-      ),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -1334,132 +1584,124 @@ class _BuglySettings extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(fvmControllerProvider.notifier);
     final config = project.bugly;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: const Text(
-                '构建后上传 Bugly 符号表',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text(
+            '构建后上传 Bugly 符号表',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+          ),
+          subtitle: const Text('仅用于 APK Release；每个选中渠道构建成功后自动执行 Java 上传工具。'),
+          value: config.enabled,
+          onChanged: controller.selectedTaskActive('build')
+              ? null
+              : (value) => controller.updateBuglyConfig(
+                  config.copyWith(enabled: value),
+                ),
+        ),
+        if (config.enabled) ...[
+          const SizedBox(height: 12),
+          TextFormField(
+            key: ValueKey('bugly-jar-${config.jarPath}'),
+            initialValue: config.jarPath,
+            decoration: InputDecoration(
+              labelText: 'Bugly 上传工具 JAR',
+              border: const OutlineInputBorder(),
+              suffixIcon: IconButton(
+                tooltip: '选择 JAR',
+                onPressed: controller.chooseBuglyJar,
+                icon: const Icon(Icons.folder_open),
               ),
-              subtitle: const Text(
-                '仅用于 APK Release；每个选中渠道构建成功后自动执行 Java 上传工具。',
-              ),
-              value: config.enabled,
-              onChanged: state.commandRunning
-                  ? null
-                  : (value) => controller.updateBuglyConfig(
-                      config.copyWith(enabled: value),
-                    ),
             ),
-            if (config.enabled) ...[
-              const SizedBox(height: 12),
-              TextFormField(
-                key: ValueKey('bugly-jar-${config.jarPath}'),
-                initialValue: config.jarPath,
-                decoration: InputDecoration(
-                  labelText: 'Bugly 上传工具 JAR',
-                  border: const OutlineInputBorder(),
-                  suffixIcon: IconButton(
-                    tooltip: '选择 JAR',
-                    onPressed: controller.chooseBuglyJar,
-                    icon: const Icon(Icons.folder_open),
-                  ),
-                ),
-                onChanged: (value) => controller.updateBuglyConfig(
-                  config.copyWith(jarPath: value),
-                ),
-              ),
-              const SizedBox(height: 12),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final width = constraints.maxWidth >= 680
-                      ? (constraints.maxWidth - 12) / 2
-                      : constraints.maxWidth;
-                  return Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      _BuglyField(
-                        width: width,
-                        label: 'App ID',
-                        value: config.appId,
-                        onChanged: (value) => controller.updateBuglyConfig(
-                          config.copyWith(appId: value),
-                        ),
-                      ),
-                      _BuglyField(
-                        width: width,
-                        label: 'App Key',
-                        value: config.appKey,
-                        obscureText: true,
-                        onChanged: (value) => controller.updateBuglyConfig(
-                          config.copyWith(appKey: value),
-                        ),
-                      ),
-                      _BuglyField(
-                        width: width,
-                        label: 'Bundle ID',
-                        value: config.bundleId,
-                        onChanged: (value) => controller.updateBuglyConfig(
-                          config.copyWith(bundleId: value),
-                        ),
-                      ),
-                      _BuglyField(
-                        width: width,
-                        label: 'Version',
-                        value: config.version,
-                        onChanged: (value) => controller.updateBuglyConfig(
-                          config.copyWith(version: value),
-                        ),
-                      ),
-                      _BuglyField(
-                        width: width,
-                        label: 'Build No',
-                        value: config.buildNo,
-                        onChanged: (value) => controller.updateBuglyConfig(
-                          config.copyWith(buildNo: value),
-                        ),
-                      ),
-                      SizedBox(
-                        width: width,
-                        child: Align(
-                          alignment: Alignment.centerRight,
-                          child: OutlinedButton.icon(
-                            onPressed: controller.refreshBuglyFromProject,
-                            icon: const Icon(Icons.refresh, size: 18),
-                            label: const Text('从项目读取'),
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 12),
-              Row(
+            onChanged: (value) =>
+                controller.updateBuglyConfig(config.copyWith(jarPath: value)),
+          ),
+          const SizedBox(height: 12),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth >= 680
+                  ? (constraints.maxWidth - 12) / 2
+                  : constraints.maxWidth;
+              return Wrap(
+                spacing: 12,
+                runSpacing: 12,
                 children: [
-                  const Expanded(
-                    child: Text(
-                      '配置会保存在本机项目记录中；命令日志不会显示 App Key。',
-                      style: TextStyle(color: Colors.black54),
+                  _BuglyField(
+                    width: width,
+                    label: 'App ID',
+                    value: config.appId,
+                    onChanged: (value) => controller.updateBuglyConfig(
+                      config.copyWith(appId: value),
                     ),
                   ),
-                  FilledButton.tonalIcon(
-                    onPressed: controller.saveBuglyConfig,
-                    icon: const Icon(Icons.save_outlined),
-                    label: const Text('保存配置'),
+                  _BuglyField(
+                    width: width,
+                    label: 'App Key',
+                    value: config.appKey,
+                    obscureText: true,
+                    onChanged: (value) => controller.updateBuglyConfig(
+                      config.copyWith(appKey: value),
+                    ),
+                  ),
+                  _BuglyField(
+                    width: width,
+                    label: 'Bundle ID',
+                    value: config.bundleId,
+                    onChanged: (value) => controller.updateBuglyConfig(
+                      config.copyWith(bundleId: value),
+                    ),
+                  ),
+                  _BuglyField(
+                    width: width,
+                    label: 'Version',
+                    value: config.version,
+                    onChanged: (value) => controller.updateBuglyConfig(
+                      config.copyWith(version: value),
+                    ),
+                  ),
+                  _BuglyField(
+                    width: width,
+                    label: 'Build No',
+                    value: config.buildNo,
+                    onChanged: (value) => controller.updateBuglyConfig(
+                      config.copyWith(buildNo: value),
+                    ),
+                  ),
+                  SizedBox(
+                    width: width,
+                    child: Align(
+                      alignment: Alignment.centerRight,
+                      child: OutlinedButton.icon(
+                        onPressed: controller.refreshBuglyFromProject,
+                        icon: const Icon(Icons.refresh, size: 18),
+                        label: const Text('从项目读取'),
+                      ),
+                    ),
                   ),
                 ],
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              const Expanded(
+                child: Text(
+                  '配置会保存在本机项目记录中；命令日志不会显示 App Key。',
+                  style: TextStyle(color: Colors.black54),
+                ),
+              ),
+              FilledButton.tonalIcon(
+                onPressed: controller.saveBuglyConfig,
+                icon: const Icon(Icons.save_outlined),
+                label: const Text('保存配置'),
               ),
             ],
-          ],
-        ),
-      ),
+          ),
+        ],
+      ],
     );
   }
 }
@@ -1495,67 +1737,431 @@ class _BuglyField extends StatelessWidget {
   );
 }
 
-class _CommandConsole extends ConsumerWidget {
-  const _CommandConsole({required this.state});
+class _CommandStopButton extends StatelessWidget {
+  const _CommandStopButton({required this.tasks, required this.controller});
 
-  final FvmState state;
+  final List<({String id, String label})> tasks;
+  final FvmController controller;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => Card(
-    color: const Color(0xff101820),
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                state.commandRunning ? '正在执行：${state.activeCommand}' : '命令输出',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                ),
+  Widget build(BuildContext context) {
+    if (tasks.isEmpty) {
+      return OutlinedButton.icon(
+        onPressed: null,
+        icon: const Icon(Icons.stop_circle_outlined),
+        label: const Text('结束运行'),
+      );
+    }
+    if (tasks.length == 1) {
+      return OutlinedButton.icon(
+        onPressed: () => _confirmStopCommand(context, controller, tasks.single),
+        icon: const Icon(Icons.stop_circle_outlined),
+        label: const Text('结束运行'),
+      );
+    }
+    return PopupMenuButton<String>(
+      tooltip: '选择要结束的命令',
+      onSelected: (taskId) {
+        final task = tasks.firstWhere((item) => item.id == taskId);
+        _confirmStopCommand(context, controller, task);
+      },
+      itemBuilder: (_) => tasks
+          .map(
+            (task) => PopupMenuItem<String>(
+              value: task.id,
+              child: ListTile(
+                leading: const Icon(Icons.terminal, size: 20),
+                title: Text(task.label),
+                subtitle: const Text('选择后仍需确认'),
+                dense: true,
+                contentPadding: EdgeInsets.zero,
               ),
-              const Spacer(),
-              if (state.commandRunning)
-                TextButton.icon(
-                  onPressed: ref
-                      .read(fvmControllerProvider.notifier)
-                      .stopProjectCommand,
-                  icon: const Icon(Icons.stop, color: Colors.redAccent),
-                  label: const Text(
-                    '停止',
-                    style: TextStyle(color: Colors.redAccent),
+            ),
+          )
+          .toList(growable: false),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
+        decoration: BoxDecoration(
+          border: Border.all(color: Theme.of(context).colorScheme.outline),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: const Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.stop_circle_outlined, size: 18),
+            SizedBox(width: 8),
+            Text('结束运行'),
+            Icon(Icons.arrow_drop_down),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _confirmStopCommand(
+  BuildContext context,
+  FvmController controller,
+  ({String id, String label}) task,
+) async {
+  final confirmed = await confirmDeletion(
+    context,
+    title: '确认结束运行？',
+    message: '将停止“${task.label}”。正在执行的操作会立即中断。',
+    confirmLabel: '结束运行',
+  );
+  if (confirmed) await controller.stopProjectCommand(task.id);
+}
+
+class _ConsoleSearchMatch {
+  const _ConsoleSearchMatch(this.start, this.end);
+
+  final int start;
+  final int end;
+}
+
+class _CommandConsole extends ConsumerStatefulWidget {
+  const _CommandConsole({required this.state, required this.project});
+
+  final FvmState state;
+  final FlutterProject project;
+
+  @override
+  ConsumerState<_CommandConsole> createState() => _CommandConsoleState();
+}
+
+class _CommandConsoleState extends ConsumerState<_CommandConsole> {
+  final _scrollController = ScrollController();
+  final _searchController = TextEditingController();
+  final _searchFocusNode = FocusNode();
+  List<_ConsoleSearchMatch> _matches = const [];
+  String _searchQuery = '';
+  int _currentMatch = -1;
+  bool _showSearch = false;
+  bool _stickToBottom = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_handleScroll);
+    HardwareKeyboard.instance.addHandler(_handleKeyEvent);
+    _scrollToBottom();
+  }
+
+  @override
+  void didUpdateWidget(covariant _CommandConsole oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final projectChanged =
+        oldWidget.state.selectedManagedProjectPath !=
+        widget.state.selectedManagedProjectPath;
+    if (oldWidget.state.commandLog != widget.state.commandLog) {
+      _refreshMatches(preserveCurrent: true);
+      if (_stickToBottom || projectChanged) _scrollToBottom();
+    }
+    if (projectChanged) _stickToBottom = true;
+  }
+
+  @override
+  void dispose() {
+    HardwareKeyboard.instance.removeHandler(_handleKeyEvent);
+    _scrollController
+      ..removeListener(_handleScroll)
+      ..dispose();
+    _searchController.dispose();
+    _searchFocusNode.dispose();
+    super.dispose();
+  }
+
+  bool _handleKeyEvent(KeyEvent event) {
+    final keyboard = HardwareKeyboard.instance;
+    if (event is KeyDownEvent &&
+        event.logicalKey == LogicalKeyboardKey.keyF &&
+        (keyboard.isMetaPressed || keyboard.isControlPressed)) {
+      _openSearch();
+      return true;
+    }
+    return false;
+  }
+
+  void _handleScroll() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    _stickToBottom = position.maxScrollExtent - position.pixels <= 24;
+  }
+
+  void _scrollToBottom() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+    });
+  }
+
+  void _openSearch() {
+    if (!_showSearch) setState(() => _showSearch = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _searchFocusNode.requestFocus();
+      _searchController.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _searchController.text.length,
+      );
+    });
+  }
+
+  void _closeSearch() {
+    _searchFocusNode.unfocus();
+    _searchController.clear();
+    setState(() {
+      _showSearch = false;
+      _searchQuery = '';
+      _matches = const [];
+      _currentMatch = -1;
+    });
+  }
+
+  void _refreshMatches({bool preserveCurrent = false}) {
+    final query = _searchController.text;
+    final log = widget.state.commandLog;
+    final matches = <_ConsoleSearchMatch>[];
+    if (query.isNotEmpty && log.isNotEmpty) {
+      final lowerLog = log.toLowerCase();
+      final lowerQuery = query.toLowerCase();
+      var offset = 0;
+      while (offset < lowerLog.length) {
+        final start = lowerLog.indexOf(lowerQuery, offset);
+        if (start < 0) break;
+        final end = start + query.length;
+        matches.add(_ConsoleSearchMatch(start, end));
+        offset = end;
+      }
+    }
+    var nextIndex = matches.isEmpty ? -1 : 0;
+    if (preserveCurrent &&
+        _currentMatch >= 0 &&
+        _currentMatch < matches.length) {
+      nextIndex = _currentMatch;
+    }
+    if (mounted) {
+      setState(() {
+        _searchQuery = query;
+        _matches = matches;
+        _currentMatch = nextIndex;
+      });
+    }
+  }
+
+  void _submitSearch() {
+    final queryChanged = _searchController.text != _searchQuery;
+    if (queryChanged) {
+      _refreshMatches();
+      _scrollToCurrentMatch();
+    } else {
+      _nextMatch();
+    }
+  }
+
+  void _previousMatch() {
+    if (_matches.isEmpty) return;
+    setState(() {
+      _currentMatch = (_currentMatch - 1 + _matches.length) % _matches.length;
+    });
+    _scrollToCurrentMatch();
+  }
+
+  void _nextMatch() {
+    if (_matches.isEmpty) return;
+    setState(() => _currentMatch = (_currentMatch + 1) % _matches.length);
+    _scrollToCurrentMatch();
+  }
+
+  void _scrollToCurrentMatch() {
+    if (_currentMatch < 0 ||
+        _currentMatch >= _matches.length ||
+        widget.state.commandLog.isEmpty) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_scrollController.hasClients) return;
+      final max = _scrollController.position.maxScrollExtent;
+      final ratio =
+          _matches[_currentMatch].start / widget.state.commandLog.length;
+      _scrollController.animateTo(
+        (max * ratio).clamp(0, max),
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+      );
+    });
+  }
+
+  List<TextSpan> _consoleSpans(String text) {
+    if (_matches.isEmpty) return [TextSpan(text: text)];
+    final spans = <TextSpan>[];
+    var offset = 0;
+    for (var index = 0; index < _matches.length; index++) {
+      final match = _matches[index];
+      if (match.start > offset) {
+        spans.add(TextSpan(text: text.substring(offset, match.start)));
+      }
+      spans.add(
+        TextSpan(
+          text: text.substring(match.start, match.end),
+          style: TextStyle(
+            color: const Color(0xff101820),
+            fontWeight: index == _currentMatch
+                ? FontWeight.w700
+                : FontWeight.w500,
+            backgroundColor: index == _currentMatch
+                ? const Color(0xffffc857)
+                : const Color(0xfffff3a3),
+          ),
+        ),
+      );
+      offset = match.end;
+    }
+    if (offset < text.length) spans.add(TextSpan(text: text.substring(offset)));
+    return spans;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = ref.read(fvmControllerProvider.notifier);
+    final tasks = controller.activeTasksForSelectedProject;
+    return Card(
+      color: const Color(0xff101820),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Text(
+                  tasks.isEmpty ? '命令输出' : '正在执行 ${tasks.length} 个任务',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
-              IconButton(
-                tooltip: '清空输出',
-                onPressed: ref
-                    .read(fvmControllerProvider.notifier)
-                    .clearCommandLog,
-                icon: const Icon(Icons.delete_sweep, color: Colors.white70),
+                const Spacer(),
+                IconButton(
+                  tooltip: '在新窗口中打开',
+                  onPressed: controller.openSelectedProjectConsole,
+                  icon: const Icon(Icons.open_in_new, color: Colors.white70),
+                ),
+                IconButton(
+                  tooltip: '清空输出',
+                  onPressed: () => _confirmClearCommandLog(controller),
+                  icon: const Icon(Icons.delete_sweep, color: Colors.white70),
+                ),
+              ],
+            ),
+            if (tasks.isNotEmpty)
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: tasks
+                    .map(
+                      (task) => InputChip(
+                        label: Text(task.label),
+                        avatar: const Icon(Icons.terminal, size: 17),
+                        deleteIcon: const Icon(Icons.stop, size: 18),
+                        deleteButtonTooltipMessage: '停止此任务',
+                        onDeleted: () =>
+                            _confirmStopCommand(context, controller, task),
+                      ),
+                    )
+                    .toList(),
+              ),
+            if (_showSearch) ...[
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      key: const ValueKey('command-console-search-field'),
+                      controller: _searchController,
+                      focusNode: _searchFocusNode,
+                      style: const TextStyle(color: Colors.white),
+                      decoration: const InputDecoration(
+                        hintText: '搜索打印内容',
+                        hintStyle: TextStyle(color: Colors.white54),
+                        prefixIcon: Icon(Icons.search, color: Colors.white70),
+                        filled: true,
+                        fillColor: Color(0xff1b2733),
+                        border: OutlineInputBorder(),
+                        isDense: true,
+                      ),
+                      onChanged: (_) => _refreshMatches(),
+                      onSubmitted: (_) => _submitSearch(),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    _matches.isEmpty
+                        ? '0 / 0'
+                        : '${_currentMatch + 1} / ${_matches.length}',
+                    style: const TextStyle(color: Colors.white70),
+                  ),
+                  IconButton(
+                    tooltip: '上一个结果',
+                    onPressed: _matches.isEmpty ? null : _previousMatch,
+                    icon: const Icon(Icons.keyboard_arrow_up),
+                    color: Colors.white,
+                  ),
+                  IconButton(
+                    tooltip: '下一个结果',
+                    onPressed: _matches.isEmpty ? null : _nextMatch,
+                    icon: const Icon(Icons.keyboard_arrow_down),
+                    color: Colors.white,
+                  ),
+                  IconButton(
+                    tooltip: '关闭搜索',
+                    onPressed: _closeSearch,
+                    icon: const Icon(Icons.close),
+                    color: Colors.white,
+                  ),
+                ],
               ),
             ],
-          ),
-          const Divider(color: Colors.white24),
-          SizedBox(
-            height: 220,
-            width: double.infinity,
-            child: SingleChildScrollView(
-              reverse: true,
-              child: SelectableText(
-                state.commandLog.isEmpty ? '等待执行命令…' : state.commandLog,
-                style: const TextStyle(
-                  color: Color(0xffc9d1d9),
-                  fontFamily: 'monospace',
-                  fontSize: 12,
+            const Divider(color: Colors.white24),
+            SizedBox(
+              height: 360,
+              width: double.infinity,
+              child: Scrollbar(
+                controller: _scrollController,
+                thumbVisibility: true,
+                child: SingleChildScrollView(
+                  controller: _scrollController,
+                  child: SelectableText.rich(
+                    TextSpan(
+                      children: _consoleSpans(
+                        widget.state.commandLog.isEmpty
+                            ? '等待执行命令…'
+                            : widget.state.commandLog,
+                      ),
+                    ),
+                    style: const TextStyle(
+                      color: Color(0xffc9d1d9),
+                      fontFamily: 'monospace',
+                      fontSize: 12,
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
-    ),
-  );
+    );
+  }
+
+  Future<void> _confirmClearCommandLog(FvmController controller) async {
+    final confirmed = await confirmDeletion(
+      context,
+      title: '确认清空命令输出？',
+      message: '将清空当前项目打印台中的全部输出内容，此操作不可撤销。',
+      confirmLabel: '清空输出',
+    );
+    if (confirmed) controller.clearCommandLog();
+  }
 }

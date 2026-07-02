@@ -105,6 +105,12 @@ class _Sidebar extends StatelessWidget {
                     selected: selected == 5,
                     onTap: () => onSelected(5),
                   ),
+                  _NavItem(
+                    icon: Icons.settings_outlined,
+                    label: '设置',
+                    selected: selected == 6,
+                    onTap: () => onSelected(6),
+                  ),
                 ],
               ),
             ),

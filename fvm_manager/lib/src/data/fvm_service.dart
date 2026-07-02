@@ -186,13 +186,8 @@ class FvmService {
     required String projectPath,
     required List<String> arguments,
   }) async {
-    final separator = Platform.pathSeparator;
-    final usesFvm =
-        File('$projectPath$separator.fvmrc').existsSync() ||
-        File(
-          '$projectPath$separator.fvm${separator}fvm_config.json',
-        ).existsSync();
-    if (usesFvm && await detect() != null) {
+    if (_usesFvm(projectPath) &&
+        (_executable != null || await detect() != null)) {
       return Process.start(
         _executable!,
         ['flutter', ...arguments],
@@ -208,6 +203,35 @@ class FvmService {
     }
     return Process.start(
       flutterExecutable,
+      arguments,
+      workingDirectory: projectPath,
+      environment: _environment.processEnvironment,
+      includeParentEnvironment: false,
+      runInShell: Platform.isWindows,
+    );
+  }
+
+  Future<Process> startDartCommand({
+    required String projectPath,
+    required List<String> arguments,
+  }) async {
+    if (_usesFvm(projectPath) &&
+        (_executable != null || await detect() != null)) {
+      return Process.start(
+        _executable!,
+        ['dart', ...arguments],
+        workingDirectory: projectPath,
+        environment: _environment.processEnvironment,
+        includeParentEnvironment: false,
+        runInShell: Platform.isWindows,
+      );
+    }
+    final dartExecutable = _findExecutable('dart');
+    if (dartExecutable == null) {
+      throw Exception('未检测到 Dart，请先安装 Flutter 或配置 FVM 全局版本');
+    }
+    return Process.start(
+      dartExecutable,
       arguments,
       workingDirectory: projectPath,
       environment: _environment.processEnvironment,
@@ -287,5 +311,13 @@ class FvmService {
       if (File(candidate).existsSync()) return candidate;
     }
     return null;
+  }
+
+  bool _usesFvm(String projectPath) {
+    final separator = Platform.pathSeparator;
+    return File('$projectPath$separator.fvmrc').existsSync() ||
+        File(
+          '$projectPath$separator.fvm${separator}fvm_config.json',
+        ).existsSync();
   }
 }

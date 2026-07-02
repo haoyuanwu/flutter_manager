@@ -116,6 +116,95 @@ class LocalProjectService {
     }
   }
 
+  Future<void> openAndroidModuleInAndroidStudio(String projectPath) async {
+    final androidDirectory = Directory(
+      '$projectPath${Platform.pathSeparator}android',
+    );
+    if (!await androidDirectory.exists()) {
+      throw Exception('该项目不存在 Android 工程目录');
+    }
+    final result = await Process.run('open', [
+      '-a',
+      'Android Studio',
+      androidDirectory.path,
+    ]);
+    if (result.exitCode != 0) {
+      final fallback = await Process.run('studio', [androidDirectory.path]);
+      if (fallback.exitCode != 0) {
+        throw Exception('无法打开 Android Studio，请确认已安装');
+      }
+    }
+  }
+
+  Future<void> openWindowsProjectInVisualStudio(String projectPath) async {
+    if (!Platform.isWindows) {
+      throw Exception('Visual Studio 原生工程仅支持在 Windows 系统打开');
+    }
+    final windowsDirectory = Directory(
+      '$projectPath${Platform.pathSeparator}windows',
+    );
+    if (!await windowsDirectory.exists()) {
+      throw Exception('该项目不存在 Windows 工程目录');
+    }
+    final result = await Process.run('cmd.exe', [
+      '/c',
+      'start',
+      '',
+      'devenv.exe',
+      windowsDirectory.path,
+    ], runInShell: true);
+    if (result.exitCode != 0) {
+      throw Exception('无法打开 Visual Studio，请确认已安装');
+    }
+  }
+
+  Future<void> openIosProjectInXcode(String projectPath) async {
+    await _openAppleProjectInXcode(projectPath, 'ios', 'iOS');
+  }
+
+  Future<void> openMacosProjectInXcode(String projectPath) async {
+    await _openAppleProjectInXcode(projectPath, 'macos', 'macOS');
+  }
+
+  Future<void> _openAppleProjectInXcode(
+    String projectPath,
+    String platformDirectory,
+    String platformLabel,
+  ) async {
+    if (!Platform.isMacOS) {
+      throw Exception('Xcode 仅支持 macOS');
+    }
+    final appleDirectory = Directory(
+      '$projectPath${Platform.pathSeparator}$platformDirectory',
+    );
+    if (!await appleDirectory.exists()) {
+      throw Exception('该项目不存在 $platformLabel 工程目录');
+    }
+
+    final entries = await appleDirectory.list().toList();
+    final workspaces =
+        entries
+            .whereType<Directory>()
+            .where((entry) => entry.path.endsWith('.xcworkspace'))
+            .toList()
+          ..sort((a, b) => a.path.compareTo(b.path));
+    final projects =
+        entries
+            .whereType<Directory>()
+            .where((entry) => entry.path.endsWith('.xcodeproj'))
+            .toList()
+          ..sort((a, b) => a.path.compareTo(b.path));
+    final target = workspaces.firstOrNull ?? projects.firstOrNull;
+    if (target == null) {
+      throw Exception('$platformLabel 目录中未找到 .xcworkspace 或 .xcodeproj');
+    }
+
+    final result = await Process.run('open', ['-a', 'Xcode', target.path]);
+    if (result.exitCode != 0) {
+      throw Exception('无法打开 Xcode，请确认已安装：${result.stderr}');
+    }
+  }
+
   Future<void> openInVSCode(String projectPath) async {
     final result = await Process.run('code', [projectPath]);
     if (result.exitCode != 0) {

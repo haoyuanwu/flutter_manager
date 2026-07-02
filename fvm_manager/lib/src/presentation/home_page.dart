@@ -3,11 +3,13 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
 import '../domain/models.dart';
 import '../domain/project_models.dart';
 import '../data/log_service.dart';
 import '../data/pub_environment_service.dart';
+import 'confirm_dialog.dart';
 import 'providers.dart';
 
 part 'pages/environment_guide_page.dart';
@@ -15,6 +17,7 @@ part 'pages/overview_page.dart';
 part 'pages/project_configuration_page.dart';
 part 'pages/project_management_page.dart';
 part 'pages/log_page.dart';
+part 'pages/settings_page.dart';
 part 'pages/versions_page.dart';
 part 'widgets/navigation.dart';
 part 'widgets/status_widgets.dart';
@@ -148,7 +151,8 @@ class _HomePageState extends ConsumerState<HomePage> {
                             onAddProject: _openProjectManagerAndAdd,
                           ),
                           4 => const _LogPage(),
-                          _ => _EnvironmentGuide(state: state),
+                          5 => _EnvironmentGuide(state: state),
+                          _ => _SettingsPage(state: state),
                         },
                       ),
                     ],
@@ -221,9 +225,9 @@ class _HomePageState extends ConsumerState<HomePage> {
             child: const Text('稍后处理'),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(dialogContext);
-              controller.removeManagedProject(project.path);
+              await _confirmRemoveManagedProject(context, controller, project);
             },
             child: const Text('删除记录'),
           ),

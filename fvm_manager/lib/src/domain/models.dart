@@ -100,5 +100,11 @@ abstract class FvmState with _$FvmState {
     String? activeCommand,
     String? statusMessage,
     String? errorMessage,
+    Map<String, String>? vmServiceUris,
+    @Default(true) bool autoOpenConsoleWindow,
+    @Default(false) bool showMainWindowConsole,
+    @Default(true) bool showConsoleQuickCommands,
+    @Default(false) bool buildOpensConsoleWindow,
+    @Default(false) bool buildConsoleVisible,
   }) = _FvmState;
 }
