@@ -8,6 +8,7 @@ class _SettingsPage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(fvmControllerProvider.notifier);
+    final packageInfoAsync = ref.watch(packageInfoProvider);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -57,6 +58,46 @@ class _SettingsPage extends ConsumerWidget {
                   onChanged: controller.setShowConsoleQuickCommands,
                 ),
               ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: packageInfoAsync.when(
+                data: (packageInfo) => Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '应用信息',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 12),
+                    ListTile(
+                      leading: const Icon(Icons.info_outline),
+                      title: const Text('版本号'),
+                      subtitle: Text(packageInfo.version),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.build_outlined),
+                      title: const Text('版本编码'),
+                      subtitle: Text(packageInfo.buildNumber),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.apps_outlined),
+                      title: const Text('应用名称'),
+                      subtitle: Text(packageInfo.appName),
+                    ),
+                    ListTile(
+                      leading: const Icon(Icons.phone_android_outlined),
+                      title: const Text('包名'),
+                      subtitle: Text(packageInfo.packageName),
+                    ),
+                  ],
+                ),
+                loading: () => const Center(child: CircularProgressIndicator()),
+                error: (error, stack) => Text('无法获取应用信息: $error'),
+              ),
             ),
           ),
         ],

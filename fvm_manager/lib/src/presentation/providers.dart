@@ -5,6 +5,7 @@ import 'package:dio/dio.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:pub_semver/pub_semver.dart';
 
 import '../data/flutter_release_service.dart';
@@ -28,6 +29,10 @@ final dioProvider = Provider<Dio>(
     ),
   ),
 );
+
+final packageInfoProvider = FutureProvider<PackageInfo>((ref) async {
+  return await PackageInfo.fromPlatform();
+});
 
 final pubEnvironmentServiceProvider = Provider<PubEnvironmentService>(
   (ref) => PubEnvironmentService(),
