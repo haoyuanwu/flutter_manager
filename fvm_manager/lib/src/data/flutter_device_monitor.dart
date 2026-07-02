@@ -14,11 +14,18 @@ class FlutterDeviceMonitor {
   StreamSubscription<String>? _stderrSubscription;
   int _generation = 0;
 
+  bool get isRunning => _process != null;
+
   Future<void> start({
     required String projectPath,
     required void Function(List<Map<String, String>> devices) onDevices,
     required void Function(Object error) onError,
   }) async {
+    if (_process != null) {
+      _emit(onDevices);
+      await refresh();
+      return;
+    }
     await stop();
     final generation = ++_generation;
     _devices.clear();
@@ -46,6 +53,7 @@ class FlutterDeviceMonitor {
       unawaited(
         process.exitCode.then((code) {
           if (generation == _generation) {
+            _process = null;
             onError(Exception('设备监听已停止（退出码 $code）'));
           }
         }),
@@ -132,6 +140,17 @@ class FlutterDeviceMonitor {
     final devices = _devices.values.toList(growable: false)
       ..sort((a, b) => a['name']!.compareTo(b['name']!));
     onDevices(devices);
+  }
+
+  Future<void> refresh() async {
+    final input = _process?.stdin;
+    if (input == null) return;
+    input.writeln(
+      jsonEncode([
+        {'id': 2, 'method': 'device.getDevices'},
+      ]),
+    );
+    await input.flush();
   }
 
   Future<void> stop() async {

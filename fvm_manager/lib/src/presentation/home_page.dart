@@ -99,67 +99,89 @@ class _HomePageState extends ConsumerState<HomePage> {
       },
     );
     return Scaffold(
-      body: state.loading && state.fvmVersion == null
-          ? const Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  SizedBox(
-                    width: 32,
-                    height: 32,
-                    child: CircularProgressIndicator(strokeWidth: 3),
-                  ),
-                  SizedBox(height: 16),
-                  Text('正在初始化…', style: TextStyle(color: Colors.black54)),
-                ],
-              ),
-            )
-          : Row(
-              children: [
-                _Sidebar(
-                  selected: _page,
-                  showFvmUpdate: state.hasFvmUpdate,
-                  showFlutterUpdate: state.hasFlutterUpdate,
-                  onIgnoreFvmUpdate: ref
-                      .read(fvmControllerProvider.notifier)
-                      .ignoreFvmUpdate,
-                  onIgnoreFlutterUpdate: ref
-                      .read(fvmControllerProvider.notifier)
-                      .ignoreFlutterUpdate,
-                  onSelected: (value) => setState(() => _page = value),
-                ),
-                Expanded(
-                  child: Column(
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: state.loading && state.fvmVersion == null
+                ? const Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          width: 32,
+                          height: 32,
+                          child: CircularProgressIndicator(strokeWidth: 3),
+                        ),
+                        SizedBox(height: 16),
+                        Text('正在初始化…', style: TextStyle(color: Colors.black54)),
+                      ],
+                    ),
+                  )
+                : Row(
                     children: [
-                      _TopBar(state: state),
-                      if (state.activeVersion != null)
-                        LinearProgressIndicator(value: state.downloadProgress),
-                      if (state.activeVersion != null)
-                        _DownloadStatusBar(state: state),
-                      if (state.errorMessage != null)
-                        _MessageBar(message: state.errorMessage!, error: true),
-                      if (state.statusMessage != null &&
-                          state.errorMessage == null)
-                        _MessageBar(message: state.statusMessage!),
+                      _Sidebar(
+                        selected: _page,
+                        showFvmUpdate: state.hasFvmUpdate,
+                        showFlutterUpdate: state.hasFlutterUpdate,
+                        onIgnoreFvmUpdate: ref
+                            .read(fvmControllerProvider.notifier)
+                            .ignoreFvmUpdate,
+                        onIgnoreFlutterUpdate: ref
+                            .read(fvmControllerProvider.notifier)
+                            .ignoreFlutterUpdate,
+                        onSelected: (value) => setState(() => _page = value),
+                      ),
                       Expanded(
-                        child: switch (_page) {
-                          0 => _Overview(state: state),
-                          1 => _Versions(state: state),
-                          2 => _ProjectManagement(state: state),
-                          3 => _ProjectConfiguration(
-                            state: state,
-                            onAddProject: _openProjectManagerAndAdd,
-                          ),
-                          4 => const _LogPage(),
-                          5 => _EnvironmentGuide(state: state),
-                          _ => _SettingsPage(state: state),
-                        },
+                        child: Column(
+                          children: [
+                            _TopBar(state: state),
+                            if (state.activeVersion != null)
+                              LinearProgressIndicator(
+                                value: state.downloadProgress,
+                              ),
+                            if (state.activeVersion != null)
+                              _DownloadStatusBar(state: state),
+                            Expanded(
+                              child: switch (_page) {
+                                0 => _Overview(state: state),
+                                1 => _Versions(state: state),
+                                2 => _ProjectManagement(state: state),
+                                3 => _ProjectConfiguration(
+                                  state: state,
+                                  onAddProject: _openProjectManagerAndAdd,
+                                ),
+                                4 => const _LogPage(),
+                                5 => _EnvironmentGuide(state: state),
+                                _ => _SettingsPage(state: state),
+                              },
+                            ),
+                          ],
+                        ),
                       ),
                     ],
                   ),
-                ),
-              ],
+          ),
+          if (state.errorMessage != null)
+            Positioned(
+              top: 72,
+              right: 24,
+              child: _MessageBar(
+                key: ValueKey('error:${state.errorMessage}'),
+                message: state.errorMessage!,
+                error: true,
+              ),
+            )
+          else if (state.statusMessage != null)
+            Positioned(
+              top: 72,
+              right: 24,
+              child: _MessageBar(
+                key: ValueKey('status:${state.statusMessage}'),
+                message: state.statusMessage!,
+              ),
             ),
+        ],
+      ),
     );
   }
 

@@ -18,6 +18,7 @@ import '../data/pub_environment_service.dart';
 import '../domain/models.dart';
 import '../domain/project_models.dart';
 import 'console_window_service.dart';
+import 'status_menu_service.dart';
 
 final dioProvider = Provider<Dio>(
   (ref) => Dio(
@@ -108,6 +109,10 @@ class FvmController extends Notifier<FvmState> {
 
   Future<void> initialize() async {
     if (state.loading) return;
+    await StatusMenuService.instance.initialize(
+      _openConsoleWindow,
+      onRunProjectAction: _runProjectActionFromConsole,
+    );
     try {
       await ConsoleWindowService.instance.registerMainHandler((call) async {
         final arguments = call.arguments as Map<dynamic, dynamic>? ?? const {};
@@ -192,6 +197,7 @@ class FvmController extends Notifier<FvmState> {
       state = state.copyWith(errorMessage: _message(error));
     } finally {
       state = state.copyWith(loading: false);
+      _publishStatusMenu();
     }
   }
 
@@ -209,6 +215,7 @@ class FvmController extends Notifier<FvmState> {
         globalVersion: results[1] as String?,
         errorMessage: null,
       );
+      _publishStatusMenu();
       unawaited(_startDeviceMonitoring());
     } catch (error) {
       state = state.copyWith(errorMessage: _message(error));
@@ -372,6 +379,8 @@ class FvmController extends Notifier<FvmState> {
         androidTargetPlatform: project.androidTargetPlatform,
         statusMessage: '已添加项目 ${project.displayName}',
       );
+      _publishStatusMenu();
+      unawaited(_startDeviceMonitoring());
     } catch (error) {
       state = state.copyWith(errorMessage: _message(error));
     } finally {
@@ -396,12 +405,11 @@ class FvmController extends Notifier<FvmState> {
         projectBuildMode: updated.lastBuildMode,
         cleanBeforeBuild: updated.cleanBeforeBuild,
         androidTargetPlatform: updated.androidTargetPlatform,
-        selectedDeviceId: null,
         commandLog: _commandLogs.logFor(path),
         commandRunning: _hasActiveTasks(path),
         activeCommand: _activeLabels(path),
       );
-      unawaited(_startDeviceMonitoring());
+      _publishStatusMenu();
     }
   }
 
@@ -443,6 +451,7 @@ class FvmController extends Notifier<FvmState> {
         androidTargetPlatform: project.androidTargetPlatform,
         statusMessage: '项目信息已刷新',
       );
+      _publishStatusMenu();
     } catch (error) {
       state = state.copyWith(errorMessage: _message(error));
     } finally {
@@ -468,6 +477,7 @@ class FvmController extends Notifier<FvmState> {
           projects.firstOrNull?.androidTargetPlatform ?? 'android-arm64',
       statusMessage: '项目记录已移除（本地文件未删除）',
     );
+    _publishStatusMenu();
   }
 
   Future<void> relocateManagedProject(FlutterProject missingProject) async {
@@ -501,6 +511,7 @@ class FvmController extends Notifier<FvmState> {
         androidTargetPlatform: relocated.androidTargetPlatform,
         statusMessage: '项目已重新定位到 ${relocated.path}',
       );
+      _publishStatusMenu();
     } catch (error) {
       state = state.copyWith(errorMessage: _message(error));
     }
@@ -1134,6 +1145,55 @@ class FvmController extends Notifier<FvmState> {
       commandRunning: path != null && _hasActiveTasks(path),
       activeCommand: path == null ? null : _activeLabels(path),
     );
+    _publishStatusMenu();
+  }
+
+  void _publishStatusMenu() {
+    final selectedProject = state.managedProjects
+        .where((project) => project.path == state.selectedManagedProjectPath)
+        .firstOrNull;
+    final processes = _activeCommandTasks.entries
+        .map((entry) {
+          final project = state.managedProjects
+              .where((project) => project.path == entry.value.projectPath)
+              .firstOrNull;
+          return <String, String>{
+            'projectPath': entry.value.projectPath,
+            'projectName':
+                project?.displayName ?? _folderName(entry.value.projectPath),
+            'processName': _statusProcessName(entry.key),
+          };
+        })
+        .toList(growable: false);
+    unawaited(
+      StatusMenuService.instance.update(
+        fvmVersion: state.fvmVersion ?? '未检测到',
+        flutterVersion:
+            selectedProject?.fvmVersion ?? state.globalVersion ?? '未检测到',
+        projects: state.managedProjects
+            .map(
+              (project) => <String, String>{
+                'projectPath': project.path,
+                'projectName': project.displayName,
+              },
+            )
+            .toList(growable: false),
+        processes: processes,
+      ),
+    );
+  }
+
+  String _statusProcessName(String taskId) {
+    if (taskId.startsWith('run::')) return 'Run';
+    if (taskId.startsWith('devtools:')) return 'DevTools';
+    if (taskId.startsWith('build::')) return 'Build';
+    if (taskId.startsWith('workflow::')) return 'Workflow';
+    return 'Command';
+  }
+
+  String _folderName(String path) {
+    final segments = path.split(Platform.pathSeparator);
+    return segments.where((segment) => segment.isNotEmpty).lastOrNull ?? path;
   }
 
   Future<void> stopProjectCommand(String taskId) async {
@@ -1310,6 +1370,7 @@ class FvmController extends Notifier<FvmState> {
           ? '已恢复显示项目原名 ${project.name}'
           : '项目备注名称已更新为 $normalizedAlias',
     );
+    _publishStatusMenu();
   }
 
   Future<void> loadDevices() async {
@@ -1319,17 +1380,15 @@ class FvmController extends Notifier<FvmState> {
   Future<void> _startDeviceMonitoring() async {
     final path = state.selectedManagedProjectPath;
     if (path == null) return;
-    state = state.copyWith(
-      devicesLoading: true,
-      devices: const [],
-      selectedDeviceId: null,
-    );
+    final monitor = ref.read(flutterDeviceMonitorProvider);
+    if (!monitor.isRunning) {
+      state = state.copyWith(devicesLoading: true);
+    }
     await ref
         .read(flutterDeviceMonitorProvider)
         .start(
           projectPath: path,
           onDevices: (devices) {
-            if (state.selectedManagedProjectPath != path) return;
             final selected = state.selectedDeviceId;
             state = state.copyWith(
               devices: devices,
@@ -1342,8 +1401,10 @@ class FvmController extends Notifier<FvmState> {
             );
           },
           onError: (error) {
-            if (state.selectedManagedProjectPath != path) return;
-            unawaited(_loadDevicesOnce(path));
+            final fallbackPath = state.selectedManagedProjectPath;
+            if (fallbackPath != null) {
+              unawaited(_loadDevicesOnce(fallbackPath));
+            }
           },
         );
   }
@@ -1351,10 +1412,8 @@ class FvmController extends Notifier<FvmState> {
   Future<void> _loadDevicesOnce(String path) async {
     try {
       final devices = await ref.read(fvmServiceProvider).listDevices(path);
-      if (state.selectedManagedProjectPath != path) return;
       state = state.copyWith(devices: devices, devicesLoading: false);
     } catch (error) {
-      if (state.selectedManagedProjectPath != path) return;
       state = state.copyWith(
         devicesLoading: false,
         errorMessage: _message(error),
@@ -1396,6 +1455,7 @@ class FvmController extends Notifier<FvmState> {
             ? '已移除 FVM 配置'
             : '项目 FVM 版本已设置为 $version',
       );
+      _publishStatusMenu();
     } catch (error) {
       state = state.copyWith(errorMessage: _message(error));
     } finally {
@@ -1491,6 +1551,7 @@ class FvmController extends Notifier<FvmState> {
         .map((project) => project.path == path ? update(project) : project)
         .toList();
     state = state.copyWith(managedProjects: projects);
+    _publishStatusMenu();
     if (persist) {
       unawaited(ref.read(projectRepositoryProvider).save(projects));
     }

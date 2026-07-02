@@ -1141,7 +1141,9 @@ class _ProjectDetail extends ConsumerWidget {
           const SizedBox(height: 12),
           if (state.showMainWindowConsole ||
               controller.selectedProjectBuildConsoleVisible)
-            _CommandConsole(state: state, project: project),
+            _RevealOnMount(
+              child: _CommandConsole(state: state, project: project),
+            ),
         ],
       ),
     );
@@ -1297,6 +1299,13 @@ class _CollapsibleProjectSection extends StatefulWidget {
 class _CollapsibleProjectSectionState
     extends State<_CollapsibleProjectSection> {
   bool _expanded = false;
+  final _contentKey = GlobalKey();
+
+  void _toggle() {
+    final expanding = !_expanded;
+    setState(() => _expanded = expanding);
+    if (expanding) _revealAfterLayout(_contentKey);
+  }
 
   @override
   Widget build(BuildContext context) => Column(
@@ -1311,15 +1320,54 @@ class _CollapsibleProjectSectionState
           ),
           subtitle: Text(widget.subtitle),
           trailing: Icon(_expanded ? Icons.expand_less : Icons.expand_more),
-          onTap: () => setState(() => _expanded = !_expanded),
+          onTap: _toggle,
         ),
       ),
       Offstage(
         offstage: !_expanded,
-        child: TickerMode(enabled: _expanded, child: widget.child),
+        child: TickerMode(
+          enabled: _expanded,
+          child: KeyedSubtree(key: _contentKey, child: widget.child),
+        ),
       ),
     ],
   );
+}
+
+class _RevealOnMount extends StatefulWidget {
+  const _RevealOnMount({required this.child});
+
+  final Widget child;
+
+  @override
+  State<_RevealOnMount> createState() => _RevealOnMountState();
+}
+
+class _RevealOnMountState extends State<_RevealOnMount> {
+  final _key = GlobalKey();
+
+  @override
+  void initState() {
+    super.initState();
+    _revealAfterLayout(_key);
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      KeyedSubtree(key: _key, child: widget.child);
+}
+
+void _revealAfterLayout(GlobalKey key) {
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    final context = key.currentContext;
+    if (context == null) return;
+    Scrollable.ensureVisible(
+      context,
+      alignment: 0.08,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
+  });
 }
 
 class _ProjectVersionSettingsState
@@ -1834,6 +1882,7 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
   final _scrollController = ScrollController();
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
+  final _searchRevealKey = GlobalKey();
   List<_ConsoleSearchMatch> _matches = const [];
   String _searchQuery = '';
   int _currentMatch = -1;
@@ -1900,6 +1949,7 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
     if (!_showSearch) setState(() => _showSearch = true);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
+      _revealAfterLayout(_searchRevealKey);
       _searchFocusNode.requestFocus();
       _searchController.selection = TextSelection(
         baseOffset: 0,
@@ -2074,53 +2124,56 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
               ),
             if (_showSearch) ...[
               const SizedBox(height: 8),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextField(
-                      key: const ValueKey('command-console-search-field'),
-                      controller: _searchController,
-                      focusNode: _searchFocusNode,
-                      style: const TextStyle(color: Colors.white),
-                      decoration: const InputDecoration(
-                        hintText: '搜索打印内容',
-                        hintStyle: TextStyle(color: Colors.white54),
-                        prefixIcon: Icon(Icons.search, color: Colors.white70),
-                        filled: true,
-                        fillColor: Color(0xff1b2733),
-                        border: OutlineInputBorder(),
-                        isDense: true,
+              KeyedSubtree(
+                key: _searchRevealKey,
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: TextField(
+                        key: const ValueKey('command-console-search-field'),
+                        controller: _searchController,
+                        focusNode: _searchFocusNode,
+                        style: const TextStyle(color: Colors.white),
+                        decoration: const InputDecoration(
+                          hintText: '搜索打印内容',
+                          hintStyle: TextStyle(color: Colors.white54),
+                          prefixIcon: Icon(Icons.search, color: Colors.white70),
+                          filled: true,
+                          fillColor: Color(0xff1b2733),
+                          border: OutlineInputBorder(),
+                          isDense: true,
+                        ),
+                        onChanged: (_) => _refreshMatches(),
+                        onSubmitted: (_) => _submitSearch(),
                       ),
-                      onChanged: (_) => _refreshMatches(),
-                      onSubmitted: (_) => _submitSearch(),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    _matches.isEmpty
-                        ? '0 / 0'
-                        : '${_currentMatch + 1} / ${_matches.length}',
-                    style: const TextStyle(color: Colors.white70),
-                  ),
-                  IconButton(
-                    tooltip: '上一个结果',
-                    onPressed: _matches.isEmpty ? null : _previousMatch,
-                    icon: const Icon(Icons.keyboard_arrow_up),
-                    color: Colors.white,
-                  ),
-                  IconButton(
-                    tooltip: '下一个结果',
-                    onPressed: _matches.isEmpty ? null : _nextMatch,
-                    icon: const Icon(Icons.keyboard_arrow_down),
-                    color: Colors.white,
-                  ),
-                  IconButton(
-                    tooltip: '关闭搜索',
-                    onPressed: _closeSearch,
-                    icon: const Icon(Icons.close),
-                    color: Colors.white,
-                  ),
-                ],
+                    const SizedBox(width: 8),
+                    Text(
+                      _matches.isEmpty
+                          ? '0 / 0'
+                          : '${_currentMatch + 1} / ${_matches.length}',
+                      style: const TextStyle(color: Colors.white70),
+                    ),
+                    IconButton(
+                      tooltip: '上一个结果',
+                      onPressed: _matches.isEmpty ? null : _previousMatch,
+                      icon: const Icon(Icons.keyboard_arrow_up),
+                      color: Colors.white,
+                    ),
+                    IconButton(
+                      tooltip: '下一个结果',
+                      onPressed: _matches.isEmpty ? null : _nextMatch,
+                      icon: const Icon(Icons.keyboard_arrow_down),
+                      color: Colors.white,
+                    ),
+                    IconButton(
+                      tooltip: '关闭搜索',
+                      onPressed: _closeSearch,
+                      icon: const Icon(Icons.close),
+                      color: Colors.white,
+                    ),
+                  ],
+                ),
               ),
             ],
             const Divider(color: Colors.white24),

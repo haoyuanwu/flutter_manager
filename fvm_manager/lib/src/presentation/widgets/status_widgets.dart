@@ -68,7 +68,7 @@ class _DownloadStatusBar extends StatelessWidget {
 }
 
 class _MessageBar extends ConsumerStatefulWidget {
-  const _MessageBar({required this.message, this.error = false});
+  const _MessageBar({super.key, required this.message, this.error = false});
   final String message;
   final bool error;
 
@@ -128,40 +128,63 @@ class _MessageBarState extends ConsumerState<_MessageBar> {
   @override
   Widget build(BuildContext context) {
     if (!_visible) return const SizedBox.shrink();
-    return Container(
-      width: double.infinity,
-      color: widget.error ? Colors.red.shade50 : Colors.blue.shade50,
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              widget.message,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                color: widget.error
-                    ? Colors.red.shade800
-                    : Colors.blue.shade800,
-              ),
+    final foreground = widget.error
+        ? Colors.red.shade800
+        : const Color(0xff075985);
+    return TweenAnimationBuilder<double>(
+      duration: const Duration(milliseconds: 180),
+      tween: Tween(begin: 0, end: 1),
+      builder: (context, value, child) => Opacity(
+        opacity: value,
+        child: Transform.translate(
+          offset: Offset(0, -8 * (1 - value)),
+          child: child,
+        ),
+      ),
+      child: Material(
+        elevation: 12,
+        shadowColor: Colors.black.withValues(alpha: 0.25),
+        color: widget.error ? const Color(0xfffff1f2) : const Color(0xfff0f9ff),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: 460,
+          padding: const EdgeInsets.fromLTRB(16, 13, 10, 13),
+          decoration: BoxDecoration(
+            border: Border.all(
+              color: widget.error
+                  ? const Color(0xffffcdd2)
+                  : const Color(0xffbae6fd),
             ),
-          ),
-          const SizedBox(width: 8),
-          InkWell(
-            onTap: _dismiss,
             borderRadius: BorderRadius.circular(12),
-            child: Padding(
-              padding: const EdgeInsets.all(4),
-              child: Icon(
-                Icons.close,
-                size: 16,
-                color: widget.error
-                    ? Colors.red.shade600
-                    : Colors.blue.shade600,
-              ),
-            ),
           ),
-        ],
+          child: Row(
+            children: [
+              Icon(
+                widget.error ? Icons.error_outline : Icons.check_circle_outline,
+                size: 20,
+                color: foreground,
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  widget.message,
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(color: foreground, height: 1.35),
+                ),
+              ),
+              const SizedBox(width: 8),
+              InkWell(
+                onTap: _dismiss,
+                borderRadius: BorderRadius.circular(14),
+                child: Padding(
+                  padding: const EdgeInsets.all(5),
+                  child: Icon(Icons.close, size: 16, color: foreground),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

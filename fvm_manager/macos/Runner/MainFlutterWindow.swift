@@ -51,5 +51,13 @@ class MainFlutterWindow: NSWindow {
     }
 
     super.awakeFromNib()
+
+    // The XIB may finish creating the window before the application delegate's
+    // launch callback. Attach on the next main-loop turn so the status item does
+    // not depend on that lifecycle ordering.
+    DispatchQueue.main.async { [weak self] in
+      guard let self else { return }
+      (NSApp.delegate as? AppDelegate)?.attachMainWindow(self)
+    }
   }
 }
