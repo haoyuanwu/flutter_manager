@@ -357,8 +357,12 @@ class _PgyerTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(fvmControllerProvider.notifier);
+    final env = ref.read(pubEnvironmentServiceProvider);
     final pgyerConfig = project?.pgyer ?? const PgyerConfig();
-    final hasApiKey = pgyerConfig.apiKey.isNotEmpty;
+    final hasProjectKey = pgyerConfig.apiKey.isNotEmpty;
+    final hasGlobalKey = env.globalPgyerApiKey.isNotEmpty;
+    final hasApiKey = hasProjectKey || hasGlobalKey;
+    final keySource = hasProjectKey ? '项目配置' : (hasGlobalKey ? '全局配置' : '');
     final isUploading = state.pgyerUploadProgress > 0 && state.pgyerUploadProgress < 1.0;
     final hasResult = state.pgyerUploadResult != null;
 
@@ -393,10 +397,39 @@ class _PgyerTile extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 5),
-              Text(
-                hasApiKey ? 'API Key: ${pgyerConfig.apiKey.substring(0, 8)}...' : '未配置 API Key',
-                style: const TextStyle(color: Colors.black54),
-              ),
+              if (hasApiKey)
+                Text(
+                  'API Key: ${hasProjectKey ? pgyerConfig.apiKey.substring(0, 8) : env.globalPgyerApiKey.substring(0, 8)}... ($keySource)',
+                  style: const TextStyle(color: Colors.black54),
+                )
+              else
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '未配置 API Key',
+                      style: TextStyle(color: Colors.orange),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '请在设置页面配置全局 API Key，或点击右侧齿轮为当前项目配置',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    ),
+                    const SizedBox(height: 4),
+                    TextButton.icon(
+                      icon: const Icon(Icons.settings, size: 16),
+                      label: const Text('去设置页面配置'),
+                      onPressed: () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('请点击左侧导航栏的"设置"菜单，配置全局 API Key'),
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
               if (isUploading) ...[
                 const SizedBox(height: 10),
                 LinearProgressIndicator(value: state.pgyerUploadProgress),
@@ -607,8 +640,12 @@ class _FirTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(fvmControllerProvider.notifier);
+    final env = ref.read(pubEnvironmentServiceProvider);
     final firConfig = project?.fir ?? const FirConfig();
-    final hasApiToken = firConfig.apiToken.isNotEmpty;
+    final hasProjectToken = firConfig.apiToken.isNotEmpty;
+    final hasGlobalToken = env.globalFirApiToken.isNotEmpty;
+    final hasApiToken = hasProjectToken || hasGlobalToken;
+    final tokenSource = hasProjectToken ? '项目配置' : (hasGlobalToken ? '全局配置' : '');
     final isUploading = state.firUploadProgress > 0 && state.firUploadProgress < 1.0;
     final hasResult = state.firUploadResult != null;
 
@@ -643,10 +680,26 @@ class _FirTile extends ConsumerWidget {
                 ],
               ),
               const SizedBox(height: 5),
-              Text(
-                hasApiToken ? 'API Token: ${firConfig.apiToken.substring(0, 8)}...' : '未配置 API Token',
-                style: const TextStyle(color: Colors.black54),
-              ),
+              if (hasApiToken)
+                Text(
+                  'API Token: ${hasProjectToken ? firConfig.apiToken.substring(0, 8) : env.globalFirApiToken.substring(0, 8)}... ($tokenSource)',
+                  style: const TextStyle(color: Colors.black54),
+                )
+              else
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '未配置 API Token',
+                      style: TextStyle(color: Colors.orange),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      '请在设置页面配置全局 API Token，或点击右侧齿轮为当前项目配置',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                    ),
+                  ],
+                ),
               if (isUploading) ...[
                 const SizedBox(height: 10),
                 LinearProgressIndicator(value: state.firUploadProgress),

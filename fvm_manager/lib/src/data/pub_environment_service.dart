@@ -56,6 +56,8 @@ class PubEnvironmentService {
   bool _showMainWindowConsole = false;
   bool _showConsoleQuickCommands = true;
   bool _buildOpensConsoleWindow = false;
+  String _globalPgyerApiKey = '';
+  String _globalFirApiToken = '';
 
   String get mirrorId => _mirrorId;
   bool get useDomesticMirror => _mirrorId != 'official';
@@ -68,6 +70,8 @@ class PubEnvironmentService {
   bool get showMainWindowConsole => _showMainWindowConsole;
   bool get showConsoleQuickCommands => _showConsoleQuickCommands;
   bool get buildOpensConsoleWindow => _buildOpensConsoleWindow;
+  String get globalPgyerApiKey => _globalPgyerApiKey;
+  String get globalFirApiToken => _globalFirApiToken;
 
   String get flutterStorageBaseUrl {
     final mirror = currentMirror;
@@ -166,6 +170,10 @@ class PubEnvironmentService {
           settings['showConsoleQuickCommands'] as bool? ?? true;
       _buildOpensConsoleWindow =
           settings['buildOpensConsoleWindow'] as bool? ?? false;
+      _globalPgyerApiKey =
+          settings['globalPgyerApiKey'] as String? ?? '';
+      _globalFirApiToken =
+          settings['globalFirApiToken'] as String? ?? '';
     } on Object {
       _mirrorId = 'official';
     }
@@ -220,6 +228,16 @@ class PubEnvironmentService {
     await _persist();
   }
 
+  Future<void> setGlobalPgyerApiKey(String apiKey) async {
+    _globalPgyerApiKey = apiKey;
+    await _persist();
+  }
+
+  Future<void> setGlobalFirApiToken(String apiToken) async {
+    _globalFirApiToken = apiToken;
+    await _persist();
+  }
+
   /// 测试镜像源连通性，返回延迟毫秒数，失败返回 -1。
   Future<int> testMirror(String mirrorId) async {
     final mirror = mirrors.firstWhere(
@@ -260,6 +278,8 @@ class PubEnvironmentService {
         'showMainWindowConsole': _showMainWindowConsole,
         'showConsoleQuickCommands': _showConsoleQuickCommands,
         'buildOpensConsoleWindow': _buildOpensConsoleWindow,
+        'globalPgyerApiKey': _globalPgyerApiKey,
+        'globalFirApiToken': _globalFirApiToken,
       }),
       flush: true,
     );

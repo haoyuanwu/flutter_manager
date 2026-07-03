@@ -1846,12 +1846,27 @@ class FvmController extends Notifier<FvmState> {
 
   FlutterProject? get selectedManagedProject => _selectedManagedProject;
 
+  String get _effectivePgyerApiKey {
+    final project = _selectedManagedProject;
+    if (project != null && project.pgyer.apiKey.isNotEmpty) {
+      return project.pgyer.apiKey;
+    }
+    return ref.read(pubEnvironmentServiceProvider).globalPgyerApiKey;
+  }
+
+  String get _effectiveFirApiToken {
+    final project = _selectedManagedProject;
+    if (project != null && project.fir.apiToken.isNotEmpty) {
+      return project.fir.apiToken;
+    }
+    return ref.read(pubEnvironmentServiceProvider).globalFirApiToken;
+  }
+
   Future<void> uploadToPgyer(String filePath) async {
     final project = _selectedManagedProject;
-    if (project == null) return;
-    final apiKey = project.pgyer.apiKey;
+    final apiKey = _effectivePgyerApiKey;
     if (apiKey.isEmpty) {
-      state = state.copyWith(errorMessage: '请先配置蒲公英 API Key');
+      state = state.copyWith(errorMessage: '请先配置蒲公英 API Key（可在设置页面配置全局 Key，或在项目中配置）');
       return;
     }
 
@@ -1866,11 +1881,11 @@ class FvmController extends Notifier<FvmState> {
       final result = await ref.read(pgyerServiceProvider).uploadApp(
         apiKey: apiKey,
         filePath: filePath,
-        installType: project.pgyer.installType,
-        installPassword: project.pgyer.installType == PgyerInstallType.password
-            ? project.pgyer.installPassword
+        installType: project?.pgyer.installType ?? PgyerInstallType.public,
+        installPassword: project?.pgyer.installType == PgyerInstallType.password
+            ? project?.pgyer.installPassword
             : null,
-        updateDescription: project.pgyer.updateDescription,
+        updateDescription: project?.pgyer.updateDescription,
         onProgress: (progress, phase) {
           state = state.copyWith(
             pgyerUploadProgress: progress,
@@ -1908,15 +1923,18 @@ class FvmController extends Notifier<FvmState> {
 
   Future<void> uploadToFir(String filePath) async {
     final project = _selectedManagedProject;
-    if (project == null) return;
-    final apiToken = project.fir.apiToken;
+    final apiToken = _effectiveFirApiToken;
     if (apiToken.isEmpty) {
-      state = state.copyWith(errorMessage: '请先配置 fir.im API Token');
+      state = state.copyWith(errorMessage: '请先配置 fir.im API Token（可在设置页面配置全局 Token，或在项目中配置）');
       return;
     }
 
-    final appName = project.fir.appName.isNotEmpty ? project.fir.appName : project.displayName;
-    final bundleId = project.fir.bundleId.isNotEmpty ? project.fir.bundleId : project.bugly.bundleId;
+    final appName = project?.fir.appName.isNotEmpty == true
+        ? project!.fir.appName
+        : project?.displayName ?? 'App';
+    final bundleId = project?.fir.bundleId.isNotEmpty == true
+        ? project!.fir.bundleId
+        : project?.bugly.bundleId ?? '';
     if (bundleId.isEmpty) {
       state = state.copyWith(errorMessage: '请先配置 Bundle ID');
       return;
@@ -1935,9 +1953,9 @@ class FvmController extends Notifier<FvmState> {
         filePath: filePath,
         appName: appName,
         bundleId: bundleId,
-        version: project.bugly.version.isNotEmpty ? project.bugly.version : '1.0.0',
-        build: project.bugly.buildNo.isNotEmpty ? project.bugly.buildNo : '1',
-        changelog: project.fir.changelog,
+        version: project?.bugly.version.isNotEmpty == true ? project!.bugly.version : '1.0.0',
+        build: project?.bugly.buildNo.isNotEmpty == true ? project!.bugly.buildNo : '1',
+        changelog: project?.fir.changelog,
         onProgress: (progress, phase) {
           state = state.copyWith(
             firUploadProgress: progress,
@@ -1971,5 +1989,13 @@ class FvmController extends Notifier<FvmState> {
       firUploadPhase: '',
       firUploadResult: null,
     );
+  }
+
+  Future<void> setGlobalPgyerApiKey(String apiKey) async {
+    await ref.read(pubEnvironmentServiceProvider).setGlobalPgyerApiKey(apiKey);
+  }
+
+  Future<void> setGlobalFirApiToken(String apiToken) async {
+    await ref.read(pubEnvironmentServiceProvider).setGlobalFirApiToken(apiToken);
   }
 }
