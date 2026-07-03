@@ -109,5 +109,8 @@ abstract class FvmState with _$FvmState {
     @Default(0) double pgyerUploadProgress,
     @Default('') String pgyerUploadPhase,
     String? pgyerUploadResult,
+    @Default(0) double firUploadProgress,
+    @Default('') String firUploadPhase,
+    String? firUploadResult,
   }) = _FvmState;
 }

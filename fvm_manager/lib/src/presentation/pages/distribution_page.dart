@@ -304,11 +304,10 @@ class _DistributionPlatforms extends ConsumerWidget {
             project: project,
             state: state,
           ),
-          _DistributionPlatformTile(
-            icon: Icons.rocket_launch_outlined,
-            title: 'fir.im',
-            subtitle: 'API 参数待配置',
-            buttonLabel: '等待 API',
+          _FirTile(
+            artifact: artifact,
+            project: project,
+            state: state,
           ),
           _DistributionPlatformTile(
             icon: Icons.apple,
@@ -590,6 +589,238 @@ class _PgyerConfigDialogState extends ConsumerState<_PgyerConfigDialog> {
       updateDescription: _descriptionController.text.trim(),
     );
     ref.read(fvmControllerProvider.notifier).updatePgyerConfig(config);
+    Navigator.pop(context);
+  }
+}
+
+class _FirTile extends ConsumerWidget {
+  const _FirTile({
+    required this.artifact,
+    required this.project,
+    required this.state,
+  });
+
+  final DistributionArtifact? artifact;
+  final FlutterProject? project;
+  final FvmState state;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final controller = ref.read(fvmControllerProvider.notifier);
+    final firConfig = project?.fir ?? const FirConfig();
+    final hasApiToken = firConfig.apiToken.isNotEmpty;
+    final isUploading = state.firUploadProgress > 0 && state.firUploadProgress < 1.0;
+    final hasResult = state.firUploadResult != null;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: const Color(0xfff7f9fb),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: const Color(0xffe4e8ec)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(12),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.rocket_launch_outlined, size: 21),
+                  const SizedBox(width: 8),
+                  const Expanded(
+                    child: Text(
+                      'fir.im',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.settings, size: 18),
+                    tooltip: '配置 fir.im',
+                    onPressed: () => _showFirConfigDialog(context, ref),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 5),
+              Text(
+                hasApiToken ? 'API Token: ${firConfig.apiToken.substring(0, 8)}...' : '未配置 API Token',
+                style: const TextStyle(color: Colors.black54),
+              ),
+              if (isUploading) ...[
+                const SizedBox(height: 10),
+                LinearProgressIndicator(value: state.firUploadProgress),
+                const SizedBox(height: 4),
+                Text(
+                  state.firUploadPhase,
+                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                ),
+              ],
+              if (hasResult) ...[
+                const SizedBox(height: 10),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          '上传完成',
+                          style: TextStyle(color: Colors.green.shade700),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => _openUrl(state.firUploadResult!),
+                        child: const Text('打开下载页'),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton(
+                  onPressed: artifact == null || !hasApiToken || isUploading
+                      ? null
+                      : () => controller.uploadToFir(artifact!.path),
+                  child: Text(
+                    isUploading
+                        ? '上传中...'
+                        : artifact == null
+                            ? '请选择文件'
+                            : hasApiToken
+                                ? '上传到 fir.im'
+                                : '请先配置 API Token',
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showFirConfigDialog(BuildContext context, WidgetRef ref) {
+    showDialog<void>(
+      context: context,
+      builder: (context) => _FirConfigDialog(project: project),
+    );
+  }
+
+  Future<void> _openUrl(String url) async {
+    await Process.run('open', [url]);
+  }
+}
+
+class _FirConfigDialog extends ConsumerStatefulWidget {
+  const _FirConfigDialog({required this.project});
+
+  final FlutterProject? project;
+
+  @override
+  ConsumerState<_FirConfigDialog> createState() => _FirConfigDialogState();
+}
+
+class _FirConfigDialogState extends ConsumerState<_FirConfigDialog> {
+  late final TextEditingController _apiTokenController;
+  late final TextEditingController _appNameController;
+  late final TextEditingController _bundleIdController;
+  late final TextEditingController _changelogController;
+
+  @override
+  void initState() {
+    super.initState();
+    final config = widget.project?.fir ?? const FirConfig();
+    _apiTokenController = TextEditingController(text: config.apiToken);
+    _appNameController = TextEditingController(text: config.appName);
+    _bundleIdController = TextEditingController(text: config.bundleId);
+    _changelogController = TextEditingController(text: config.changelog);
+  }
+
+  @override
+  void dispose() {
+    _apiTokenController.dispose();
+    _appNameController.dispose();
+    _bundleIdController.dispose();
+    _changelogController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('fir.im 配置'),
+      content: SizedBox(
+        width: 400,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _apiTokenController,
+              decoration: const InputDecoration(
+                labelText: 'API Token',
+                hintText: '在 fir.im 个人设置中获取',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _appNameController,
+              decoration: const InputDecoration(
+                labelText: '应用名称（可选）',
+                hintText: '默认使用项目名称',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _bundleIdController,
+              decoration: const InputDecoration(
+                labelText: 'Bundle ID（可选）',
+                hintText: '默认使用项目的 Bundle ID',
+                border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _changelogController,
+              decoration: const InputDecoration(
+                labelText: '更新日志（可选）',
+                border: OutlineInputBorder(),
+              ),
+              maxLines: 3,
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: _save,
+          child: const Text('保存'),
+        ),
+      ],
+    );
+  }
+
+  void _save() {
+    final config = FirConfig(
+      apiToken: _apiTokenController.text.trim(),
+      appName: _appNameController.text.trim(),
+      bundleId: _bundleIdController.text.trim(),
+      changelog: _changelogController.text.trim(),
+    );
+    ref.read(fvmControllerProvider.notifier).updateFirConfig(config);
     Navigator.pop(context);
   }
 }

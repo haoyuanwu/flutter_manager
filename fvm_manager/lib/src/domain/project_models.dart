@@ -9,6 +9,32 @@ enum ProjectBuildTarget { apk, appbundle, ios, macos, windows }
 enum PgyerInstallType { public, password, invite }
 
 @freezed
+abstract class FirConfig with _$FirConfig {
+  const FirConfig._();
+
+  const factory FirConfig({
+    @Default('') String apiToken,
+    @Default('') String appName,
+    @Default('') String bundleId,
+    @Default('') String changelog,
+  }) = _FirConfig;
+
+  factory FirConfig.fromMap(Map<String, dynamic>? map) => FirConfig(
+    apiToken: map?['apiToken'] as String? ?? '',
+    appName: map?['appName'] as String? ?? '',
+    bundleId: map?['bundleId'] as String? ?? '',
+    changelog: map?['changelog'] as String? ?? '',
+  );
+
+  Map<String, dynamic> toMap() => {
+    'apiToken': apiToken,
+    'appName': appName,
+    'bundleId': bundleId,
+    'changelog': changelog,
+  };
+}
+
+@freezed
 abstract class PgyerConfig with _$PgyerConfig {
   const PgyerConfig._();
 
@@ -93,6 +119,7 @@ abstract class FlutterProject with _$FlutterProject {
     @Default(<String>[]) List<String> androidBuildTypes,
     @Default(BuglyUploadConfig()) BuglyUploadConfig bugly,
     @Default(PgyerConfig()) PgyerConfig pgyer,
+    @Default(FirConfig()) FirConfig fir,
     @Default(<String>[]) List<String> selectedFlavors,
     @Default(ProjectBuildMode.release) ProjectBuildMode lastBuildMode,
     @Default(ProjectBuildTarget.apk) ProjectBuildTarget lastBuildTarget,
@@ -128,6 +155,9 @@ abstract class FlutterProject with _$FlutterProject {
     pgyer: PgyerConfig.fromMap(
       (map['pgyer'] as Map?)?.cast<String, dynamic>(),
     ),
+    fir: FirConfig.fromMap(
+      (map['fir'] as Map?)?.cast<String, dynamic>(),
+    ),
     selectedFlavors: (map['selectedFlavors'] as List<dynamic>? ?? const [])
         .cast<String>(),
     lastBuildMode: ProjectBuildMode.values.firstWhere(
@@ -161,6 +191,7 @@ abstract class FlutterProject with _$FlutterProject {
     'androidBuildTypes': androidBuildTypes,
     'bugly': bugly.toMap(),
     'pgyer': pgyer.toMap(),
+    'fir': fir.toMap(),
     'selectedFlavors': selectedFlavors,
     'lastBuildMode': lastBuildMode.name,
     'lastBuildTarget': lastBuildTarget.name,

@@ -14,6 +14,7 @@ import '../data/flutter_command_service.dart';
 import '../data/flutter_device_monitor.dart';
 import '../data/distribution_service.dart';
 import '../data/pgyer_service.dart';
+import '../data/fir_service.dart';
 import '../data/custom_command_parser.dart';
 import '../data/local_project_service.dart';
 import '../data/project_repository.dart';
@@ -54,6 +55,10 @@ final distributionServiceProvider = Provider<DistributionService>(
 
 final pgyerServiceProvider = Provider<PgyerService>(
   (ref) => PgyerService(ref.watch(dioProvider)),
+);
+
+final firServiceProvider = Provider<FirService>(
+  (ref) => FirService(ref.watch(dioProvider)),
 );
 
 final projectRepositoryProvider = Provider<ProjectRepository>(
@@ -1898,6 +1903,73 @@ class FvmController extends Notifier<FvmState> {
       pgyerUploadProgress: 0,
       pgyerUploadPhase: '',
       pgyerUploadResult: null,
+    );
+  }
+
+  Future<void> uploadToFir(String filePath) async {
+    final project = _selectedManagedProject;
+    if (project == null) return;
+    final apiToken = project.fir.apiToken;
+    if (apiToken.isEmpty) {
+      state = state.copyWith(errorMessage: '请先配置 fir.im API Token');
+      return;
+    }
+
+    final appName = project.fir.appName.isNotEmpty ? project.fir.appName : project.displayName;
+    final bundleId = project.fir.bundleId.isNotEmpty ? project.fir.bundleId : project.bugly.bundleId;
+    if (bundleId.isEmpty) {
+      state = state.copyWith(errorMessage: '请先配置 Bundle ID');
+      return;
+    }
+
+    state = state.copyWith(
+      firUploadProgress: 0,
+      firUploadPhase: '准备上传',
+      firUploadResult: null,
+      errorMessage: null,
+    );
+
+    try {
+      final result = await ref.read(firServiceProvider).uploadApp(
+        apiToken: apiToken,
+        filePath: filePath,
+        appName: appName,
+        bundleId: bundleId,
+        version: project.bugly.version.isNotEmpty ? project.bugly.version : '1.0.0',
+        build: project.bugly.buildNo.isNotEmpty ? project.bugly.buildNo : '1',
+        changelog: project.fir.changelog,
+        onProgress: (progress, phase) {
+          state = state.copyWith(
+            firUploadProgress: progress,
+            firUploadPhase: phase,
+          );
+        },
+      );
+
+      state = state.copyWith(
+        firUploadProgress: 1.0,
+        firUploadPhase: '上传完成',
+        firUploadResult: result.downloadUrl,
+        statusMessage: 'fir.im 上传完成: ${result.appName} ${result.version}',
+      );
+    } catch (error) {
+      state = state.copyWith(
+        firUploadProgress: 0,
+        firUploadPhase: '',
+        errorMessage: 'fir.im 上传失败: ${_message(error)}',
+      );
+    }
+  }
+
+  void updateFirConfig(FirConfig config) {
+    _updateSelectedProject((project) => project.copyWith(fir: config));
+  }
+
+  void clearFirUploadResult() {
+    state = state.copyWith(
+      firUploadProgress: 0,
+      firUploadPhase: '',
+      firUploadResult: null,
     );
   }
 }
