@@ -12,6 +12,8 @@ import '../data/flutter_release_service.dart';
 import '../data/fvm_service.dart';
 import '../data/flutter_command_service.dart';
 import '../data/flutter_device_monitor.dart';
+import '../data/distribution_service.dart';
+import '../data/pgyer_service.dart';
 import '../data/custom_command_parser.dart';
 import '../data/local_project_service.dart';
 import '../data/project_repository.dart';
@@ -44,6 +46,14 @@ final fvmServiceProvider = Provider<FvmService>(
 
 final localProjectServiceProvider = Provider<LocalProjectService>(
   (ref) => LocalProjectService(),
+);
+
+final distributionServiceProvider = Provider<DistributionService>(
+  (ref) => DistributionService(),
+);
+
+final pgyerServiceProvider = Provider<PgyerService>(
+  (ref) => PgyerService(ref.watch(dioProvider)),
 );
 
 final projectRepositoryProvider = Provider<ProjectRepository>(
@@ -1222,6 +1232,10 @@ class FvmController extends Notifier<FvmState> {
 
   void clearStatus() => state = state.copyWith(statusMessage: null);
   void clearError() => state = state.copyWith(errorMessage: null);
+  void showStatus(String message) =>
+      state = state.copyWith(statusMessage: message, errorMessage: null);
+  void showError(Object error) =>
+      state = state.copyWith(errorMessage: _message(error));
 
   Future<void> openProjectApkFolder() async {
     final path = state.selectedManagedProjectPath;
@@ -1826,4 +1840,64 @@ class FvmController extends Notifier<FvmState> {
   }
 
   FlutterProject? get selectedManagedProject => _selectedManagedProject;
+
+  Future<void> uploadToPgyer(String filePath) async {
+    final project = _selectedManagedProject;
+    if (project == null) return;
+    final apiKey = project.pgyer.apiKey;
+    if (apiKey.isEmpty) {
+      state = state.copyWith(errorMessage: '请先配置蒲公英 API Key');
+      return;
+    }
+
+    state = state.copyWith(
+      pgyerUploadProgress: 0,
+      pgyerUploadPhase: '准备上传',
+      pgyerUploadResult: null,
+      errorMessage: null,
+    );
+
+    try {
+      final result = await ref.read(pgyerServiceProvider).uploadApp(
+        apiKey: apiKey,
+        filePath: filePath,
+        installType: project.pgyer.installType,
+        installPassword: project.pgyer.installType == PgyerInstallType.password
+            ? project.pgyer.installPassword
+            : null,
+        updateDescription: project.pgyer.updateDescription,
+        onProgress: (progress, phase) {
+          state = state.copyWith(
+            pgyerUploadProgress: progress,
+            pgyerUploadPhase: phase,
+          );
+        },
+      );
+
+      state = state.copyWith(
+        pgyerUploadProgress: 1.0,
+        pgyerUploadPhase: '上传完成',
+        pgyerUploadResult: result.downloadUrl,
+        statusMessage: '蒲公英上传完成: ${result.buildName} ${result.buildVersion}',
+      );
+    } catch (error) {
+      state = state.copyWith(
+        pgyerUploadProgress: 0,
+        pgyerUploadPhase: '',
+        errorMessage: '蒲公英上传失败: ${_message(error)}',
+      );
+    }
+  }
+
+  void updatePgyerConfig(PgyerConfig config) {
+    _updateSelectedProject((project) => project.copyWith(pgyer: config));
+  }
+
+  void clearPgyerUploadResult() {
+    state = state.copyWith(
+      pgyerUploadProgress: 0,
+      pgyerUploadPhase: '',
+      pgyerUploadResult: null,
+    );
+  }
 }

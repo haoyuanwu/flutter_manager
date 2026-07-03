@@ -106,5 +106,8 @@ abstract class FvmState with _$FvmState {
     @Default(true) bool showConsoleQuickCommands,
     @Default(false) bool buildOpensConsoleWindow,
     @Default(false) bool buildConsoleVisible,
+    @Default(0) double pgyerUploadProgress,
+    @Default('') String pgyerUploadPhase,
+    String? pgyerUploadResult,
   }) = _FvmState;
 }

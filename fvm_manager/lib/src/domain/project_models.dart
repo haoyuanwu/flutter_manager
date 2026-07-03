@@ -6,6 +6,37 @@ enum ProjectBuildMode { debug, profile, release }
 
 enum ProjectBuildTarget { apk, appbundle, ios, macos, windows }
 
+enum PgyerInstallType { public, password, invite }
+
+@freezed
+abstract class PgyerConfig with _$PgyerConfig {
+  const PgyerConfig._();
+
+  const factory PgyerConfig({
+    @Default('') String apiKey,
+    @Default(PgyerInstallType.public) PgyerInstallType installType,
+    @Default('') String installPassword,
+    @Default('') String updateDescription,
+  }) = _PgyerConfig;
+
+  factory PgyerConfig.fromMap(Map<String, dynamic>? map) => PgyerConfig(
+    apiKey: map?['apiKey'] as String? ?? '',
+    installType: PgyerInstallType.values.firstWhere(
+      (value) => value.name == map?['installType'],
+      orElse: () => PgyerInstallType.public,
+    ),
+    installPassword: map?['installPassword'] as String? ?? '',
+    updateDescription: map?['updateDescription'] as String? ?? '',
+  );
+
+  Map<String, dynamic> toMap() => {
+    'apiKey': apiKey,
+    'installType': installType.name,
+    'installPassword': installPassword,
+    'updateDescription': updateDescription,
+  };
+}
+
 @freezed
 abstract class BuglyUploadConfig with _$BuglyUploadConfig {
   const BuglyUploadConfig._();
@@ -61,6 +92,7 @@ abstract class FlutterProject with _$FlutterProject {
     @Default(<String>[]) List<String> androidFlavors,
     @Default(<String>[]) List<String> androidBuildTypes,
     @Default(BuglyUploadConfig()) BuglyUploadConfig bugly,
+    @Default(PgyerConfig()) PgyerConfig pgyer,
     @Default(<String>[]) List<String> selectedFlavors,
     @Default(ProjectBuildMode.release) ProjectBuildMode lastBuildMode,
     @Default(ProjectBuildTarget.apk) ProjectBuildTarget lastBuildTarget,
@@ -92,6 +124,9 @@ abstract class FlutterProject with _$FlutterProject {
         .cast<String>(),
     bugly: BuglyUploadConfig.fromMap(
       (map['bugly'] as Map?)?.cast<String, dynamic>(),
+    ),
+    pgyer: PgyerConfig.fromMap(
+      (map['pgyer'] as Map?)?.cast<String, dynamic>(),
     ),
     selectedFlavors: (map['selectedFlavors'] as List<dynamic>? ?? const [])
         .cast<String>(),
@@ -125,6 +160,7 @@ abstract class FlutterProject with _$FlutterProject {
     'androidFlavors': androidFlavors,
     'androidBuildTypes': androidBuildTypes,
     'bugly': bugly.toMap(),
+    'pgyer': pgyer.toMap(),
     'selectedFlavors': selectedFlavors,
     'lastBuildMode': lastBuildMode.name,
     'lastBuildTarget': lastBuildTarget.name,
