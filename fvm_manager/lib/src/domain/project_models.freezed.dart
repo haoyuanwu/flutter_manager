@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$FirConfig {
 
- String get apiToken; String get appName; String get bundleId; String get changelog;
+ String get apiToken; String get appName; String get bundleId; String get changelog; String get shortCode;
 /// Create a copy of FirConfig
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $FirConfigCopyWith<FirConfig> get copyWith => _$FirConfigCopyWithImpl<FirConfig>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is FirConfig&&(identical(other.apiToken, apiToken) || other.apiToken == apiToken)&&(identical(other.appName, appName) || other.appName == appName)&&(identical(other.bundleId, bundleId) || other.bundleId == bundleId)&&(identical(other.changelog, changelog) || other.changelog == changelog));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is FirConfig&&(identical(other.apiToken, apiToken) || other.apiToken == apiToken)&&(identical(other.appName, appName) || other.appName == appName)&&(identical(other.bundleId, bundleId) || other.bundleId == bundleId)&&(identical(other.changelog, changelog) || other.changelog == changelog)&&(identical(other.shortCode, shortCode) || other.shortCode == shortCode));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,apiToken,appName,bundleId,changelog);
+int get hashCode => Object.hash(runtimeType,apiToken,appName,bundleId,changelog,shortCode);
 
 @override
 String toString() {
-  return 'FirConfig(apiToken: $apiToken, appName: $appName, bundleId: $bundleId, changelog: $changelog)';
+  return 'FirConfig(apiToken: $apiToken, appName: $appName, bundleId: $bundleId, changelog: $changelog, shortCode: $shortCode)';
 }
 
 
@@ -45,7 +45,7 @@ abstract mixin class $FirConfigCopyWith<$Res>  {
   factory $FirConfigCopyWith(FirConfig value, $Res Function(FirConfig) _then) = _$FirConfigCopyWithImpl;
 @useResult
 $Res call({
- String apiToken, String appName, String bundleId, String changelog
+ String apiToken, String appName, String bundleId, String changelog, String shortCode
 });
 
 
@@ -62,12 +62,13 @@ class _$FirConfigCopyWithImpl<$Res>
 
 /// Create a copy of FirConfig
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? apiToken = null,Object? appName = null,Object? bundleId = null,Object? changelog = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? apiToken = null,Object? appName = null,Object? bundleId = null,Object? changelog = null,Object? shortCode = null,}) {
   return _then(_self.copyWith(
 apiToken: null == apiToken ? _self.apiToken : apiToken // ignore: cast_nullable_to_non_nullable
 as String,appName: null == appName ? _self.appName : appName // ignore: cast_nullable_to_non_nullable
 as String,bundleId: null == bundleId ? _self.bundleId : bundleId // ignore: cast_nullable_to_non_nullable
 as String,changelog: null == changelog ? _self.changelog : changelog // ignore: cast_nullable_to_non_nullable
+as String,shortCode: null == shortCode ? _self.shortCode : shortCode // ignore: cast_nullable_to_non_nullable
 as String,
   ));
 }
@@ -153,10 +154,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String apiToken,  String appName,  String bundleId,  String changelog)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String apiToken,  String appName,  String bundleId,  String changelog,  String shortCode)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _FirConfig() when $default != null:
-return $default(_that.apiToken,_that.appName,_that.bundleId,_that.changelog);case _:
+return $default(_that.apiToken,_that.appName,_that.bundleId,_that.changelog,_that.shortCode);case _:
   return orElse();
 
 }
@@ -174,10 +175,10 @@ return $default(_that.apiToken,_that.appName,_that.bundleId,_that.changelog);cas
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String apiToken,  String appName,  String bundleId,  String changelog)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String apiToken,  String appName,  String bundleId,  String changelog,  String shortCode)  $default,) {final _that = this;
 switch (_that) {
 case _FirConfig():
-return $default(_that.apiToken,_that.appName,_that.bundleId,_that.changelog);case _:
+return $default(_that.apiToken,_that.appName,_that.bundleId,_that.changelog,_that.shortCode);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -194,10 +195,10 @@ return $default(_that.apiToken,_that.appName,_that.bundleId,_that.changelog);cas
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String apiToken,  String appName,  String bundleId,  String changelog)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String apiToken,  String appName,  String bundleId,  String changelog,  String shortCode)?  $default,) {final _that = this;
 switch (_that) {
 case _FirConfig() when $default != null:
-return $default(_that.apiToken,_that.appName,_that.bundleId,_that.changelog);case _:
+return $default(_that.apiToken,_that.appName,_that.bundleId,_that.changelog,_that.shortCode);case _:
   return null;
 
 }
@@ -209,13 +210,14 @@ return $default(_that.apiToken,_that.appName,_that.bundleId,_that.changelog);cas
 
 
 class _FirConfig extends FirConfig {
-  const _FirConfig({this.apiToken = '', this.appName = '', this.bundleId = '', this.changelog = ''}): super._();
+  const _FirConfig({this.apiToken = '', this.appName = '', this.bundleId = '', this.changelog = '', this.shortCode = ''}): super._();
   
 
 @override@JsonKey() final  String apiToken;
 @override@JsonKey() final  String appName;
 @override@JsonKey() final  String bundleId;
 @override@JsonKey() final  String changelog;
+@override@JsonKey() final  String shortCode;
 
 /// Create a copy of FirConfig
 /// with the given fields replaced by the non-null parameter values.
@@ -227,16 +229,16 @@ _$FirConfigCopyWith<_FirConfig> get copyWith => __$FirConfigCopyWithImpl<_FirCon
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _FirConfig&&(identical(other.apiToken, apiToken) || other.apiToken == apiToken)&&(identical(other.appName, appName) || other.appName == appName)&&(identical(other.bundleId, bundleId) || other.bundleId == bundleId)&&(identical(other.changelog, changelog) || other.changelog == changelog));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _FirConfig&&(identical(other.apiToken, apiToken) || other.apiToken == apiToken)&&(identical(other.appName, appName) || other.appName == appName)&&(identical(other.bundleId, bundleId) || other.bundleId == bundleId)&&(identical(other.changelog, changelog) || other.changelog == changelog)&&(identical(other.shortCode, shortCode) || other.shortCode == shortCode));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,apiToken,appName,bundleId,changelog);
+int get hashCode => Object.hash(runtimeType,apiToken,appName,bundleId,changelog,shortCode);
 
 @override
 String toString() {
-  return 'FirConfig(apiToken: $apiToken, appName: $appName, bundleId: $bundleId, changelog: $changelog)';
+  return 'FirConfig(apiToken: $apiToken, appName: $appName, bundleId: $bundleId, changelog: $changelog, shortCode: $shortCode)';
 }
 
 
@@ -247,7 +249,7 @@ abstract mixin class _$FirConfigCopyWith<$Res> implements $FirConfigCopyWith<$Re
   factory _$FirConfigCopyWith(_FirConfig value, $Res Function(_FirConfig) _then) = __$FirConfigCopyWithImpl;
 @override @useResult
 $Res call({
- String apiToken, String appName, String bundleId, String changelog
+ String apiToken, String appName, String bundleId, String changelog, String shortCode
 });
 
 
@@ -264,12 +266,13 @@ class __$FirConfigCopyWithImpl<$Res>
 
 /// Create a copy of FirConfig
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? apiToken = null,Object? appName = null,Object? bundleId = null,Object? changelog = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? apiToken = null,Object? appName = null,Object? bundleId = null,Object? changelog = null,Object? shortCode = null,}) {
   return _then(_FirConfig(
 apiToken: null == apiToken ? _self.apiToken : apiToken // ignore: cast_nullable_to_non_nullable
 as String,appName: null == appName ? _self.appName : appName // ignore: cast_nullable_to_non_nullable
 as String,bundleId: null == bundleId ? _self.bundleId : bundleId // ignore: cast_nullable_to_non_nullable
 as String,changelog: null == changelog ? _self.changelog : changelog // ignore: cast_nullable_to_non_nullable
+as String,shortCode: null == shortCode ? _self.shortCode : shortCode // ignore: cast_nullable_to_non_nullable
 as String,
   ));
 }
@@ -280,7 +283,7 @@ as String,
 /// @nodoc
 mixin _$PgyerConfig {
 
- String get apiKey; PgyerInstallType get installType; String get installPassword; String get updateDescription;
+ String get apiKey; PgyerInstallType get installType; String get installPassword; String get updateDescription; String get buildShortcutUrl;
 /// Create a copy of PgyerConfig
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -291,16 +294,16 @@ $PgyerConfigCopyWith<PgyerConfig> get copyWith => _$PgyerConfigCopyWithImpl<Pgye
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is PgyerConfig&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.installType, installType) || other.installType == installType)&&(identical(other.installPassword, installPassword) || other.installPassword == installPassword)&&(identical(other.updateDescription, updateDescription) || other.updateDescription == updateDescription));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is PgyerConfig&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.installType, installType) || other.installType == installType)&&(identical(other.installPassword, installPassword) || other.installPassword == installPassword)&&(identical(other.updateDescription, updateDescription) || other.updateDescription == updateDescription)&&(identical(other.buildShortcutUrl, buildShortcutUrl) || other.buildShortcutUrl == buildShortcutUrl));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,apiKey,installType,installPassword,updateDescription);
+int get hashCode => Object.hash(runtimeType,apiKey,installType,installPassword,updateDescription,buildShortcutUrl);
 
 @override
 String toString() {
-  return 'PgyerConfig(apiKey: $apiKey, installType: $installType, installPassword: $installPassword, updateDescription: $updateDescription)';
+  return 'PgyerConfig(apiKey: $apiKey, installType: $installType, installPassword: $installPassword, updateDescription: $updateDescription, buildShortcutUrl: $buildShortcutUrl)';
 }
 
 
@@ -311,7 +314,7 @@ abstract mixin class $PgyerConfigCopyWith<$Res>  {
   factory $PgyerConfigCopyWith(PgyerConfig value, $Res Function(PgyerConfig) _then) = _$PgyerConfigCopyWithImpl;
 @useResult
 $Res call({
- String apiKey, PgyerInstallType installType, String installPassword, String updateDescription
+ String apiKey, PgyerInstallType installType, String installPassword, String updateDescription, String buildShortcutUrl
 });
 
 
@@ -328,12 +331,13 @@ class _$PgyerConfigCopyWithImpl<$Res>
 
 /// Create a copy of PgyerConfig
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? apiKey = null,Object? installType = null,Object? installPassword = null,Object? updateDescription = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? apiKey = null,Object? installType = null,Object? installPassword = null,Object? updateDescription = null,Object? buildShortcutUrl = null,}) {
   return _then(_self.copyWith(
 apiKey: null == apiKey ? _self.apiKey : apiKey // ignore: cast_nullable_to_non_nullable
 as String,installType: null == installType ? _self.installType : installType // ignore: cast_nullable_to_non_nullable
 as PgyerInstallType,installPassword: null == installPassword ? _self.installPassword : installPassword // ignore: cast_nullable_to_non_nullable
 as String,updateDescription: null == updateDescription ? _self.updateDescription : updateDescription // ignore: cast_nullable_to_non_nullable
+as String,buildShortcutUrl: null == buildShortcutUrl ? _self.buildShortcutUrl : buildShortcutUrl // ignore: cast_nullable_to_non_nullable
 as String,
   ));
 }
@@ -419,10 +423,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String apiKey,  PgyerInstallType installType,  String installPassword,  String updateDescription)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String apiKey,  PgyerInstallType installType,  String installPassword,  String updateDescription,  String buildShortcutUrl)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _PgyerConfig() when $default != null:
-return $default(_that.apiKey,_that.installType,_that.installPassword,_that.updateDescription);case _:
+return $default(_that.apiKey,_that.installType,_that.installPassword,_that.updateDescription,_that.buildShortcutUrl);case _:
   return orElse();
 
 }
@@ -440,10 +444,10 @@ return $default(_that.apiKey,_that.installType,_that.installPassword,_that.updat
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String apiKey,  PgyerInstallType installType,  String installPassword,  String updateDescription)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String apiKey,  PgyerInstallType installType,  String installPassword,  String updateDescription,  String buildShortcutUrl)  $default,) {final _that = this;
 switch (_that) {
 case _PgyerConfig():
-return $default(_that.apiKey,_that.installType,_that.installPassword,_that.updateDescription);case _:
+return $default(_that.apiKey,_that.installType,_that.installPassword,_that.updateDescription,_that.buildShortcutUrl);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -460,10 +464,10 @@ return $default(_that.apiKey,_that.installType,_that.installPassword,_that.updat
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String apiKey,  PgyerInstallType installType,  String installPassword,  String updateDescription)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String apiKey,  PgyerInstallType installType,  String installPassword,  String updateDescription,  String buildShortcutUrl)?  $default,) {final _that = this;
 switch (_that) {
 case _PgyerConfig() when $default != null:
-return $default(_that.apiKey,_that.installType,_that.installPassword,_that.updateDescription);case _:
+return $default(_that.apiKey,_that.installType,_that.installPassword,_that.updateDescription,_that.buildShortcutUrl);case _:
   return null;
 
 }
@@ -475,13 +479,14 @@ return $default(_that.apiKey,_that.installType,_that.installPassword,_that.updat
 
 
 class _PgyerConfig extends PgyerConfig {
-  const _PgyerConfig({this.apiKey = '', this.installType = PgyerInstallType.public, this.installPassword = '', this.updateDescription = ''}): super._();
+  const _PgyerConfig({this.apiKey = '', this.installType = PgyerInstallType.public, this.installPassword = '', this.updateDescription = '', this.buildShortcutUrl = ''}): super._();
   
 
 @override@JsonKey() final  String apiKey;
 @override@JsonKey() final  PgyerInstallType installType;
 @override@JsonKey() final  String installPassword;
 @override@JsonKey() final  String updateDescription;
+@override@JsonKey() final  String buildShortcutUrl;
 
 /// Create a copy of PgyerConfig
 /// with the given fields replaced by the non-null parameter values.
@@ -493,16 +498,16 @@ _$PgyerConfigCopyWith<_PgyerConfig> get copyWith => __$PgyerConfigCopyWithImpl<_
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PgyerConfig&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.installType, installType) || other.installType == installType)&&(identical(other.installPassword, installPassword) || other.installPassword == installPassword)&&(identical(other.updateDescription, updateDescription) || other.updateDescription == updateDescription));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _PgyerConfig&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.installType, installType) || other.installType == installType)&&(identical(other.installPassword, installPassword) || other.installPassword == installPassword)&&(identical(other.updateDescription, updateDescription) || other.updateDescription == updateDescription)&&(identical(other.buildShortcutUrl, buildShortcutUrl) || other.buildShortcutUrl == buildShortcutUrl));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,apiKey,installType,installPassword,updateDescription);
+int get hashCode => Object.hash(runtimeType,apiKey,installType,installPassword,updateDescription,buildShortcutUrl);
 
 @override
 String toString() {
-  return 'PgyerConfig(apiKey: $apiKey, installType: $installType, installPassword: $installPassword, updateDescription: $updateDescription)';
+  return 'PgyerConfig(apiKey: $apiKey, installType: $installType, installPassword: $installPassword, updateDescription: $updateDescription, buildShortcutUrl: $buildShortcutUrl)';
 }
 
 
@@ -513,7 +518,7 @@ abstract mixin class _$PgyerConfigCopyWith<$Res> implements $PgyerConfigCopyWith
   factory _$PgyerConfigCopyWith(_PgyerConfig value, $Res Function(_PgyerConfig) _then) = __$PgyerConfigCopyWithImpl;
 @override @useResult
 $Res call({
- String apiKey, PgyerInstallType installType, String installPassword, String updateDescription
+ String apiKey, PgyerInstallType installType, String installPassword, String updateDescription, String buildShortcutUrl
 });
 
 
@@ -530,12 +535,13 @@ class __$PgyerConfigCopyWithImpl<$Res>
 
 /// Create a copy of PgyerConfig
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? apiKey = null,Object? installType = null,Object? installPassword = null,Object? updateDescription = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? apiKey = null,Object? installType = null,Object? installPassword = null,Object? updateDescription = null,Object? buildShortcutUrl = null,}) {
   return _then(_PgyerConfig(
 apiKey: null == apiKey ? _self.apiKey : apiKey // ignore: cast_nullable_to_non_nullable
 as String,installType: null == installType ? _self.installType : installType // ignore: cast_nullable_to_non_nullable
 as PgyerInstallType,installPassword: null == installPassword ? _self.installPassword : installPassword // ignore: cast_nullable_to_non_nullable
 as String,updateDescription: null == updateDescription ? _self.updateDescription : updateDescription // ignore: cast_nullable_to_non_nullable
+as String,buildShortcutUrl: null == buildShortcutUrl ? _self.buildShortcutUrl : buildShortcutUrl // ignore: cast_nullable_to_non_nullable
 as String,
   ));
 }

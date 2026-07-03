@@ -22,7 +22,12 @@ class PgyerUploadResult {
   final String buildShortcutUrl;
   final String buildQRCodeURL;
 
-  String get downloadUrl => 'https://www.pgyer.com/$buildShortcutUrl';
+  String get downloadUrl {
+    final value = buildShortcutUrl.trim();
+    final uri = Uri.tryParse(value);
+    if (uri != null && uri.hasScheme && uri.host.isNotEmpty) return value;
+    return 'https://www.pgyer.com/${value.replaceAll(RegExp(r'^/+|/+$'), '')}';
+  }
 }
 
 class PgyerService {
@@ -92,13 +97,14 @@ class PgyerService {
       endpoint,
       data: uploadData,
       cancelToken: cancelToken,
-      options: Options(
-        headers: {'Content-Type': 'multipart/form-data'},
-      ),
+      options: Options(headers: {'Content-Type': 'multipart/form-data'}),
       onSendProgress: (sent, total) {
         if (total > 0) {
           final uploadProgress = sent / total;
-          onProgress?.call(0.1 + uploadProgress * 0.7, '上传中 ${(uploadProgress * 100).toStringAsFixed(0)}%');
+          onProgress?.call(
+            0.1 + uploadProgress * 0.7,
+            '上传中 ${(uploadProgress * 100).toStringAsFixed(0)}%',
+          );
         }
       },
     );
@@ -123,17 +129,17 @@ class PgyerService {
   }) async {
     for (var attempt = 0; attempt < maxRetries; attempt++) {
       if (cancelToken?.isCancelled == true) {
-        throw DioException(requestOptions: RequestOptions(), type: DioExceptionType.cancel);
+        throw DioException(
+          requestOptions: RequestOptions(),
+          type: DioExceptionType.cancel,
+        );
       }
 
       await Future<void>.delayed(const Duration(seconds: 3));
 
       final response = await _dio.get<Map<String, dynamic>>(
         _buildInfoEndpoint,
-        queryParameters: {
-          '_api_key': apiKey,
-          'buildKey': buildKey,
-        },
+        queryParameters: {'_api_key': apiKey, 'buildKey': buildKey},
         cancelToken: cancelToken,
       );
 

@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
@@ -8,11 +9,13 @@ import 'package:flutter/services.dart';
 import '../domain/models.dart';
 import '../domain/project_models.dart';
 import '../data/log_service.dart';
+import '../data/distribution_service.dart';
 import '../data/pub_environment_service.dart';
 import 'confirm_dialog.dart';
 import 'providers.dart';
 
 part 'pages/environment_guide_page.dart';
+part 'pages/distribution_page.dart';
 part 'pages/overview_page.dart';
 part 'pages/project_configuration_page.dart';
 part 'pages/project_management_page.dart';
@@ -34,11 +37,31 @@ class _HomePageState extends ConsumerState<HomePage> {
   int _page = 0;
   final Set<String> _promptedMissingProjects = {};
   bool _promptedMissingFvm = false;
+  MethodChannel? _dragDropChannel;
 
   @override
   void initState() {
     super.initState();
     Future.microtask(ref.read(fvmControllerProvider.notifier).initialize);
+    _setupDragDropChannel();
+  }
+
+  void _setupDragDropChannel() {
+    _dragDropChannel = const MethodChannel('fvm_manager/drag_drop');
+    _dragDropChannel?.setMethodCallHandler((call) async {
+      if (call.method == 'onPathDropped') {
+        final path = call.arguments as String?;
+        if (path != null && mounted) {
+          await ref.read(fvmControllerProvider.notifier).addProjectByDragDrop(path);
+        }
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _dragDropChannel?.setMethodCallHandler(null);
+    super.dispose();
   }
 
   @override
@@ -145,13 +168,17 @@ class _HomePageState extends ConsumerState<HomePage> {
                               child: switch (_page) {
                                 0 => _Overview(state: state),
                                 1 => _Versions(state: state),
-                                2 => _ProjectManagement(state: state),
+                                2 => _ProjectManagement(
+                                  state: state,
+                                  onOpenDistribution: _openDistribution,
+                                ),
                                 3 => _ProjectConfiguration(
                                   state: state,
                                   onAddProject: _openProjectManagerAndAdd,
                                 ),
-                                4 => const _LogPage(),
-                                5 => _EnvironmentGuide(state: state),
+                                4 => _DistributionPage(state: state),
+                                5 => const _LogPage(),
+                                6 => _EnvironmentGuide(state: state),
                                 _ => _SettingsPage(state: state),
                               },
                             ),
@@ -183,6 +210,15 @@ class _HomePageState extends ConsumerState<HomePage> {
         ],
       ),
     );
+  }
+
+  void _openDistribution(String projectPath) {
+    final controller = ref.read(fvmControllerProvider.notifier);
+    if (ref.read(fvmControllerProvider).selectedManagedProjectPath !=
+        projectPath) {
+      unawaited(controller.selectManagedProject(projectPath));
+    }
+    setState(() => _page = 4);
   }
 
   Future<void> _showMissingFvmDialog() async {

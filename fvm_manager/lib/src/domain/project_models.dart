@@ -17,6 +17,7 @@ abstract class FirConfig with _$FirConfig {
     @Default('') String appName,
     @Default('') String bundleId,
     @Default('') String changelog,
+    @Default('') String shortCode,
   }) = _FirConfig;
 
   factory FirConfig.fromMap(Map<String, dynamic>? map) => FirConfig(
@@ -24,6 +25,7 @@ abstract class FirConfig with _$FirConfig {
     appName: map?['appName'] as String? ?? '',
     bundleId: map?['bundleId'] as String? ?? '',
     changelog: map?['changelog'] as String? ?? '',
+    shortCode: map?['shortCode'] as String? ?? '',
   );
 
   Map<String, dynamic> toMap() => {
@@ -31,6 +33,7 @@ abstract class FirConfig with _$FirConfig {
     'appName': appName,
     'bundleId': bundleId,
     'changelog': changelog,
+    'shortCode': shortCode,
   };
 }
 
@@ -43,6 +46,7 @@ abstract class PgyerConfig with _$PgyerConfig {
     @Default(PgyerInstallType.public) PgyerInstallType installType,
     @Default('') String installPassword,
     @Default('') String updateDescription,
+    @Default('') String buildShortcutUrl,
   }) = _PgyerConfig;
 
   factory PgyerConfig.fromMap(Map<String, dynamic>? map) => PgyerConfig(
@@ -53,6 +57,7 @@ abstract class PgyerConfig with _$PgyerConfig {
     ),
     installPassword: map?['installPassword'] as String? ?? '',
     updateDescription: map?['updateDescription'] as String? ?? '',
+    buildShortcutUrl: map?['buildShortcutUrl'] as String? ?? '',
   );
 
   Map<String, dynamic> toMap() => {
@@ -60,6 +65,7 @@ abstract class PgyerConfig with _$PgyerConfig {
     'installType': installType.name,
     'installPassword': installPassword,
     'updateDescription': updateDescription,
+    'buildShortcutUrl': buildShortcutUrl,
   };
 }
 
@@ -152,12 +158,8 @@ abstract class FlutterProject with _$FlutterProject {
     bugly: BuglyUploadConfig.fromMap(
       (map['bugly'] as Map?)?.cast<String, dynamic>(),
     ),
-    pgyer: PgyerConfig.fromMap(
-      (map['pgyer'] as Map?)?.cast<String, dynamic>(),
-    ),
-    fir: FirConfig.fromMap(
-      (map['fir'] as Map?)?.cast<String, dynamic>(),
-    ),
+    pgyer: PgyerConfig.fromMap((map['pgyer'] as Map?)?.cast<String, dynamic>()),
+    fir: FirConfig.fromMap((map['fir'] as Map?)?.cast<String, dynamic>()),
     selectedFlavors: (map['selectedFlavors'] as List<dynamic>? ?? const [])
         .cast<String>(),
     lastBuildMode: ProjectBuildMode.values.firstWhere(

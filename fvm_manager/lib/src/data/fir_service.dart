@@ -7,6 +7,7 @@ class FirUploadResult {
   const FirUploadResult({
     required this.appId,
     required this.shortUrl,
+    required this.downloadUrl,
     required this.appName,
     required this.version,
     required this.build,
@@ -14,11 +15,10 @@ class FirUploadResult {
 
   final String appId;
   final String shortUrl;
+  final String downloadUrl;
   final String appName;
   final String version;
   final String build;
-
-  String get downloadUrl => 'https://www.betaqr.com.cn/$shortUrl';
 }
 
 class FirService {
@@ -26,7 +26,7 @@ class FirService {
 
   final Dio _dio;
 
-  static const _baseUrl = 'http://api.appmeta.cn';
+  static const _baseUrl = 'https://api.appmeta.cn';
 
   Future<FirUploadResult> uploadApp({
     required String apiToken,
@@ -51,20 +51,15 @@ class FirService {
     // Step 1: Get upload credentials
     final credResponse = await _dio.post<Map<String, dynamic>>(
       '$_baseUrl/apps',
-      data: {
-        'type': fileType,
-        'bundle_id': bundleId,
-        'api_token': apiToken,
-      },
-      options: Options(
-        headers: {'Content-Type': 'application/json'},
-      ),
+      data: {'type': fileType, 'bundle_id': bundleId, 'api_token': apiToken},
+      options: Options(headers: {'Content-Type': 'application/json'}),
       cancelToken: cancelToken,
     );
 
     final appId = credResponse.data?['id'] as String?;
     final cert = credResponse.data?['cert'] as Map<String, dynamic>?;
-    final short = credResponse.data?['short'] as String?;
+    final responseData = credResponse.data ?? const <String, dynamic>{};
+    final short = responseData['short']?.toString() ?? '';
 
     if (appId == null || cert == null) {
       throw Exception('获取上传凭证失败: ${credResponse.data}');
@@ -100,7 +95,10 @@ class FirService {
       onSendProgress: (sent, total) {
         if (total > 0) {
           final progress = sent / total;
-          onProgress?.call(0.2 + progress * 0.8, '上传中 ${(progress * 100).toStringAsFixed(0)}%');
+          onProgress?.call(
+            0.2 + progress * 0.8,
+            '上传中 ${(progress * 100).toStringAsFixed(0)}%',
+          );
         }
       },
     );
@@ -109,11 +107,63 @@ class FirService {
 
     return FirUploadResult(
       appId: appId,
-      shortUrl: short ?? '',
+      shortUrl: short,
+      downloadUrl: resolveDownloadUrl(responseData),
       appName: appName,
       version: version,
       build: build,
     );
+  }
+
+  static String resolveDownloadUrl(Map<String, dynamic> response) {
+    final short = response['short']?.toString().trim() ?? '';
+    final shortUri = Uri.tryParse(short);
+    final slug = shortUri != null && shortUri.hasScheme
+        ? shortUri.pathSegments.where((part) => part.isNotEmpty).lastOrNull
+        : short.replaceAll(RegExp(r'^/+|/+$'), '');
+    if (slug != null && RegExp(r'^[a-zA-Z0-9_-]+$').hasMatch(slug)) {
+      return 'https://fir.xcxwo.com/${Uri.encodeComponent(slug)}';
+    }
+
+    final nestedRelease = response['master_release'];
+    final release = nestedRelease is Map
+        ? nestedRelease.cast<String, dynamic>()
+        : const <String, dynamic>{};
+    final candidates = <Object?>[
+      response['download_url'],
+      response['downloadUrl'],
+      response['install_url'],
+      response['installUrl'],
+      response['url'],
+      release['download_url'],
+      release['install_url'],
+      release['url'],
+    ];
+    for (final candidate in candidates) {
+      final publicUrl = _publicHttpUrl(candidate?.toString());
+      if (publicUrl != null) return publicUrl;
+    }
+    throw Exception('fir.im 接口未返回有效的公开下载地址');
+  }
+
+  static String? _publicHttpUrl(String? value) {
+    if (value == null || value.trim().isEmpty) return null;
+    final uri = Uri.tryParse(value.trim());
+    if (uri == null ||
+        (uri.scheme != 'http' && uri.scheme != 'https') ||
+        uri.host.isEmpty ||
+        _isLocalHost(uri.host)) {
+      return null;
+    }
+    return uri.replace(scheme: 'https').toString();
+  }
+
+  static bool _isLocalHost(String host) {
+    final normalized = host.toLowerCase();
+    return normalized == 'localhost' ||
+        normalized == '127.0.0.1' ||
+        normalized == '::1' ||
+        normalized.startsWith('127.');
   }
 
   String _getFileType(String filePath) {

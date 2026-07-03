@@ -1,9 +1,13 @@
 part of '../home_page.dart';
 
 class _ProjectManagement extends ConsumerStatefulWidget {
-  const _ProjectManagement({required this.state});
+  const _ProjectManagement({
+    required this.state,
+    required this.onOpenDistribution,
+  });
 
   final FvmState state;
+  final ValueChanged<String> onOpenDistribution;
 
   @override
   ConsumerState<_ProjectManagement> createState() => _ProjectManagementState();
@@ -266,7 +270,11 @@ class _ProjectManagementState extends ConsumerState<_ProjectManagement> {
                           ? const Card(
                               child: Center(child: Text('请添加或选择一个 Flutter 项目')),
                             )
-                          : _ProjectDetail(state: state, project: selected),
+                          : _ProjectDetail(
+                              state: state,
+                              project: selected,
+                              onOpenDistribution: widget.onOpenDistribution,
+                            ),
                     ),
                   ],
                 );
@@ -576,10 +584,15 @@ class _ProjectAliasDialogState extends State<_ProjectAliasDialog> {
 }
 
 class _ProjectDetail extends ConsumerWidget {
-  const _ProjectDetail({required this.state, required this.project});
+  const _ProjectDetail({
+    required this.state,
+    required this.project,
+    required this.onOpenDistribution,
+  });
 
   final FvmState state;
   final FlutterProject project;
+  final ValueChanged<String> onOpenDistribution;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1069,38 +1082,52 @@ class _ProjectDetail extends ConsumerWidget {
                     const SizedBox(height: 14),
                     Row(
                       children: [
-                        OutlinedButton.icon(
-                          onPressed: controller.selectedTaskActive('build')
-                              ? null
-                              : controller.openBuildOutput,
-                          icon: const Icon(Icons.folder_open),
-                          label: Text(switch (state.projectBuildTarget) {
+                        Tooltip(
+                          message: switch (state.projectBuildTarget) {
                             ProjectBuildTarget.apk => '打开 APK 目录',
                             ProjectBuildTarget.appbundle => '打开 AAB 目录',
                             ProjectBuildTarget.ios => '打开 iOS 构建目录',
                             ProjectBuildTarget.macos => '打开 macOS 构建目录',
                             ProjectBuildTarget.windows => '打开 Windows 构建目录',
-                          }),
+                          },
+                          child: IconButton.outlined(
+                            onPressed: controller.selectedTaskActive('build')
+                                ? null
+                                : controller.openBuildOutput,
+                            icon: const Icon(Icons.folder_open, size: 18),
+                          ),
                         ),
                         if (state.projectBuildTarget ==
                             ProjectBuildTarget.macos) ...[
                           const SizedBox(width: 8),
-                          OutlinedButton.icon(
-                            onPressed: controller.selectedTaskActive('build')
-                                ? null
-                                : controller.packageMacosDmg,
-                            icon: const Icon(Icons.archive_outlined),
-                            label: const Text('打包成 DMG'),
+                          Tooltip(
+                            message: '打包成 DMG',
+                            child: IconButton.outlined(
+                              onPressed: controller.selectedTaskActive('build')
+                                  ? null
+                                  : controller.packageMacosDmg,
+                              icon: const Icon(Icons.archive_outlined, size: 18),
+                            ),
                           ),
                         ],
                         const SizedBox(width: 8),
-                        OutlinedButton.icon(
-                          onPressed: () => _showPackageGuide(
-                            context,
-                            state.projectBuildTarget,
+                        Tooltip(
+                          message: '分发上传',
+                          child: IconButton.outlined(
+                            onPressed: () => onOpenDistribution(project.path),
+                            icon: const Icon(Icons.cloud_upload_outlined, size: 18),
                           ),
-                          icon: const Icon(Icons.menu_book),
-                          label: const Text('打包指南'),
+                        ),
+                        const SizedBox(width: 8),
+                        Tooltip(
+                          message: '打包指南',
+                          child: IconButton.outlined(
+                            onPressed: () => _showPackageGuide(
+                              context,
+                              state.projectBuildTarget,
+                            ),
+                            icon: const Icon(Icons.menu_book, size: 18),
+                          ),
                         ),
                         const Spacer(),
                         FilledButton.icon(

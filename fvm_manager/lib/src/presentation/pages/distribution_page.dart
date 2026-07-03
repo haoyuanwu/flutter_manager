@@ -299,43 +299,47 @@ class _DistributionPlatforms extends ConsumerWidget {
             style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 12),
-          _PgyerTile(
-            artifact: artifact,
-            project: project,
-            state: state,
+          _PgyerTile(artifact: artifact, project: project, state: state),
+          _FirTile(artifact: artifact, project: project, state: state),
+          const SizedBox(height: 4),
+          const Text(
+            '打开平台',
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: Colors.black54,
+            ),
           ),
-          _FirTile(
-            artifact: artifact,
-            project: project,
-            state: state,
-          ),
-          _DistributionPlatformTile(
-            icon: Icons.apple,
-            title: 'App Store Connect',
-            subtitle: '打开应用管理页面',
-            buttonLabel: '打开页面',
-            onPressed: () =>
-                run(service.openAppStoreConnect, '已打开 App Store Connect'),
-          ),
-          _DistributionPlatformTile(
-            icon: Icons.local_shipping_outlined,
-            title: 'Transporter',
-            subtitle: artifact == null ? '打开 Transporter' : '使用所选文件打开',
-            buttonLabel: '打开',
-            onPressed: Platform.isMacOS
-                ? () => run(
-                    () => service.openTransporter(artifact),
-                    '已打开 Transporter',
-                  )
-                : null,
-          ),
-          _DistributionPlatformTile(
-            icon: Icons.android,
-            title: 'Google Play Console',
-            subtitle: '打开应用发布页面',
-            buttonLabel: '打开页面',
-            onPressed: () =>
-                run(service.openGooglePlayConsole, '已打开 Google Play Console'),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _PlatformActionChip(
+                icon: Icons.apple,
+                label: 'App Store',
+                onPressed: () =>
+                    run(service.openAppStoreConnect, '已打开 App Store Connect'),
+              ),
+              _PlatformActionChip(
+                icon: Icons.local_shipping_outlined,
+                label: 'Transporter',
+                onPressed: Platform.isMacOS
+                    ? () => run(
+                        () => service.openTransporter(artifact),
+                        '已打开 Transporter',
+                      )
+                    : null,
+              ),
+              _PlatformActionChip(
+                icon: Icons.android,
+                label: 'Google Play',
+                onPressed: () => run(
+                  service.openGooglePlayConsole,
+                  '已打开 Google Play Console',
+                ),
+              ),
+            ],
           ),
         ],
       ),
@@ -363,8 +367,13 @@ class _PgyerTile extends ConsumerWidget {
     final hasGlobalKey = env.globalPgyerApiKey.isNotEmpty;
     final hasApiKey = hasProjectKey || hasGlobalKey;
     final keySource = hasProjectKey ? '项目配置' : (hasGlobalKey ? '全局配置' : '');
-    final isUploading = state.pgyerUploadProgress > 0 && state.pgyerUploadProgress < 1.0;
+    final isUploading =
+        state.pgyerUploadProgress > 0 && state.pgyerUploadProgress < 1.0;
     final hasResult = state.pgyerUploadResult != null;
+    final storedDownloadUrl = pgyerConfig.buildShortcutUrl.isEmpty
+        ? null
+        : 'https://www.pgyer.com/${pgyerConfig.buildShortcutUrl}';
+    final downloadUrl = state.pgyerUploadResult ?? storedDownloadUrl;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -394,6 +403,12 @@ class _PgyerTile extends ConsumerWidget {
                     tooltip: '配置蒲公英 API',
                     onPressed: () => _showPgyerConfigDialog(context, ref),
                   ),
+                  if (downloadUrl != null)
+                    TextButton.icon(
+                      onPressed: () => _openUrl(downloadUrl),
+                      icon: const Icon(Icons.open_in_browser, size: 16),
+                      label: const Text('打开下载页'),
+                    ),
                 ],
               ),
               const SizedBox(height: 5),
@@ -413,7 +428,10 @@ class _PgyerTile extends ConsumerWidget {
                     const SizedBox(height: 4),
                     Text(
                       '请在设置页面配置全局 API Key，或点击右侧齿轮为当前项目配置',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
                     ),
                     const SizedBox(height: 4),
                     TextButton.icon(
@@ -449,17 +467,17 @@ class _PgyerTile extends ConsumerWidget {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                      const Icon(
+                        Icons.check_circle,
+                        color: Colors.green,
+                        size: 16,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           '上传完成',
                           style: TextStyle(color: Colors.green.shade700),
                         ),
-                      ),
-                      TextButton(
-                        onPressed: () => _openUrl(state.pgyerUploadResult!),
-                        child: const Text('打开下载页'),
                       ),
                     ],
                   ),
@@ -476,10 +494,10 @@ class _PgyerTile extends ConsumerWidget {
                     isUploading
                         ? '上传中...'
                         : artifact == null
-                            ? '请选择文件'
-                            : hasApiKey
-                                ? '上传到蒲公英'
-                                : '请先配置 API Key',
+                        ? '请选择文件'
+                        : hasApiKey
+                        ? '上传到蒲公英'
+                        : '请先配置 API Key',
                   ),
                 ),
               ),
@@ -523,7 +541,9 @@ class _PgyerConfigDialogState extends ConsumerState<_PgyerConfigDialog> {
     final config = widget.project?.pgyer ?? const PgyerConfig();
     _apiKeyController = TextEditingController(text: config.apiKey);
     _passwordController = TextEditingController(text: config.installPassword);
-    _descriptionController = TextEditingController(text: config.updateDescription);
+    _descriptionController = TextEditingController(
+      text: config.updateDescription,
+    );
     _installType = config.installType;
   }
 
@@ -606,10 +626,7 @@ class _PgyerConfigDialogState extends ConsumerState<_PgyerConfigDialog> {
           onPressed: () => Navigator.pop(context),
           child: const Text('取消'),
         ),
-        FilledButton(
-          onPressed: _save,
-          child: const Text('保存'),
-        ),
+        FilledButton(onPressed: _save, child: const Text('保存')),
       ],
     );
   }
@@ -620,6 +637,7 @@ class _PgyerConfigDialogState extends ConsumerState<_PgyerConfigDialog> {
       installType: _installType,
       installPassword: _passwordController.text,
       updateDescription: _descriptionController.text.trim(),
+      buildShortcutUrl: widget.project?.pgyer.buildShortcutUrl ?? '',
     );
     ref.read(fvmControllerProvider.notifier).updatePgyerConfig(config);
     Navigator.pop(context);
@@ -645,9 +663,16 @@ class _FirTile extends ConsumerWidget {
     final hasProjectToken = firConfig.apiToken.isNotEmpty;
     final hasGlobalToken = env.globalFirApiToken.isNotEmpty;
     final hasApiToken = hasProjectToken || hasGlobalToken;
-    final tokenSource = hasProjectToken ? '项目配置' : (hasGlobalToken ? '全局配置' : '');
-    final isUploading = state.firUploadProgress > 0 && state.firUploadProgress < 1.0;
+    final tokenSource = hasProjectToken
+        ? '项目配置'
+        : (hasGlobalToken ? '全局配置' : '');
+    final isUploading =
+        state.firUploadProgress > 0 && state.firUploadProgress < 1.0;
     final hasResult = state.firUploadResult != null;
+    final storedDownloadUrl = firConfig.shortCode.isEmpty
+        ? null
+        : 'https://fir.xcxwo.com/${firConfig.shortCode}';
+    final downloadUrl = state.firUploadResult ?? storedDownloadUrl;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: 12),
@@ -677,6 +702,12 @@ class _FirTile extends ConsumerWidget {
                     tooltip: '配置 fir.im',
                     onPressed: () => _showFirConfigDialog(context, ref),
                   ),
+                  if (downloadUrl != null)
+                    TextButton.icon(
+                      onPressed: () => _openUrl(downloadUrl),
+                      icon: const Icon(Icons.open_in_browser, size: 16),
+                      label: const Text('打开下载页'),
+                    ),
                 ],
               ),
               const SizedBox(height: 5),
@@ -696,7 +727,10 @@ class _FirTile extends ConsumerWidget {
                     const SizedBox(height: 4),
                     Text(
                       '请在设置页面配置全局 API Token，或点击右侧齿轮为当前项目配置',
-                      style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Colors.grey.shade600,
+                      ),
                     ),
                   ],
                 ),
@@ -719,17 +753,17 @@ class _FirTile extends ConsumerWidget {
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                      const Icon(
+                        Icons.check_circle,
+                        color: Colors.green,
+                        size: 16,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           '上传完成',
                           style: TextStyle(color: Colors.green.shade700),
                         ),
-                      ),
-                      TextButton(
-                        onPressed: () => _openUrl(state.firUploadResult!),
-                        child: const Text('打开下载页'),
                       ),
                     ],
                   ),
@@ -746,10 +780,10 @@ class _FirTile extends ConsumerWidget {
                     isUploading
                         ? '上传中...'
                         : artifact == null
-                            ? '请选择文件'
-                            : hasApiToken
-                                ? '上传到 fir.im'
-                                : '请先配置 API Token',
+                        ? '请选择文件'
+                        : hasApiToken
+                        ? '上传到 fir.im'
+                        : '请先配置 API Token',
                   ),
                 ),
               ),
@@ -790,10 +824,19 @@ class _FirConfigDialogState extends ConsumerState<_FirConfigDialog> {
   @override
   void initState() {
     super.initState();
-    final config = widget.project?.fir ?? const FirConfig();
+    final project = widget.project;
+    final config = project?.fir ?? const FirConfig();
     _apiTokenController = TextEditingController(text: config.apiToken);
-    _appNameController = TextEditingController(text: config.appName);
-    _bundleIdController = TextEditingController(text: config.bundleId);
+    _appNameController = TextEditingController(
+      text: config.appName.isNotEmpty
+          ? config.appName
+          : project?.displayName ?? '',
+    );
+    _bundleIdController = TextEditingController(
+      text: config.bundleId.isNotEmpty
+          ? config.bundleId
+          : project?.bugly.bundleId ?? '',
+    );
     _changelogController = TextEditingController(text: config.changelog);
   }
 
@@ -858,10 +901,7 @@ class _FirConfigDialogState extends ConsumerState<_FirConfigDialog> {
           onPressed: () => Navigator.pop(context),
           child: const Text('取消'),
         ),
-        FilledButton(
-          onPressed: _save,
-          child: const Text('保存'),
-        ),
+        FilledButton(onPressed: _save, child: const Text('保存')),
       ],
     );
   }
@@ -872,66 +912,33 @@ class _FirConfigDialogState extends ConsumerState<_FirConfigDialog> {
       appName: _appNameController.text.trim(),
       bundleId: _bundleIdController.text.trim(),
       changelog: _changelogController.text.trim(),
+      shortCode: widget.project?.fir.shortCode ?? '',
     );
     ref.read(fvmControllerProvider.notifier).updateFirConfig(config);
     Navigator.pop(context);
   }
 }
 
-class _DistributionPlatformTile extends StatelessWidget {
-  const _DistributionPlatformTile({
+class _PlatformActionChip extends StatelessWidget {
+  const _PlatformActionChip({
     required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.buttonLabel,
+    required this.label,
     this.onPressed,
   });
 
   final IconData icon;
-  final String title;
-  final String subtitle;
-  final String buttonLabel;
+  final String label;
   final VoidCallback? onPressed;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 12),
-    child: DecoratedBox(
-      decoration: BoxDecoration(
-        color: const Color(0xfff7f9fb),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xffe4e8ec)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(icon, size: 21),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: const TextStyle(fontWeight: FontWeight.w700),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 5),
-            Text(subtitle, style: const TextStyle(color: Colors.black54)),
-            const SizedBox(height: 10),
-            SizedBox(
-              width: double.infinity,
-              child: OutlinedButton(
-                onPressed: onPressed,
-                child: Text(buttonLabel),
-              ),
-            ),
-          ],
-        ),
-      ),
+  Widget build(BuildContext context) => ActionChip(
+    avatar: Icon(icon, size: 16),
+    label: Text(label),
+    onPressed: onPressed,
+    backgroundColor: const Color(0xfff7f9fb),
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(8),
+      side: const BorderSide(color: Color(0xffe4e8ec)),
     ),
   );
 }

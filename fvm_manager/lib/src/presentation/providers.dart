@@ -408,6 +408,55 @@ class FvmController extends Notifier<FvmState> {
     }
   }
 
+  /// 通过拖放添加项目
+  Future<void> addProjectByDragDrop(String path) async {
+    try {
+      // 检查是否已经是管理的项目
+      final existing = state.managedProjects
+          .where((project) => project.path == path)
+          .firstOrNull;
+      if (existing != null) {
+        // 如果已存在，只选中它
+        await selectManagedProject(path);
+        state = state.copyWith(
+          statusMessage: '项目 ${existing.displayName} 已存在，已切换到该项目',
+        );
+        return;
+      }
+
+      state = state.copyWith(
+        loading: true,
+        errorMessage: null,
+        statusMessage: '正在读取拖放的项目信息…',
+      );
+
+      final service = ref.read(localProjectServiceProvider);
+      final inspected = await service.inspectProject(path);
+      final project = inspected.copyWith(
+        lastBuildTarget: _defaultBuildTarget(inspected),
+      );
+      final projects = await ref
+          .read(projectRepositoryProvider)
+          .upsert(state.managedProjects, project);
+      state = state.copyWith(
+        managedProjects: projects,
+        selectedManagedProjectPath: project.path,
+        selectedAndroidFlavors: project.selectedFlavors,
+        projectBuildTarget: project.lastBuildTarget,
+        projectBuildMode: project.lastBuildMode,
+        cleanBeforeBuild: project.cleanBeforeBuild,
+        androidTargetPlatform: project.androidTargetPlatform,
+        statusMessage: '已添加项目 ${project.displayName}',
+      );
+      _publishStatusMenu();
+      unawaited(_startDeviceMonitoring());
+    } catch (error) {
+      state = state.copyWith(errorMessage: _message(error));
+    } finally {
+      state = state.copyWith(loading: false);
+    }
+  }
+
   Future<void> selectManagedProject(String path) async {
     final current = state.managedProjects
         .where((project) => project.path == path)
@@ -449,6 +498,8 @@ class FvmController extends Notifier<FvmState> {
           : inspected.copyWith(
               alias: previous.alias,
               bugly: previous.bugly,
+              pgyer: previous.pgyer,
+              fir: previous.fir,
               selectedFlavors: previous.selectedFlavors,
               lastBuildMode: previous.lastBuildMode,
               lastBuildTarget: previous.lastBuildTarget,
@@ -509,6 +560,8 @@ class FvmController extends Notifier<FvmState> {
       final relocated = inspected.copyWith(
         alias: missingProject.alias,
         bugly: missingProject.bugly,
+        pgyer: missingProject.pgyer,
+        fir: missingProject.fir,
         selectedFlavors: missingProject.selectedFlavors,
         lastBuildMode: missingProject.lastBuildMode,
         lastBuildTarget: missingProject.lastBuildTarget,
@@ -1571,6 +1624,14 @@ class FvmController extends Notifier<FvmState> {
   }) {
     final path = state.selectedManagedProjectPath;
     if (path == null) return;
+    _updateProjectByPath(path, update, persist: persist);
+  }
+
+  void _updateProjectByPath(
+    String path,
+    FlutterProject Function(FlutterProject project) update, {
+    bool persist = true,
+  }) {
     final projects = state.managedProjects
         .map((project) => project.path == path ? update(project) : project)
         .toList();
@@ -1662,6 +1723,72 @@ class FvmController extends Notifier<FvmState> {
       state = state.copyWith(
         globalVersion: version,
         statusMessage: '全局版本已切换为 $version',
+      );
+    } catch (error) {
+      state = state.copyWith(errorMessage: _message(error));
+    } finally {
+      state = state.copyWith(loading: false);
+    }
+  }
+
+  /// 将 FVM 管理的 Flutter SDK bin 目录设置到系统 PATH。
+  ///
+  /// [type] 可以是 'default'、'version'、'custom'。
+  /// [versionOrPath] 当 type 为 'version' 时是版本号，为 'custom' 时是自定义路径。
+  Future<void> setSystemFlutterPath({
+    String type = 'default',
+    String? versionOrPath,
+  }) async {
+    state = state.copyWith(
+      loading: true,
+      errorMessage: null,
+      statusMessage: '正在设置系统 Flutter 环境变量…',
+    );
+    try {
+      final fvm = ref.read(fvmServiceProvider);
+      final env = ref.read(pubEnvironmentServiceProvider);
+
+      // 获取 FVM 缓存路径
+      final cachePath = await fvm.cachePath();
+
+      String flutterBinPath;
+      String displayName;
+
+      if (type == 'custom') {
+        // 自定义路径
+        if (versionOrPath == null || versionOrPath.isEmpty) {
+          throw Exception('请输入 Flutter bin 目录路径');
+        }
+        flutterBinPath = versionOrPath;
+        displayName = flutterBinPath;
+
+        // 验证路径是否存在
+        final binDir = Directory(flutterBinPath);
+        if (!await binDir.exists()) {
+          throw Exception('目录不存在: $flutterBinPath');
+        }
+      } else if (type == 'version') {
+        // 指定版本
+        if (versionOrPath == null) {
+          throw Exception('请选择一个 Flutter 版本');
+        }
+        flutterBinPath = versionOrPath;
+        displayName = 'Flutter $versionOrPath';
+      } else {
+        // default 模式
+        flutterBinPath = 'default';
+        displayName = 'FVM Default';
+      }
+
+      // 设置系统环境变量
+      await env.setSystemFlutterPath(
+        fvmCachePath: cachePath,
+        flutterBinPath: flutterBinPath,
+        type: type,
+      );
+
+      state = state.copyWith(
+        statusMessage: '已将 $displayName 添加到系统 PATH，新终端即可生效',
       );
     } catch (error) {
       state = state.copyWith(errorMessage: _message(error));
@@ -1866,7 +1993,9 @@ class FvmController extends Notifier<FvmState> {
     final project = _selectedManagedProject;
     final apiKey = _effectivePgyerApiKey;
     if (apiKey.isEmpty) {
-      state = state.copyWith(errorMessage: '请先配置蒲公英 API Key（可在设置页面配置全局 Key，或在项目中配置）');
+      state = state.copyWith(
+        errorMessage: '请先配置蒲公英 API Key（可在设置页面配置全局 Key，或在项目中配置）',
+      );
       return;
     }
 
@@ -1878,21 +2007,38 @@ class FvmController extends Notifier<FvmState> {
     );
 
     try {
-      final result = await ref.read(pgyerServiceProvider).uploadApp(
-        apiKey: apiKey,
-        filePath: filePath,
-        installType: project?.pgyer.installType ?? PgyerInstallType.public,
-        installPassword: project?.pgyer.installType == PgyerInstallType.password
-            ? project?.pgyer.installPassword
-            : null,
-        updateDescription: project?.pgyer.updateDescription,
-        onProgress: (progress, phase) {
-          state = state.copyWith(
-            pgyerUploadProgress: progress,
-            pgyerUploadPhase: phase,
+      final result = await ref
+          .read(pgyerServiceProvider)
+          .uploadApp(
+            apiKey: apiKey,
+            filePath: filePath,
+            installType: project?.pgyer.installType ?? PgyerInstallType.public,
+            installPassword:
+                project?.pgyer.installType == PgyerInstallType.password
+                ? project?.pgyer.installPassword
+                : null,
+            updateDescription: project?.pgyer.updateDescription,
+            onProgress: (progress, phase) {
+              state = state.copyWith(
+                pgyerUploadProgress: progress,
+                pgyerUploadPhase: phase,
+              );
+            },
           );
-        },
-      );
+
+      final pgyerShortcut = Uri.tryParse(
+        result.downloadUrl,
+      )?.pathSegments.where((part) => part.isNotEmpty).lastOrNull;
+      if (project != null &&
+          pgyerShortcut != null &&
+          pgyerShortcut.isNotEmpty) {
+        _updateProjectByPath(
+          project.path,
+          (current) => current.copyWith(
+            pgyer: current.pgyer.copyWith(buildShortcutUrl: pgyerShortcut),
+          ),
+        );
+      }
 
       state = state.copyWith(
         pgyerUploadProgress: 1.0,
@@ -1925,7 +2071,9 @@ class FvmController extends Notifier<FvmState> {
     final project = _selectedManagedProject;
     final apiToken = _effectiveFirApiToken;
     if (apiToken.isEmpty) {
-      state = state.copyWith(errorMessage: '请先配置 fir.im API Token（可在设置页面配置全局 Token，或在项目中配置）');
+      state = state.copyWith(
+        errorMessage: '请先配置 fir.im API Token（可在设置页面配置全局 Token，或在项目中配置）',
+      );
       return;
     }
 
@@ -1948,21 +2096,38 @@ class FvmController extends Notifier<FvmState> {
     );
 
     try {
-      final result = await ref.read(firServiceProvider).uploadApp(
-        apiToken: apiToken,
-        filePath: filePath,
-        appName: appName,
-        bundleId: bundleId,
-        version: project?.bugly.version.isNotEmpty == true ? project!.bugly.version : '1.0.0',
-        build: project?.bugly.buildNo.isNotEmpty == true ? project!.bugly.buildNo : '1',
-        changelog: project?.fir.changelog,
-        onProgress: (progress, phase) {
-          state = state.copyWith(
-            firUploadProgress: progress,
-            firUploadPhase: phase,
+      final result = await ref
+          .read(firServiceProvider)
+          .uploadApp(
+            apiToken: apiToken,
+            filePath: filePath,
+            appName: appName,
+            bundleId: bundleId,
+            version: project?.bugly.version.isNotEmpty == true
+                ? project!.bugly.version
+                : '1.0.0',
+            build: project?.bugly.buildNo.isNotEmpty == true
+                ? project!.bugly.buildNo
+                : '1',
+            changelog: project?.fir.changelog,
+            onProgress: (progress, phase) {
+              state = state.copyWith(
+                firUploadProgress: progress,
+                firUploadPhase: phase,
+              );
+            },
           );
-        },
-      );
+
+      final shortCode = Uri.tryParse(
+        result.downloadUrl,
+      )?.pathSegments.where((part) => part.isNotEmpty).lastOrNull;
+      if (project != null && shortCode != null && shortCode.isNotEmpty) {
+        _updateProjectByPath(
+          project.path,
+          (current) =>
+              current.copyWith(fir: current.fir.copyWith(shortCode: shortCode)),
+        );
+      }
 
       state = state.copyWith(
         firUploadProgress: 1.0,
@@ -1996,6 +2161,8 @@ class FvmController extends Notifier<FvmState> {
   }
 
   Future<void> setGlobalFirApiToken(String apiToken) async {
-    await ref.read(pubEnvironmentServiceProvider).setGlobalFirApiToken(apiToken);
+    await ref
+        .read(pubEnvironmentServiceProvider)
+        .setGlobalFirApiToken(apiToken);
   }
 }

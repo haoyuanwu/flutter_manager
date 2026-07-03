@@ -5,6 +5,7 @@ import FlutterMacOS
 class AppDelegate: FlutterAppDelegate {
   private var statusItem: NSStatusItem?
   private var statusMenuChannel: FlutterMethodChannel?
+  private var dragDropChannel: FlutterMethodChannel?
   private var mainWindow: MainFlutterWindow?
   private var fvmVersion = "检测中…"
   private var flutterVersion = "检测中…"
@@ -34,6 +35,30 @@ class AppDelegate: FlutterAppDelegate {
 
   override func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
     return true
+  }
+
+  // 支持接收拖放到应用图标上的文件
+  override func application(_ sender: NSApplication, openFile filename: String) -> Bool {
+    handleDroppedPath(filename)
+    return true
+  }
+
+  // 支持接收多个文件
+  override func application(_ sender: NSApplication, openFiles filenames: [String]) {
+    for filename in filenames {
+      handleDroppedPath(filename)
+    }
+  }
+
+  // 处理拖放的路径
+  private func handleDroppedPath(_ path: String) {
+    // 确保主窗口可见
+    showMainWindow()
+
+    // 通过 Flutter Method Channel 发送到 Flutter 端
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+      self?.dragDropChannel?.invokeMethod("onPathDropped", arguments: path)
+    }
   }
 
   private func configureStatusItem() {
@@ -92,10 +117,40 @@ class AppDelegate: FlutterAppDelegate {
     statusMenuChannel = channel
   }
 
+  private func configureDragDropChannel() {
+    guard dragDropChannel == nil else { return }
+    guard let controller = mainWindow?.contentViewController as? FlutterViewController else {
+      return
+    }
+    let channel = FlutterMethodChannel(
+      name: "fvm_manager/drag_drop",
+      binaryMessenger: controller.engine.binaryMessenger
+    )
+    dragDropChannel = channel
+  }
+
   func attachMainWindow(_ window: MainFlutterWindow) {
     mainWindow = window
     configureStatusItem()
     configureStatusMenuChannel()
+    configureDragDropChannel()
+
+    // 设置窗口支持拖放
+    setupWindowDragDrop(window)
+  }
+
+  // 设置窗口拖放支持
+  private func setupWindowDragDrop(_ window: NSWindow) {
+    // 注册接收拖放的类型
+    window.registerForDraggedTypes([.fileURL])
+
+    // 使用 NSWindow 的拖放代理
+    let dragDropView = DragDropView(frame: window.contentView?.bounds ?? .zero)
+    dragDropView.onPathDropped = { [weak self] path in
+      self?.handleDroppedPath(path)
+    }
+    dragDropView.autoresizingMask = [.width, .height]
+    window.contentView?.addSubview(dragDropView)
   }
 
   private func rebuildStatusMenu() {
@@ -242,5 +297,83 @@ class AppDelegate: FlutterAppDelegate {
 
   @objc private func quitApplication(_ sender: Any?) {
     NSApp.terminate(sender)
+  }
+}
+
+// MARK: - 拖放视图
+class DragDropView: NSView {
+  var onPathDropped: ((String) -> Void)?
+
+  override init(frame: NSRect) {
+    super.init(frame: frame)
+    setup()
+  }
+
+  required init?(coder: NSCoder) {
+    super.init(coder: coder)
+    setup()
+  }
+
+  private func setup() {
+    // 注册接收拖放的类型
+    registerForDraggedTypes([.fileURL])
+  }
+
+  override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation {
+    // 检查是否包含文件夹
+    if hasValidDirectory(sender) {
+      // 高亮显示
+      wantsLayer = true
+      layer?.backgroundColor = NSColor.controlAccentColor.withAlphaComponent(0.1).cgColor
+      return .copy
+    }
+    return []
+  }
+
+  override func draggingExited(_ sender: NSDraggingInfo?) {
+    // 取消高亮
+    wantsLayer = false
+    layer?.backgroundColor = nil
+  }
+
+  override func prepareForDragOperation(_ sender: NSDraggingInfo) -> Bool {
+    return hasValidDirectory(sender)
+  }
+
+  override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+    // 取消高亮
+    wantsLayer = false
+    layer?.backgroundColor = nil
+
+    // 获取拖放的文件 URL
+    let pasteboard = sender.draggingPasteboard
+    guard let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [
+      .urlReadingFileURLsOnly: true,
+      .urlReadingContentsConformToTypes: ["public.folder"]
+    ]) as? [URL] else {
+      return false
+    }
+
+    // 处理每个拖放的文件夹
+    for url in urls {
+      if url.hasDirectoryPath {
+        onPathDropped?(url.path)
+      }
+    }
+
+    return true
+  }
+
+  // 检查是否包含有效的目录
+  private func hasValidDirectory(_ sender: NSDraggingInfo) -> Bool {
+    let pasteboard = sender.draggingPasteboard
+    guard let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [
+      .urlReadingFileURLsOnly: true
+    ]) as? [URL] else {
+      return false
+    }
+
+    // 检查是否有目录
+    return urls.contains { $0.hasDirectoryPath }
   }
 }
