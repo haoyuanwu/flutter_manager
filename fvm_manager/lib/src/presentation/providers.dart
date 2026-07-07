@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:archive/archive_io.dart';
 import 'package:dio/dio.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -22,6 +23,7 @@ import '../data/pub_environment_service.dart';
 import '../domain/models.dart';
 import '../domain/project_models.dart';
 import 'console_window_service.dart';
+import 'mcp_control_server.dart';
 import 'status_menu_service.dart';
 
 final dioProvider = Provider<Dio>(
@@ -96,6 +98,7 @@ class FvmController extends Notifier<FvmState> {
       {};
   final Set<String> _stoppingCommandTasks = {};
   final Map<String, String> _consoleModes = {};
+  final McpControlServer _mcpControlServer = McpControlServer();
   String? _mainBuildConsoleProjectPath;
 
   bool get selectedProjectCommandRunning =>
@@ -177,6 +180,9 @@ class FvmController extends Notifier<FvmState> {
         showMainWindowConsole: environment.showMainWindowConsole,
         showConsoleQuickCommands: environment.showConsoleQuickCommands,
         buildOpensConsoleWindow: environment.buildOpensConsoleWindow,
+        mcpServerEnabled: environment.mcpServerEnabled,
+        mcpServerPort: environment.mcpServerPort,
+        mcpServerToken: environment.mcpServerToken,
         managedProjects: projects,
         selectedManagedProjectPath:
             state.selectedManagedProjectPath ?? projects.firstOrNull?.path,
@@ -191,6 +197,7 @@ class FvmController extends Notifier<FvmState> {
         androidTargetPlatform:
             projects.firstOrNull?.androidTargetPlatform ?? 'android-arm64',
       );
+      await _syncMcpControlServer();
       final results = await Future.wait<Object?>([
         fvm.detect(),
         ref.read(releaseServiceProvider).fetchReleases(),
@@ -1190,6 +1197,253 @@ class FvmController extends Notifier<FvmState> {
     );
     if (enabled) _mainBuildConsoleProjectPath = null;
   }
+
+  Future<void> setMcpServerEnabled(bool enabled) async {
+    await ref.read(pubEnvironmentServiceProvider).setMcpServerEnabled(enabled);
+    state = state.copyWith(mcpServerEnabled: enabled);
+    await _syncMcpControlServer();
+  }
+
+  Future<void> setMcpServerPort(int port) async {
+    final normalized = port.clamp(1024, 65535);
+    await ref.read(pubEnvironmentServiceProvider).setMcpServerPort(normalized);
+    state = state.copyWith(mcpServerPort: normalized);
+    await _syncMcpControlServer();
+  }
+
+  Future<void> resetMcpServerToken() async {
+    final environment = ref.read(pubEnvironmentServiceProvider);
+    await environment.resetMcpServerToken();
+    state = state.copyWith(mcpServerToken: environment.mcpServerToken);
+    await _syncMcpControlServer();
+  }
+
+  Future<void> exportMcpSkill() async {
+    try {
+      final source = _mcpSkillDirectory();
+      if (source == null) {
+        throw Exception('未找到项目内 Skill：codex_skills/flutter-manager-mcp');
+      }
+      final downloads = _downloadsDirectory();
+      await downloads.create(recursive: true);
+      final outputPath =
+          '${downloads.path}${Platform.pathSeparator}flutter-manager-mcp-skill.zip';
+      final output = File(outputPath);
+      if (await output.exists()) await output.delete();
+      final encoder = ZipFileEncoder();
+      encoder.create(outputPath);
+      encoder.addDirectory(source, includeDirName: true);
+      encoder.close();
+      await ref.read(localProjectServiceProvider).revealFile(outputPath);
+      state = state.copyWith(statusMessage: 'MCP Skill 已导出：$outputPath');
+    } catch (error) {
+      state = state.copyWith(errorMessage: _message(error));
+    }
+  }
+
+  Directory? _mcpSkillDirectory() {
+    final candidates = <Directory>[
+      Directory(
+        '${Directory.current.path}${Platform.pathSeparator}codex_skills'
+        '${Platform.pathSeparator}flutter-manager-mcp',
+      ),
+      Directory(
+        '${File(Platform.resolvedExecutable).parent.path}'
+        '${Platform.pathSeparator}codex_skills'
+        '${Platform.pathSeparator}flutter-manager-mcp',
+      ),
+      Directory(
+        '${File(Platform.resolvedExecutable).parent.parent.path}'
+        '${Platform.pathSeparator}codex_skills'
+        '${Platform.pathSeparator}flutter-manager-mcp',
+      ),
+    ];
+    return candidates.where((directory) => directory.existsSync()).firstOrNull;
+  }
+
+  Directory _downloadsDirectory() {
+    final home =
+        Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
+    if (home != null && home.isNotEmpty) {
+      return Directory('$home${Platform.pathSeparator}Downloads');
+    }
+    return Directory.current;
+  }
+
+  Future<void> _syncMcpControlServer() async {
+    if (!state.mcpServerEnabled) {
+      await _mcpControlServer.stop();
+      return;
+    }
+    try {
+      await _mcpControlServer.start(
+        port: state.mcpServerPort,
+        token: state.mcpServerToken,
+        onToolCall: _handleMcpToolCall,
+      );
+      state = state.copyWith(
+        statusMessage: 'MCP 控制接口已启动：127.0.0.1:${state.mcpServerPort}',
+      );
+    } catch (error) {
+      state = state.copyWith(errorMessage: 'MCP 控制接口启动失败：${_message(error)}');
+    }
+  }
+
+  Future<Map<String, dynamic>> _handleMcpToolCall(
+    String tool,
+    Map<String, dynamic> arguments,
+  ) async {
+    switch (tool) {
+      case 'list_projects':
+        return {
+          'projects': state.managedProjects.map(_mcpProjectJson).toList(),
+        };
+      case 'get_current_project':
+        final project = _selectedManagedProject;
+        return {'project': project == null ? null : _mcpProjectJson(project)};
+      case 'select_project':
+        final path = await _mcpProjectPath(arguments, requireExisting: false);
+        await selectManagedProject(path);
+        return {
+          'projectPath': path,
+          'project': _selectedManagedProject == null
+              ? null
+              : _mcpProjectJson(_selectedManagedProject!),
+        };
+      case 'list_devices':
+        await _selectMcpProject(arguments);
+        if (state.devices.isEmpty && !state.devicesLoading) {
+          unawaited(loadDevices());
+        }
+        return {
+          'projectPath': state.selectedManagedProjectPath,
+          'devices': state.devices,
+          'selectedDeviceId': state.selectedDeviceId,
+          'loading': state.devicesLoading,
+        };
+      case 'run':
+        await _selectMcpProject(arguments);
+        _applyMcpRunOptions(arguments);
+        _openMcpConsole(arguments);
+        unawaited(runManagedProject());
+        return _mcpCommandStarted('run');
+      case 'rerun':
+        await _selectMcpProject(arguments);
+        _applyMcpRunOptions(arguments);
+        _openMcpConsole(arguments);
+        unawaited(rerunManagedProject());
+        return _mcpCommandStarted('rerun');
+      case 'pub_get':
+        await _selectMcpProject(arguments);
+        unawaited(projectPubGet());
+        return _mcpCommandStarted('pub_get');
+      case 'clean':
+        await _selectMcpProject(arguments);
+        unawaited(projectClean());
+        return _mcpCommandStarted('clean');
+      case 'build':
+        await _selectMcpProject(arguments);
+        unawaited(buildManagedProject());
+        return _mcpCommandStarted('build');
+      case 'devtools':
+        await _selectMcpProject(arguments);
+        unawaited(openProjectDevTools());
+        return _mcpCommandStarted('devtools');
+      case 'stop':
+        final taskId = arguments['taskId'] as String?;
+        final projectPath = await _mcpProjectPath(arguments);
+        final resolvedTaskId =
+            taskId ?? _tasksForProject(projectPath).firstOrNull?.id;
+        if (resolvedTaskId == null) {
+          return {'stopped': false, 'message': '当前项目没有正在运行的命令'};
+        }
+        await stopProjectCommand(resolvedTaskId);
+        return {
+          'stopped': true,
+          'taskId': resolvedTaskId,
+          'projectPath': projectPath,
+        };
+      case 'read_console':
+        final projectPath = await _mcpProjectPath(arguments);
+        return {
+          'projectPath': projectPath,
+          'log': _commandLogs.logFor(projectPath),
+          'tasks': _serializedTasks(projectPath),
+        };
+      default:
+        throw Exception('未知 MCP 工具：$tool');
+    }
+  }
+
+  Map<String, dynamic> _mcpCommandStarted(String action) {
+    final path = state.selectedManagedProjectPath;
+    return {
+      'action': action,
+      'projectPath': path,
+      'tasks': path == null ? const [] : _serializedTasks(path),
+      'message': '$action 已发起',
+    };
+  }
+
+  Future<void> _selectMcpProject(Map<String, dynamic> arguments) async {
+    final path = await _mcpProjectPath(arguments);
+    if (state.selectedManagedProjectPath != path) {
+      await selectManagedProject(path);
+    }
+  }
+
+  void _applyMcpRunOptions(Map<String, dynamic> arguments) {
+    final deviceId = (arguments['deviceId'] as String?)?.trim();
+    final flavor = (arguments['flavor'] as String?)?.trim();
+    state = state.copyWith(
+      selectedDeviceId: deviceId?.isNotEmpty == true
+          ? deviceId
+          : state.selectedDeviceId,
+      selectedAndroidFlavors: flavor?.isNotEmpty == true
+          ? [flavor!]
+          : state.selectedAndroidFlavors,
+    );
+  }
+
+  void _openMcpConsole(Map<String, dynamic> arguments) {
+    final openConsole = arguments['openConsole'] as bool? ?? true;
+    final path = state.selectedManagedProjectPath;
+    if (openConsole && path != null) {
+      unawaited(_openConsoleWindow(path));
+    }
+  }
+
+  Future<String> _mcpProjectPath(
+    Map<String, dynamic> arguments, {
+    bool requireExisting = true,
+  }) async {
+    final requested = (arguments['projectPath'] as String?)?.trim();
+    final path = requested?.isNotEmpty == true
+        ? requested!
+        : state.selectedManagedProjectPath;
+    if (path == null) throw Exception('未选择项目，请传入 projectPath');
+    final project = state.managedProjects
+        .where((item) => item.path == path)
+        .firstOrNull;
+    if (project == null) throw Exception('项目不在管理列表中：$path');
+    if (requireExisting && !project.pathExists) {
+      throw Exception('项目目录不存在：$path');
+    }
+    return path;
+  }
+
+  Map<String, dynamic> _mcpProjectJson(FlutterProject project) => {
+    'name': project.name,
+    'displayName': project.displayName,
+    'alias': project.alias,
+    'path': project.path,
+    'pathExists': project.pathExists,
+    'fvmVersion': project.fvmVersion,
+    'hasAndroid': project.hasAndroid,
+    'hasIos': project.hasIos,
+    'hasMacos': project.hasMacos,
+    'hasWindows': project.hasWindows,
+  };
 
   static final _vmServiceUriPattern = RegExp(
     r'(?:Dart VM service.*?(?:at:|on)|Observatory listening on)\s*(https?://\S+)',

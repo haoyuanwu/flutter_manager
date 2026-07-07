@@ -1,0 +1,4 @@
+interface:
+  display_name: "Flutter Manager MCP"
+  short_description: "用 MCP 控制 Flutter Manager App"
+  default_prompt: "Use $flutter-manager-mcp to run a managed Flutter project on a connected device and inspect its console."

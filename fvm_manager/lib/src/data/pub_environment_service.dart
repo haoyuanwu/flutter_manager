@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 import 'dart:io';
 
 class MirrorOption {
@@ -59,6 +60,9 @@ class PubEnvironmentService {
   bool _showMainWindowConsole = false;
   bool _showConsoleQuickCommands = true;
   bool _buildOpensConsoleWindow = false;
+  bool _mcpServerEnabled = false;
+  int _mcpServerPort = 17891;
+  String _mcpServerToken = '';
   String _globalPgyerApiKey = '';
   String _globalFirApiToken = '';
 
@@ -73,6 +77,9 @@ class PubEnvironmentService {
   bool get showMainWindowConsole => _showMainWindowConsole;
   bool get showConsoleQuickCommands => _showConsoleQuickCommands;
   bool get buildOpensConsoleWindow => _buildOpensConsoleWindow;
+  bool get mcpServerEnabled => _mcpServerEnabled;
+  int get mcpServerPort => _mcpServerPort;
+  String get mcpServerToken => _mcpServerToken;
   String get globalPgyerApiKey => _globalPgyerApiKey;
   String get globalFirApiToken => _globalFirApiToken;
 
@@ -84,9 +91,9 @@ class PubEnvironmentService {
   Map<String, String> get processEnvironment {
     final environment = Map<String, String>.from(Platform.environment);
     // 优先使用缓存的 PATH（从 source 获取的）
-    environment['PATH'] = _cachedPath ?? executableSearchPaths.join(
-      Platform.isWindows ? ';' : ':',
-    );
+    environment['PATH'] =
+        _cachedPath ??
+        executableSearchPaths.join(Platform.isWindows ? ';' : ':');
     final mirror = currentMirror;
     if (mirror.pubUrl != null) {
       environment['PUB_HOSTED_URL'] = mirror.pubUrl!;
@@ -149,7 +156,11 @@ class PubEnvironmentService {
 
   Future<void> load() async {
     final file = _settingsFile;
-    if (!await file.exists()) return;
+    if (!await file.exists()) {
+      _mcpServerToken = _generateToken();
+      await _persist();
+      return;
+    }
     try {
       final data = jsonDecode(await file.readAsString());
       final settings = (data as Map).cast<String, dynamic>();
@@ -174,12 +185,17 @@ class PubEnvironmentService {
           settings['showConsoleQuickCommands'] as bool? ?? true;
       _buildOpensConsoleWindow =
           settings['buildOpensConsoleWindow'] as bool? ?? false;
-      _globalPgyerApiKey =
-          settings['globalPgyerApiKey'] as String? ?? '';
-      _globalFirApiToken =
-          settings['globalFirApiToken'] as String? ?? '';
+      _mcpServerEnabled = settings['mcpServerEnabled'] as bool? ?? false;
+      _mcpServerPort = settings['mcpServerPort'] as int? ?? 17891;
+      _mcpServerToken = settings['mcpServerToken'] as String? ?? '';
+      _globalPgyerApiKey = settings['globalPgyerApiKey'] as String? ?? '';
+      _globalFirApiToken = settings['globalFirApiToken'] as String? ?? '';
     } on Object {
       _mirrorId = 'official';
+    }
+    if (_mcpServerToken.isEmpty) {
+      _mcpServerToken = _generateToken();
+      await _persist();
     }
 
     // 加载时执行 source 获取最新的环境变量
@@ -253,6 +269,21 @@ class PubEnvironmentService {
     await _persist();
   }
 
+  Future<void> setMcpServerEnabled(bool enabled) async {
+    _mcpServerEnabled = enabled;
+    await _persist();
+  }
+
+  Future<void> setMcpServerPort(int port) async {
+    _mcpServerPort = port;
+    await _persist();
+  }
+
+  Future<void> resetMcpServerToken() async {
+    _mcpServerToken = _generateToken();
+    await _persist();
+  }
+
   Future<void> setGlobalPgyerApiKey(String apiKey) async {
     _globalPgyerApiKey = apiKey;
     await _persist();
@@ -303,11 +334,24 @@ class PubEnvironmentService {
         'showMainWindowConsole': _showMainWindowConsole,
         'showConsoleQuickCommands': _showConsoleQuickCommands,
         'buildOpensConsoleWindow': _buildOpensConsoleWindow,
+        'mcpServerEnabled': _mcpServerEnabled,
+        'mcpServerPort': _mcpServerPort,
+        'mcpServerToken': _mcpServerToken,
         'globalPgyerApiKey': _globalPgyerApiKey,
         'globalFirApiToken': _globalFirApiToken,
       }),
       flush: true,
     );
+  }
+
+  String _generateToken() {
+    const alphabet =
+        'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    final random = Random.secure();
+    return List.generate(
+      32,
+      (_) => alphabet[random.nextInt(alphabet.length)],
+    ).join();
   }
 
   String rewriteStorageUrl(String url) {
@@ -346,11 +390,12 @@ class PubEnvironmentService {
     }
 
     if (Platform.isWindows) {
-      final result = await Process.run(
-        'reg',
-        ['query', r'HKCU\Environment', '/v', 'Path'],
-        runInShell: true,
-      );
+      final result = await Process.run('reg', [
+        'query',
+        r'HKCU\Environment',
+        '/v',
+        'Path',
+      ], runInShell: true);
       if (result.exitCode == 0) {
         final lines = result.stdout.toString().split('\n');
         for (final line in lines) {
@@ -476,11 +521,12 @@ class PubEnvironmentService {
 
     if (Platform.isWindows) {
       // Windows 使用 setx 设置用户环境变量
-      final result = await Process.run(
-        'reg',
-        ['query', r'HKCU\Environment', '/v', 'Path'],
-        runInShell: true,
-      );
+      final result = await Process.run('reg', [
+        'query',
+        r'HKCU\Environment',
+        '/v',
+        'Path',
+      ], runInShell: true);
       String currentPath = '';
       if (result.exitCode == 0) {
         final lines = result.stdout.toString().split('\n');
@@ -501,16 +547,20 @@ class PubEnvironmentService {
           .toList();
 
       // 移除旧的 FVM/Flutter 相关路径
-      paths.removeWhere((p) =>
-          p.contains('fvm') ||
-          p.contains('FVM') ||
-          (p.contains('flutter') && !p.contains('pub')));
+      paths.removeWhere(
+        (p) =>
+            p.contains('fvm') ||
+            p.contains('FVM') ||
+            (p.contains('flutter') && !p.contains('pub')),
+      );
 
       // 添加新路径
       paths.insert(0, flutterBinPath);
       final newPath = paths.join(separator);
-      final setResult = await Process.run('setx', ['Path', newPath],
-          runInShell: true);
+      final setResult = await Process.run('setx', [
+        'Path',
+        newPath,
+      ], runInShell: true);
       if (setResult.exitCode != 0) {
         throw Exception('设置系统 PATH 失败：${setResult.stderr}');
       }
@@ -521,10 +571,10 @@ class PubEnvironmentService {
   Future<void> _sourceConfig(String configFile) async {
     try {
       // 使用 bash -c source 来执行，这样可以获取新的环境变量
-      final result = await Process.run(
-        'bash',
-        ['-c', 'source "$configFile" && env'],
-      );
+      final result = await Process.run('bash', [
+        '-c',
+        'source "$configFile" && env',
+      ]);
 
       if (result.exitCode == 0) {
         // 解析新的环境变量
@@ -566,11 +616,13 @@ class PubEnvironmentService {
     final file = File(configFile);
     if (!await file.exists()) {
       // 如果文件不存在，创建新文件
-      await file.writeAsString(_buildNewConfigContent(
-        fvmCachePath: fvmCachePath,
-        flutterBinPath: flutterBinPath,
-        type: type,
-      ));
+      await file.writeAsString(
+        _buildNewConfigContent(
+          fvmCachePath: fvmCachePath,
+          flutterBinPath: flutterBinPath,
+          type: type,
+        ),
+      );
       return configFile;
     }
 
@@ -587,9 +639,7 @@ class PubEnvironmentService {
     );
 
     // 追加新配置（保留原有内容）
-    await file.writeAsString(
-      '${content.trimRight()}\n\n$newConfig',
-    );
+    await file.writeAsString('${content.trimRight()}\n\n$newConfig');
 
     return configFile;
   }
@@ -653,7 +703,9 @@ class PubEnvironmentService {
       // 匹配模式：/flutter、/flutter/bin、flutter_sdk 等
       if (RegExp(r'[/\\]flutter([/\\]bin)?[:"]').hasMatch(lower) ||
           RegExp(r'flutter[_-]?sdk').hasMatch(lower) ||
-          (lower.contains('flutter') && !lower.contains('pub-cache') && !lower.contains('pub_cache'))) {
+          (lower.contains('flutter') &&
+              !lower.contains('pub-cache') &&
+              !lower.contains('pub_cache'))) {
         return true;
       }
     }
@@ -669,7 +721,8 @@ class PubEnvironmentService {
   }) {
     final buffer = StringBuffer();
     final now = DateTime.now();
-    final timeStr = '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} '
+    final timeStr =
+        '${now.year}-${now.month.toString().padLeft(2, '0')}-${now.day.toString().padLeft(2, '0')} '
         '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
 
     // 添加注释头
@@ -682,17 +735,20 @@ class PubEnvironmentService {
     switch (type) {
       case 'default':
         buffer.writeln(
-            'export PATH="\$FVM_CACHE_PATH/default/bin:\$HOME/.pub-cache/bin:\$PATH"');
+          'export PATH="\$FVM_CACHE_PATH/default/bin:\$HOME/.pub-cache/bin:\$PATH"',
+        );
         break;
       case 'version':
         // flutterBinPath 是版本号
         buffer.writeln(
-            'export PATH="\$FVM_CACHE_PATH/$flutterBinPath/bin:\$HOME/.pub-cache/bin:\$PATH"');
+          'export PATH="\$FVM_CACHE_PATH/$flutterBinPath/bin:\$HOME/.pub-cache/bin:\$PATH"',
+        );
         break;
       case 'custom':
         // flutterBinPath 是自定义路径
         buffer.writeln(
-            'export PATH="$flutterBinPath:\$HOME/.pub-cache/bin:\$PATH"');
+          'export PATH="$flutterBinPath:\$HOME/.pub-cache/bin:\$PATH"',
+        );
         break;
     }
 

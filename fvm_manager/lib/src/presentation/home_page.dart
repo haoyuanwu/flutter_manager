@@ -20,6 +20,7 @@ part 'pages/overview_page.dart';
 part 'pages/project_configuration_page.dart';
 part 'pages/project_management_page.dart';
 part 'pages/log_page.dart';
+part 'pages/mcp_server_page.dart';
 part 'pages/settings_page.dart';
 part 'pages/versions_page.dart';
 part 'widgets/navigation.dart';
@@ -52,7 +53,9 @@ class _HomePageState extends ConsumerState<HomePage> {
       if (call.method == 'onPathDropped') {
         final path = call.arguments as String?;
         if (path != null && mounted) {
-          await ref.read(fvmControllerProvider.notifier).addProjectByDragDrop(path);
+          await ref
+              .read(fvmControllerProvider.notifier)
+              .addProjectByDragDrop(path);
         }
       }
     });
@@ -179,6 +182,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                                 4 => _DistributionPage(state: state),
                                 5 => const _LogPage(),
                                 6 => _EnvironmentGuide(state: state),
+                                7 => _McpServerPage(state: state),
                                 _ => _SettingsPage(state: state),
                               },
                             ),

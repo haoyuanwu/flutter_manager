@@ -108,10 +108,16 @@ class _Sidebar extends StatelessWidget {
                     onTap: () => onSelected(6),
                   ),
                   _NavItem(
-                    icon: Icons.settings_outlined,
-                    label: '设置',
+                    icon: Icons.smart_toy_outlined,
+                    label: 'MCP 服务',
                     selected: selected == 7,
                     onTap: () => onSelected(7),
+                  ),
+                  _NavItem(
+                    icon: Icons.settings_outlined,
+                    label: '设置',
+                    selected: selected == 8,
+                    onTap: () => onSelected(8),
                   ),
                 ],
               ),
