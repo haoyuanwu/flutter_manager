@@ -42,12 +42,10 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
     final mcpServerPath =
         '${Directory.current.path}${Platform.pathSeparator}mcp_server'
         '${Platform.pathSeparator}dist${Platform.pathSeparator}index.js';
-    final skillPath =
-        '${Directory.current.path}${Platform.pathSeparator}codex_skills'
-        '${Platform.pathSeparator}flutter-manager-mcp';
+    const relativeSkillPath = 'codex_skills/flutter-manager-mcp';
     final codexConfig = _codexConfig(mcpServerPath);
     final jsonConfig = _jsonConfig(mcpServerPath);
-    final installCommands = _installCommands(skillPath);
+    final installCommands = _installCommands(relativeSkillPath);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -181,7 +179,7 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
                   _CodeBlock(
                     title: '准备 MCP Server',
                     text: [
-                      'cd "${Directory.current.path}/mcp_server"',
+                      'cd mcp_server',
                       'npm install',
                       'npm run build',
                     ].join('\n'),
@@ -221,7 +219,7 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
                   const SizedBox(height: 12),
                   _CodeBlock(
                     title: '本项目 Skill 路径',
-                    text: skillPath,
+                    text: relativeSkillPath,
                     onCopy: _copy,
                   ),
                   const SizedBox(height: 12),
@@ -241,7 +239,8 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
                         label: const Text('导出 Skill'),
                       ),
                       OutlinedButton.icon(
-                        onPressed: () => _copy(skillPath, 'Skill 路径已复制'),
+                        onPressed: () =>
+                            _copy(relativeSkillPath, 'Skill 路径已复制'),
                         icon: const Icon(Icons.copy_outlined),
                         label: const Text('复制 Skill 路径'),
                       ),
@@ -286,10 +285,10 @@ FLUTTER_MANAGER_TOKEN = "${widget.state.mcpServerToken}"
 '''
           .trim();
 
-  String _installCommands(String skillPath) =>
+  String _installCommands(String relativeSkillPath) =>
       '''
 mkdir -p ~/.codex/skills
-cp -R "$skillPath" ~/.codex/skills/
+cp -R "$relativeSkillPath" ~/.codex/skills/
 '''
           .trim();
 
