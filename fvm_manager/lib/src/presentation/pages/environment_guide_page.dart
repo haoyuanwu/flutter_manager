@@ -425,10 +425,7 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
                     value: 'version',
                     child: Text('指定 FVM 版本'),
                   ),
-                const DropdownMenuItem(
-                  value: 'custom',
-                  child: Text('自定义路径'),
-                ),
+                const DropdownMenuItem(value: 'custom', child: Text('自定义路径')),
               ],
               onChanged: state.loading
                   ? null
@@ -460,8 +457,11 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.info_outline,
-                            size: 16, color: Colors.blue.shade700),
+                        Icon(
+                          Icons.info_outline,
+                          size: 16,
+                          color: Colors.blue.shade700,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           'Default 模式说明',
@@ -569,8 +569,11 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
                   children: [
                     Row(
                       children: [
-                        Icon(Icons.warning_amber_rounded,
-                            size: 16, color: Colors.orange.shade700),
+                        Icon(
+                          Icons.warning_amber_rounded,
+                          size: 16,
+                          color: Colors.orange.shade700,
+                        ),
                         const SizedBox(width: 8),
                         Text(
                           '固定版本说明',
@@ -666,10 +669,7 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
                 Expanded(
                   child: Text(
                     '设置后需要重新打开终端才能生效。macOS 会同时写入 ~/.zshrc。',
-                    style: TextStyle(
-                      color: Colors.black54,
-                      fontSize: 13,
-                    ),
+                    style: TextStyle(color: Colors.black54, fontSize: 13),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -691,7 +691,9 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
             ),
             const SizedBox(height: 16),
             Theme(
-              data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+              data: Theme.of(
+                context,
+              ).copyWith(dividerColor: Colors.transparent),
               child: ExpansionTile(
                 tilePadding: EdgeInsets.zero,
                 title: Row(
@@ -726,12 +728,30 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
                         spacing: 16,
                         runSpacing: 8,
                         children: [
-                          _LegendItem(color: const Color(0xffff8a65), label: 'FVM'),
-                          _LegendItem(color: const Color(0xff42a5f5), label: 'Flutter'),
-                          _LegendItem(color: const Color(0xff66bb6a), label: 'Pub 镜像'),
-                          _LegendItem(color: const Color(0xffce93d8), label: 'PATH'),
-                          _LegendItem(color: const Color(0xff78909c), label: '注释'),
-                          _LegendItem(color: const Color(0xffbdbdbd), label: '其他'),
+                          _LegendItem(
+                            color: const Color(0xffff8a65),
+                            label: 'FVM',
+                          ),
+                          _LegendItem(
+                            color: const Color(0xff42a5f5),
+                            label: 'Flutter',
+                          ),
+                          _LegendItem(
+                            color: const Color(0xff66bb6a),
+                            label: 'Pub 镜像',
+                          ),
+                          _LegendItem(
+                            color: const Color(0xffce93d8),
+                            label: 'PATH',
+                          ),
+                          _LegendItem(
+                            color: const Color(0xff78909c),
+                            label: '注释',
+                          ),
+                          _LegendItem(
+                            color: const Color(0xffbdbdbd),
+                            label: '其他',
+                          ),
                         ],
                       ),
                     ),
@@ -745,9 +765,7 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: SelectableText.rich(
-                          TextSpan(
-                            children: _buildConfigFileSpans(),
-                          ),
+                          TextSpan(children: _buildConfigFileSpans()),
                           style: const TextStyle(
                             fontFamily: 'monospace',
                             fontSize: 12,
@@ -764,9 +782,7 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: SelectableText.rich(
-                          TextSpan(
-                            children: _buildPathSpans(),
-                          ),
+                          TextSpan(children: _buildPathSpans()),
                           style: const TextStyle(
                             fontFamily: 'monospace',
                             fontSize: 12,
@@ -843,18 +859,18 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
       flutterBinPath = null; // 由 controller 处理
     } else if (_pathType == 'version') {
       if (_selectedVersion == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('请选择一个 Flutter 版本')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('请选择一个 Flutter 版本')));
         return;
       }
       flutterBinPath = _selectedVersion;
     } else if (_pathType == 'custom') {
       final customPath = _customPathController.text.trim();
       if (customPath.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('请输入 Flutter bin 目录路径')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('请输入 Flutter bin 目录路径')));
         return;
       }
       flutterBinPath = customPath;
@@ -880,10 +896,12 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
       final trimmed = line.trim();
 
       // 添加行号
-      spans.add(TextSpan(
-        text: '${(i + 1).toString().padLeft(3)}  ',
-        style: const TextStyle(color: Color(0xff616161)),
-      ));
+      spans.add(
+        TextSpan(
+          text: '${(i + 1).toString().padLeft(3)}  ',
+          style: const TextStyle(color: Color(0xff616161)),
+        ),
+      );
 
       // 根据内容类型设置颜色
       Color color;
@@ -918,10 +936,12 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
         color = const Color(0xffe0e0e0);
       }
 
-      spans.add(TextSpan(
-        text: line,
-        style: TextStyle(color: color),
-      ));
+      spans.add(
+        TextSpan(
+          text: line,
+          style: TextStyle(color: color),
+        ),
+      );
 
       if (i < lines.length - 1) {
         spans.add(const TextSpan(text: '\n'));
@@ -935,40 +955,53 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
     final spans = <InlineSpan>[];
 
     // 找到 PATH= 后面的内容
-    final pathMatch = RegExp(r'''(?:export\s+)?PATH\s*=\s*["']?([^"'\n]+)["']?''', caseSensitive: false).firstMatch(line);
+    final pathMatch = RegExp(
+      r'''(?:export\s+)?PATH\s*=\s*["']?([^"'\n]+)["']?''',
+      caseSensitive: false,
+    ).firstMatch(line);
 
     if (pathMatch == null) {
       // 如果没有匹配到 PATH=，整行用 PATH 颜色
-      spans.add(TextSpan(
-        text: line,
-        style: const TextStyle(color: Color(0xffce93d8)),
-      ));
+      spans.add(
+        TextSpan(
+          text: line,
+          style: const TextStyle(color: Color(0xffce93d8)),
+        ),
+      );
       return spans;
     }
 
     // PATH= 前面的部分
     final prefix = line.substring(0, pathMatch.start);
     if (prefix.isNotEmpty) {
-      spans.add(TextSpan(
-        text: prefix,
-        style: const TextStyle(color: Color(0xffce93d8)),
-      ));
+      spans.add(
+        TextSpan(
+          text: prefix,
+          style: const TextStyle(color: Color(0xffce93d8)),
+        ),
+      );
     }
 
     // PATH= 部分
-    spans.add(TextSpan(
-      text: 'PATH=',
-      style: const TextStyle(color: Color(0xffce93d8)),
-    ));
+    spans.add(
+      TextSpan(
+        text: 'PATH=',
+        style: const TextStyle(color: Color(0xffce93d8)),
+      ),
+    );
 
     // 引号
     final pathValue = pathMatch.group(1) ?? '';
-    final quoteChar = line.contains('"$pathValue"') ? '"' : (line.contains("'$pathValue'") ? "'" : '');
+    final quoteChar = line.contains('"$pathValue"')
+        ? '"'
+        : (line.contains("'$pathValue'") ? "'" : '');
     if (quoteChar.isNotEmpty) {
-      spans.add(TextSpan(
-        text: quoteChar,
-        style: const TextStyle(color: Color(0xffce93d8)),
-      ));
+      spans.add(
+        TextSpan(
+          text: quoteChar,
+          style: const TextStyle(color: Color(0xffce93d8)),
+        ),
+      );
     }
 
     // 分割路径并高亮
@@ -978,10 +1011,12 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
       if (path.isEmpty) continue;
 
       if (i > 0) {
-        spans.add(const TextSpan(
-          text: ':',
-          style: TextStyle(color: Color(0xff616161)),
-        ));
+        spans.add(
+          const TextSpan(
+            text: ':',
+            style: TextStyle(color: Color(0xff616161)),
+          ),
+        );
       }
 
       // 根据路径内容设置颜色
@@ -990,7 +1025,8 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
         pathColor = const Color(0xffff8a65);
       } else if (path.toLowerCase().contains('flutter')) {
         pathColor = const Color(0xff42a5f5);
-      } else if (path.toLowerCase().contains('pub-cache') || path.toLowerCase().contains('pub_cache')) {
+      } else if (path.toLowerCase().contains('pub-cache') ||
+          path.toLowerCase().contains('pub_cache')) {
         pathColor = const Color(0xff66bb6a);
       } else if (path == '\$PATH' || path == '\${PATH}') {
         pathColor = const Color(0xffce93d8);
@@ -998,18 +1034,22 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
         pathColor = const Color(0xffbdbdbd);
       }
 
-      spans.add(TextSpan(
-        text: path,
-        style: TextStyle(color: pathColor),
-      ));
+      spans.add(
+        TextSpan(
+          text: path,
+          style: TextStyle(color: pathColor),
+        ),
+      );
     }
 
     // 关闭引号
     if (quoteChar.isNotEmpty) {
-      spans.add(TextSpan(
-        text: quoteChar,
-        style: const TextStyle(color: Color(0xffce93d8)),
-      ));
+      spans.add(
+        TextSpan(
+          text: quoteChar,
+          style: const TextStyle(color: Color(0xffce93d8)),
+        ),
+      );
     }
 
     return spans;
@@ -1018,7 +1058,9 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
   Color _getPathColor(String path) {
     final lower = path.toLowerCase();
     if (lower.contains('fvm')) return const Color(0xffff8a65); // 橙色 - FVM
-    if (lower.contains('flutter')) return const Color(0xff42a5f5); // 蓝色 - Flutter
+    if (lower.contains('flutter')) {
+      return const Color(0xff42a5f5); // 蓝色 - Flutter
+    }
     if (lower.contains('pub-cache') || lower.contains('pub_cache')) {
       return const Color(0xff66bb6a); // 绿色 - Pub
     }
@@ -1032,16 +1074,20 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
       final color = _getPathColor(path);
 
       if (i > 0) {
-        spans.add(const TextSpan(
-          text: ':',
-          style: TextStyle(color: Color(0xff616161)),
-        ));
+        spans.add(
+          const TextSpan(
+            text: ':',
+            style: TextStyle(color: Color(0xff616161)),
+          ),
+        );
       }
 
-      spans.add(TextSpan(
-        text: path,
-        style: TextStyle(color: color),
-      ));
+      spans.add(
+        TextSpan(
+          text: path,
+          style: TextStyle(color: color),
+        ),
+      );
     }
     return spans;
   }
@@ -1068,55 +1114,80 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
     final widgets = <Widget>[];
 
     if (fvmPaths.isNotEmpty) {
-      widgets.add(_CategorySection(
-        icon: Icons.storage,
-        color: const Color(0xffff8a65),
-        label: 'FVM',
-        paths: fvmPaths,
-      ));
+      widgets.add(
+        _CategorySection(
+          icon: Icons.storage,
+          color: const Color(0xffff8a65),
+          label: 'FVM',
+          paths: fvmPaths,
+        ),
+      );
     }
 
     if (flutterPaths.isNotEmpty) {
-      widgets.add(_CategorySection(
-        icon: Icons.flutter_dash,
-        color: const Color(0xff42a5f5),
-        label: 'Flutter',
-        paths: flutterPaths,
-      ));
+      widgets.add(
+        _CategorySection(
+          icon: Icons.flutter_dash,
+          color: const Color(0xff42a5f5),
+          label: 'Flutter',
+          paths: flutterPaths,
+        ),
+      );
     }
 
     if (pubPaths.isNotEmpty) {
-      widgets.add(_CategorySection(
-        icon: Icons.cloud_download_outlined,
-        color: const Color(0xff66bb6a),
-        label: 'Pub 缓存',
-        paths: pubPaths,
-      ));
+      widgets.add(
+        _CategorySection(
+          icon: Icons.cloud_download_outlined,
+          color: const Color(0xff66bb6a),
+          label: 'Pub 缓存',
+          paths: pubPaths,
+        ),
+      );
     }
 
     if (otherPaths.isNotEmpty) {
-      widgets.add(_CategorySection(
-        icon: Icons.folder_outlined,
-        color: const Color(0xffbdbdbd),
-        label: '系统默认',
-        paths: otherPaths,
-      ));
+      widgets.add(
+        _CategorySection(
+          icon: Icons.folder_outlined,
+          color: const Color(0xffbdbdbd),
+          label: '系统默认',
+          paths: otherPaths,
+        ),
+      );
     }
 
     return widgets;
   }
 
   Future<void> _openShellConfig() async {
-    final home = Platform.environment['HOME'];
+    final home = Platform.isWindows
+        ? Platform.environment['USERPROFILE']
+        : Platform.environment['HOME'];
     if (home == null) return;
 
     // 检查存在的配置文件
     final configFiles = [
-      ('$home/.zshrc', 'zsh'),
-      ('$home/.zshenv', 'zsh'),
-      ('$home/.bash_profile', 'bash'),
-      ('$home/.bashrc', 'bash'),
-      ('$home/.profile', 'sh'),
+      if (Platform.isWindows) ...[
+        (
+          '$home${Platform.pathSeparator}Documents${Platform.pathSeparator}'
+              'PowerShell${Platform.pathSeparator}Microsoft.PowerShell_profile.ps1',
+          'PowerShell',
+        ),
+        (
+          '$home${Platform.pathSeparator}Documents${Platform.pathSeparator}'
+              'WindowsPowerShell${Platform.pathSeparator}Microsoft.PowerShell_profile.ps1',
+          'Windows PowerShell',
+        ),
+        ('$home${Platform.pathSeparator}.bashrc', 'Git Bash'),
+        ('$home${Platform.pathSeparator}.bash_profile', 'Git Bash'),
+      ] else ...[
+        ('$home/.zshrc', 'zsh'),
+        ('$home/.zshenv', 'zsh'),
+        ('$home/.bash_profile', 'bash'),
+        ('$home/.bashrc', 'bash'),
+        ('$home/.profile', 'sh'),
+      ],
     ];
 
     String? fileToOpen;
@@ -1129,14 +1200,21 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
 
     if (fileToOpen == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('未找到 shell 配置文件')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('未找到 shell 配置文件')));
       }
       return;
     }
 
-    await Process.run('open', [fileToOpen]);
+    final result = Platform.isWindows
+        ? await Process.run('notepad.exe', [fileToOpen])
+        : await Process.run('open', [fileToOpen]);
+    if (result.exitCode != 0 && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('无法打开配置文件：${result.stderr}')));
+    }
   }
 }
 
@@ -1159,10 +1237,7 @@ class _LegendItem extends StatelessWidget {
         ),
       ),
       const SizedBox(width: 4),
-      Text(
-        label,
-        style: const TextStyle(fontSize: 12, color: Colors.black54),
-      ),
+      Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54)),
     ],
   );
 }
@@ -1201,25 +1276,24 @@ class _CategorySection extends StatelessWidget {
             const SizedBox(width: 4),
             Text(
               '(${paths.length})',
-              style: TextStyle(
-                fontSize: 11,
-                color: color.withAlpha(180),
-              ),
+              style: TextStyle(fontSize: 11, color: color.withAlpha(180)),
             ),
           ],
         ),
         const SizedBox(height: 4),
-        ...paths.map((path) => Padding(
-          padding: const EdgeInsets.only(left: 18, bottom: 2),
-          child: SelectableText(
-            path,
-            style: TextStyle(
-              fontFamily: 'monospace',
-              fontSize: 11,
-              color: color.withAlpha(200),
+        ...paths.map(
+          (path) => Padding(
+            padding: const EdgeInsets.only(left: 18, bottom: 2),
+            child: SelectableText(
+              path,
+              style: TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 11,
+                color: color.withAlpha(200),
+              ),
             ),
           ),
-        )),
+        ),
       ],
     ),
   );

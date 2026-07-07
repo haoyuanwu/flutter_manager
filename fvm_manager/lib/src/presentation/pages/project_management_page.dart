@@ -1097,6 +1097,25 @@ class _ProjectDetail extends ConsumerWidget {
                             icon: const Icon(Icons.folder_open, size: 18),
                           ),
                         ),
+                        const SizedBox(width: 8),
+                        Tooltip(
+                          message: '清理项目 build 目录',
+                          child: IconButton.outlined(
+                            onPressed:
+                                state.loading ||
+                                    controller.selectedTaskActive('build')
+                                ? null
+                                : () => _confirmClearProjectBuildDirectory(
+                                    context,
+                                    controller,
+                                    project,
+                                  ),
+                            icon: const Icon(
+                              Icons.delete_sweep_outlined,
+                              size: 18,
+                            ),
+                          ),
+                        ),
                         if (state.projectBuildTarget ==
                             ProjectBuildTarget.macos) ...[
                           const SizedBox(width: 8),
@@ -1106,7 +1125,10 @@ class _ProjectDetail extends ConsumerWidget {
                               onPressed: controller.selectedTaskActive('build')
                                   ? null
                                   : controller.packageMacosDmg,
-                              icon: const Icon(Icons.archive_outlined, size: 18),
+                              icon: const Icon(
+                                Icons.archive_outlined,
+                                size: 18,
+                              ),
                             ),
                           ),
                         ],
@@ -1115,7 +1137,10 @@ class _ProjectDetail extends ConsumerWidget {
                           message: '分发上传',
                           child: IconButton.outlined(
                             onPressed: () => onOpenDistribution(project.path),
-                            icon: const Icon(Icons.cloud_upload_outlined, size: 18),
+                            icon: const Icon(
+                              Icons.cloud_upload_outlined,
+                              size: 18,
+                            ),
                           ),
                         ),
                         const SizedBox(width: 8),
@@ -1193,6 +1218,22 @@ class _ProjectDetail extends ConsumerWidget {
     ProjectBuildTarget.macos => 'macOS',
     ProjectBuildTarget.windows => 'Windows',
   };
+
+  static Future<void> _confirmClearProjectBuildDirectory(
+    BuildContext context,
+    FvmController controller,
+    FlutterProject project,
+  ) async {
+    final confirmed = await confirmDeletion(
+      context,
+      title: '确认清理 build 目录？',
+      message:
+          '将删除项目中的 build 目录，此操作不可撤销。\n\n'
+          '${project.path}${Platform.pathSeparator}build',
+      confirmLabel: '确认清理',
+    );
+    if (confirmed) await controller.clearProjectBuildDirectory();
+  }
 
   static void _showPackageGuide(
     BuildContext context,

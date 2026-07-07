@@ -72,6 +72,27 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
     }
   }
 
+  Future<void> _chooseArtifact() async {
+    try {
+      final artifact = await ref
+          .read(distributionServiceProvider)
+          .chooseArtifact();
+      if (artifact == null || !mounted) return;
+      setState(() {
+        _artifacts = [
+          artifact,
+          ..._artifacts.where((item) => item.path != artifact.path),
+        ];
+        _selectedArtifactPath = artifact.path;
+      });
+      ref
+          .read(fvmControllerProvider.notifier)
+          .showStatus('已选择安装包：${artifact.name}');
+    } catch (error) {
+      ref.read(fvmControllerProvider.notifier).showError(error);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
@@ -101,6 +122,12 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
                   ],
                 ),
               ),
+              OutlinedButton.icon(
+                onPressed: _loading ? null : _chooseArtifact,
+                icon: const Icon(Icons.file_open_outlined),
+                label: const Text('选择本地安装包'),
+              ),
+              const SizedBox(width: 8),
               IconButton.filledTonal(
                 tooltip: '重新扫描构建产物',
                 onPressed: _loading ? null : _scan,
@@ -516,7 +543,7 @@ class _PgyerTile extends ConsumerWidget {
   }
 
   Future<void> _openUrl(String url) async {
-    await Process.run('open', [url]);
+    await _openExternalUrl(url);
   }
 }
 
@@ -566,10 +593,15 @@ class _PgyerConfigDialogState extends ConsumerState<_PgyerConfigDialog> {
           children: [
             TextField(
               controller: _apiKeyController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'API Key',
                 hintText: '在蒲公英官网获取',
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  tooltip: '如何获取 API Key',
+                  onPressed: () => _showPgyerApiKeyHelp(context, ref),
+                  icon: const Icon(Icons.help_outline),
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -802,7 +834,26 @@ class _FirTile extends ConsumerWidget {
   }
 
   Future<void> _openUrl(String url) async {
-    await Process.run('open', [url]);
+    await _openExternalUrl(url);
+  }
+}
+
+Future<void> _openExternalUrl(String url) async {
+  late final ProcessResult result;
+  if (Platform.isWindows) {
+    result = await Process.run('cmd.exe', [
+      '/c',
+      'start',
+      '',
+      url,
+    ], runInShell: true);
+  } else if (Platform.isMacOS) {
+    result = await Process.run('open', [url]);
+  } else {
+    result = await Process.run('xdg-open', [url]);
+  }
+  if (result.exitCode != 0) {
+    throw Exception('无法打开页面：$url');
   }
 }
 
@@ -860,10 +911,15 @@ class _FirConfigDialogState extends ConsumerState<_FirConfigDialog> {
           children: [
             TextField(
               controller: _apiTokenController,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 labelText: 'API Token',
                 hintText: '在 fir.im 个人设置中获取',
-                border: OutlineInputBorder(),
+                border: const OutlineInputBorder(),
+                suffixIcon: IconButton(
+                  tooltip: '如何获取 API Token',
+                  onPressed: () => _showFirApiTokenHelp(context, ref),
+                  icon: const Icon(Icons.help_outline),
+                ),
               ),
             ),
             const SizedBox(height: 16),
@@ -957,3 +1013,69 @@ String _formatArtifactTime(DateTime value) =>
     '${value.day.toString().padLeft(2, '0')} '
     '${value.hour.toString().padLeft(2, '0')}:'
     '${value.minute.toString().padLeft(2, '0')}';
+
+Future<void> _showPgyerApiKeyHelp(BuildContext context, WidgetRef ref) =>
+    _showDistributionCredentialHelp(
+      context: context,
+      title: '如何获取蒲公英 API Key',
+      icon: Icons.cloud_upload_outlined,
+      steps: const [
+        '1. 登录蒲公英开发者平台。',
+        '2. 进入账号设置中的“API 信息”页面。',
+        '3. 找到 API Key 并复制到当前输入框。',
+        '4. 请勿填写 User Key；上传接口使用的是 API Key。',
+      ],
+      onOpenPage: ref.read(distributionServiceProvider).openPgyerApiSettings,
+    );
+
+Future<void> _showFirApiTokenHelp(BuildContext context, WidgetRef ref) =>
+    _showDistributionCredentialHelp(
+      context: context,
+      title: '如何获取 fir.im API Token',
+      icon: Icons.rocket_launch_outlined,
+      steps: const [
+        '1. 登录 fir.im 开发者平台。',
+        '2. 打开个人设置中的“API Token”页面。',
+        '3. 复制 API Token，并粘贴到当前输入框。',
+        '4. Token 属于敏感信息，请勿提交到项目代码仓库。',
+      ],
+      onOpenPage: ref.read(distributionServiceProvider).openFirApiTokenSettings,
+    );
+
+Future<void> _showDistributionCredentialHelp({
+  required BuildContext context,
+  required String title,
+  required IconData icon,
+  required List<String> steps,
+  required Future<void> Function() onOpenPage,
+}) => showDialog<void>(
+  context: context,
+  builder: (dialogContext) => AlertDialog(
+    icon: Icon(icon),
+    title: Text(title),
+    content: SizedBox(
+      width: 430,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final step in steps) ...[Text(step), const SizedBox(height: 9)],
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(dialogContext),
+        child: const Text('知道了'),
+      ),
+      FilledButton.icon(
+        onPressed: () async {
+          Navigator.pop(dialogContext);
+          await onOpenPage();
+        },
+        icon: const Icon(Icons.open_in_new),
+        label: const Text('打开获取页面'),
+      ),
+    ],
+  ),
+);

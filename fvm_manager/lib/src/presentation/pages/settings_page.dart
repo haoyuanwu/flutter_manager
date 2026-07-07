@@ -102,11 +102,16 @@ class _SettingsPageState extends ConsumerState<_SettingsPage> {
                   const SizedBox(height: 16),
                   TextField(
                     controller: _pgyerApiKeyController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: '蒲公英 API Key',
                       hintText: '在蒲公英官网获取',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.cloud_upload_outlined),
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.cloud_upload_outlined),
+                      suffixIcon: IconButton(
+                        tooltip: '如何获取蒲公英 API Key',
+                        onPressed: () => _showPgyerApiKeyHelp(context, ref),
+                        icon: const Icon(Icons.help_outline),
+                      ),
                     ),
                     onSubmitted: (value) => _savePgyerApiKey(value.trim()),
                   ),
@@ -114,18 +119,24 @@ class _SettingsPageState extends ConsumerState<_SettingsPage> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () => _savePgyerApiKey(_pgyerApiKeyController.text.trim()),
+                      onPressed: () =>
+                          _savePgyerApiKey(_pgyerApiKeyController.text.trim()),
                       child: const Text('保存蒲公英 Key'),
                     ),
                   ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: _firApiTokenController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: 'fir.im API Token',
                       hintText: '在 fir.im 个人设置中获取',
-                      border: OutlineInputBorder(),
-                      prefixIcon: Icon(Icons.rocket_launch_outlined),
+                      border: const OutlineInputBorder(),
+                      prefixIcon: const Icon(Icons.rocket_launch_outlined),
+                      suffixIcon: IconButton(
+                        tooltip: '如何获取 fir.im API Token',
+                        onPressed: () => _showFirApiTokenHelp(context, ref),
+                        icon: const Icon(Icons.help_outline),
+                      ),
                     ),
                     onSubmitted: (value) => _saveFirApiToken(value.trim()),
                   ),
@@ -133,7 +144,8 @@ class _SettingsPageState extends ConsumerState<_SettingsPage> {
                   Align(
                     alignment: Alignment.centerRight,
                     child: TextButton(
-                      onPressed: () => _saveFirApiToken(_firApiTokenController.text.trim()),
+                      onPressed: () =>
+                          _saveFirApiToken(_firApiTokenController.text.trim()),
                       child: const Text('保存 fir.im Token'),
                     ),
                   ),
@@ -151,7 +163,10 @@ class _SettingsPageState extends ConsumerState<_SettingsPage> {
                   children: [
                     const Text(
                       '应用信息',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                      style: TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
                     const SizedBox(height: 12),
                     ListTile(
@@ -179,18 +194,20 @@ class _SettingsPageState extends ConsumerState<_SettingsPage> {
   Future<void> _savePgyerApiKey(String apiKey) async {
     await ref.read(fvmControllerProvider.notifier).setGlobalPgyerApiKey(apiKey);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('蒲公英 API Key 已保存')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('蒲公英 API Key 已保存')));
     }
   }
 
   Future<void> _saveFirApiToken(String apiToken) async {
-    await ref.read(fvmControllerProvider.notifier).setGlobalFirApiToken(apiToken);
+    await ref
+        .read(fvmControllerProvider.notifier)
+        .setGlobalFirApiToken(apiToken);
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('fir.im API Token 已保存')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('fir.im API Token 已保存')));
     }
   }
 }

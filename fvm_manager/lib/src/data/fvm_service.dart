@@ -119,6 +119,47 @@ class FvmService {
     return context['fvmDir'] as String;
   }
 
+  Future<int> cacheSizeBytes() async {
+    var total = 0;
+    for (final directory in await _installedFlutterCacheDirectories()) {
+      total += await _entitySize(directory);
+    }
+    return total;
+  }
+
+  Future<int> clearInstalledFlutterCache() async {
+    var removedBytes = 0;
+    for (final directory in await _installedFlutterCacheDirectories()) {
+      removedBytes += await _entitySize(directory);
+      await directory.delete(recursive: true);
+    }
+    return removedBytes;
+  }
+
+  Future<List<Directory>> _installedFlutterCacheDirectories() async {
+    final directories = <Directory>[];
+    for (final sdk in await listInstalled()) {
+      if (sdk.directory.isEmpty) continue;
+      final cache = Directory(
+        '${sdk.directory}${Platform.pathSeparator}bin${Platform.pathSeparator}cache',
+      );
+      if (await cache.exists()) directories.add(cache);
+    }
+    return directories;
+  }
+
+  Future<int> _entitySize(FileSystemEntity entity) async {
+    final stat = await entity.stat();
+    if (stat.type == FileSystemEntityType.file) return stat.size;
+    if (stat.type != FileSystemEntityType.directory) return 0;
+
+    var total = 0;
+    await for (final child in Directory(entity.path).list(followLinks: false)) {
+      total += await _entitySize(child);
+    }
+    return total;
+  }
+
   Future<String?> globalVersion() async {
     final path = '${await cachePath()}${Platform.pathSeparator}default';
     try {

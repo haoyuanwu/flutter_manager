@@ -146,6 +146,19 @@ class ConsoleWindowService {
   Future<void> requestClear(String projectPath) => _commandChannel
       .invokeMethod<void>('clearCommandLog', {'projectPath': projectPath});
 
+  Future<void> close(String projectPath) async {
+    final window = _windows.remove(projectPath);
+    _latestPayloads.remove(projectPath);
+    _pendingSync.remove(projectPath);
+    _readySignals.remove(projectPath);
+    if (window == null) return;
+    try {
+      await window.hide();
+    } on Object {
+      // Window may already be closed by the user.
+    }
+  }
+
   Future<void> requestAction(String projectPath, String action) =>
       _commandChannel.invokeMethod<void>('runProjectAction', {
         'projectPath': projectPath,

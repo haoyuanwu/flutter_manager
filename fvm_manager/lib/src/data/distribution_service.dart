@@ -1,6 +1,8 @@
 import 'dart:io';
 
-enum DistributionArtifactType { apk, aab, ipa, dmg, pkg, msix, exe, zip }
+import 'package:file_selector/file_selector.dart';
+
+enum DistributionArtifactType { apk, aab, ipa, hap, dmg, pkg, msix, exe, zip }
 
 class DistributionArtifact {
   const DistributionArtifact({
@@ -22,6 +24,7 @@ class DistributionArtifact {
   String get platformLabel => switch (type) {
     DistributionArtifactType.apk || DistributionArtifactType.aab => 'Android',
     DistributionArtifactType.ipa => 'iOS',
+    DistributionArtifactType.hap => 'HarmonyOS',
     DistributionArtifactType.dmg || DistributionArtifactType.pkg => 'macOS',
     DistributionArtifactType.msix || DistributionArtifactType.exe => 'Windows',
     DistributionArtifactType.zip => '压缩包',
@@ -33,6 +36,7 @@ class DistributionService {
     'apk': DistributionArtifactType.apk,
     'aab': DistributionArtifactType.aab,
     'ipa': DistributionArtifactType.ipa,
+    'hap': DistributionArtifactType.hap,
     'dmg': DistributionArtifactType.dmg,
     'pkg': DistributionArtifactType.pkg,
     'msix': DistributionArtifactType.msix,
@@ -75,6 +79,34 @@ class DistributionService {
     return artifacts;
   }
 
+  Future<DistributionArtifact?> chooseArtifact() async {
+    final selected = await openFile(
+      acceptedTypeGroups: [
+        XTypeGroup(
+          label: '可分发安装包',
+          extensions: _extensions.keys.toList(growable: false),
+        ),
+      ],
+      confirmButtonText: '选择安装包',
+    );
+    if (selected == null) return null;
+    final file = File(selected.path);
+    final name = _fileName(file.path);
+    final dot = name.lastIndexOf('.');
+    final type = dot < 0
+        ? null
+        : _extensions[name.substring(dot + 1).toLowerCase()];
+    if (type == null) throw Exception('不支持该文件类型：$name');
+    final stat = await file.stat();
+    return DistributionArtifact(
+      path: file.path,
+      name: name,
+      type: type,
+      size: stat.size,
+      modified: stat.modified,
+    );
+  }
+
   bool _isDistributionCandidate(
     String path,
     DistributionArtifactType type,
@@ -97,6 +129,12 @@ class DistributionService {
 
   Future<void> openGooglePlayConsole() =>
       _openUrl('https://play.google.com/console/');
+
+  Future<void> openPgyerApiSettings() =>
+      _openUrl('https://www.pgyer.com/account/api');
+
+  Future<void> openFirApiTokenSettings() =>
+      _openUrl('https://fir.xcxwo.com/apps/apitoken');
 
   Future<void> openTransporter(DistributionArtifact? artifact) async {
     if (!Platform.isMacOS) throw Exception('Transporter 仅支持 macOS');

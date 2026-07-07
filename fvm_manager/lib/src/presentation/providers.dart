@@ -94,6 +94,7 @@ class FvmController extends Notifier<FvmState> {
   final ProjectCommandLogBuffer _commandLogs = ProjectCommandLogBuffer();
   final Map<String, ({String projectPath, String label})> _activeCommandTasks =
       {};
+  final Set<String> _stoppingCommandTasks = {};
   final Map<String, String> _consoleModes = {};
   String? _mainBuildConsoleProjectPath;
 
@@ -227,12 +228,14 @@ class FvmController extends Notifier<FvmState> {
       final results = await Future.wait<Object?>([
         fvm.listInstalled(),
         fvm.globalVersion(),
+        fvm.cacheSizeBytes(),
       ]);
       final installed = [...results[0] as List<InstalledSdk>]
         ..sort(_compareInstalledSdks);
       state = state.copyWith(
         installed: installed,
         globalVersion: results[1] as String?,
+        fvmCacheSizeBytes: results[2] as int,
         errorMessage: null,
       );
       _publishStatusMenu();
@@ -740,6 +743,30 @@ class FvmController extends Notifier<FvmState> {
   Future<void> projectClean() =>
       _runProjectCommand(const ['clean'], label: 'Flutter Clean');
 
+  Future<void> clearProjectBuildDirectory() async {
+    final project = _selectedManagedProject;
+    if (project == null || !project.pathExists || selectedTaskActive('build')) {
+      return;
+    }
+    state = state.copyWith(
+      loading: true,
+      errorMessage: null,
+      statusMessage: '正在清理 ${project.displayName} 的 build 目录…',
+    );
+    try {
+      final deleted = await ref
+          .read(localProjectServiceProvider)
+          .clearBuildDirectory(project.path);
+      state = state.copyWith(
+        statusMessage: deleted ? '已清理项目 build 目录' : '项目中没有 build 目录',
+      );
+    } catch (error) {
+      state = state.copyWith(errorMessage: _message(error));
+    } finally {
+      state = state.copyWith(loading: false);
+    }
+  }
+
   Future<void> projectPubGet() =>
       _runProjectCommand(const ['pub', 'get'], label: 'Pub Get');
 
@@ -766,7 +793,9 @@ class FvmController extends Notifier<FvmState> {
             arguments: arguments,
             onOutput: (output) => _appendCommandLog(path, output),
           );
-      if (code != 0) throw Exception('$label 启动失败（退出码 $code）');
+      if (code != 0 && !_stoppingCommandTasks.contains(taskId)) {
+        throw Exception('$label 启动失败（退出码 $code）');
+      }
       state = state.copyWith(statusMessage: '$label 已停止');
     } catch (error) {
       state = state.copyWith(errorMessage: _message(error));
@@ -778,6 +807,7 @@ class FvmController extends Notifier<FvmState> {
   Future<void> runManagedProject() {
     final path = state.selectedManagedProjectPath;
     if (path != null) {
+      _clearCommandLogFor(path);
       final uris = Map<String, String>.from(state.vmServiceUris ?? const {});
       uris.remove(path);
       state = state.copyWith(vmServiceUris: uris);
@@ -922,6 +952,7 @@ class FvmController extends Notifier<FvmState> {
   ) async {
     final taskId = _taskId('workflow', project.path);
     _startCommandTask(taskId, project.path, '自定义构建工作流');
+    var stoppedByUser = false;
     try {
       for (var index = 0; index < commands.length; index++) {
         final command = commands[index];
@@ -945,12 +976,19 @@ class FvmController extends Notifier<FvmState> {
                 displayArguments: _maskSensitiveArguments(command.arguments),
                 onOutput: (output) => _appendCommandLog(project.path, output),
               );
-        if (code != 0) {
+        if (_stoppingCommandTasks.contains(taskId)) {
+          stoppedByUser = true;
+          state = state.copyWith(statusMessage: '自定义构建工作流已停止');
+          break;
+        }
+        if (code != 0 && !_stoppingCommandTasks.contains(taskId)) {
           throw Exception('${command.executable} 执行失败（退出码 $code）');
         }
         _appendCommandLog(project.path, '\n${List.filled(72, '─').join()}\n\n');
       }
-      state = state.copyWith(statusMessage: '自定义构建工作流完成');
+      if (!stoppedByUser) {
+        state = state.copyWith(statusMessage: '自定义构建工作流完成');
+      }
     } catch (error) {
       state = state.copyWith(errorMessage: _message(error));
     } finally {
@@ -984,6 +1022,7 @@ class FvmController extends Notifier<FvmState> {
     final taskId = _taskId(taskKind, path);
     if (_activeCommandTasks.containsKey(taskId)) return;
     _startCommandTask(taskId, path, label);
+    var stoppedByUser = false;
     try {
       for (var index = 0; index < commands.length; index++) {
         _updateCommandTaskLabel(
@@ -1000,13 +1039,22 @@ class FvmController extends Notifier<FvmState> {
               arguments: commands[index],
               onOutput: (output) => _appendCommandLog(path, output),
             );
-        if (code != 0) throw Exception('$label 失败（退出码 $code）');
+        if (_stoppingCommandTasks.contains(taskId)) {
+          stoppedByUser = true;
+          state = state.copyWith(statusMessage: '$label 已停止');
+          break;
+        }
+        if (code != 0 && !_stoppingCommandTasks.contains(taskId)) {
+          throw Exception('$label 失败（退出码 $code）');
+        }
         if (afterEach != null) await afterEach(index);
         if (index < commands.length - 1) {
           _appendCommandLog(path, '\n${List.filled(72, '─').join()}\n\n');
         }
       }
-      state = state.copyWith(statusMessage: '$label 完成');
+      if (!stoppedByUser) {
+        state = state.copyWith(statusMessage: '$label 完成');
+      }
     } catch (error) {
       state = state.copyWith(errorMessage: _message(error));
     } finally {
@@ -1208,8 +1256,14 @@ class FvmController extends Notifier<FvmState> {
 
   void _finishCommandTask(String taskId) {
     final task = _activeCommandTasks.remove(taskId);
+    _stoppingCommandTasks.remove(taskId);
     _syncSelectedCommandState();
-    if (task != null) _syncConsoleWindow(task.projectPath);
+    if (task != null) {
+      _syncConsoleWindow(task.projectPath);
+      if (!_hasActiveTasks(task.projectPath)) {
+        unawaited(ConsoleWindowService.instance.close(task.projectPath));
+      }
+    }
   }
 
   void _syncSelectedCommandState() {
@@ -1270,8 +1324,11 @@ class FvmController extends Notifier<FvmState> {
   }
 
   Future<void> stopProjectCommand(String taskId) async {
-    await ref.read(flutterCommandServiceProvider).stop(taskId);
+    _stoppingCommandTasks.add(taskId);
     state = state.copyWith(statusMessage: '正在停止命令…');
+    await ref
+        .read(flutterCommandServiceProvider)
+        .stop(taskId, gracefulFlutterRun: taskId.startsWith('run::'));
   }
 
   void clearCommandLog() {
@@ -1820,6 +1877,47 @@ class FvmController extends Notifier<FvmState> {
     }
   }
 
+  Future<void> refreshFvmCacheSize() async {
+    if (!state.fvmInstalled || state.fvmCacheLoading) return;
+    state = state.copyWith(fvmCacheLoading: true, errorMessage: null);
+    try {
+      final size = await ref.read(fvmServiceProvider).cacheSizeBytes();
+      state = state.copyWith(
+        fvmCacheSizeBytes: size,
+        statusMessage: 'FVM 缓存大小已刷新',
+      );
+    } catch (error) {
+      state = state.copyWith(errorMessage: _message(error));
+    } finally {
+      state = state.copyWith(fvmCacheLoading: false);
+    }
+  }
+
+  Future<void> clearUnusedFvmCache() async {
+    if (!state.fvmInstalled || state.fvmCacheClearing) return;
+    state = state.copyWith(
+      fvmCacheClearing: true,
+      errorMessage: null,
+      statusMessage: '正在清理 FVM 缓存…',
+    );
+    try {
+      final removedBytes = await ref
+          .read(fvmServiceProvider)
+          .clearInstalledFlutterCache();
+      await refreshInstalled();
+      _syncUpdateState();
+      state = state.copyWith(
+        statusMessage: removedBytes > 0
+            ? '已清理 Flutter SDK bin/cache ${_formatBytes(removedBytes)}'
+            : '没有可清理的 Flutter SDK bin/cache',
+      );
+    } catch (error) {
+      state = state.copyWith(errorMessage: _message(error));
+    } finally {
+      state = state.copyWith(fvmCacheClearing: false);
+    }
+  }
+
   Future<void> openFvmDirectory() async {
     try {
       await ref.read(fvmServiceProvider).openFvmDirectory();
@@ -1915,6 +2013,19 @@ class FvmController extends Notifier<FvmState> {
 
   String _message(Object error) =>
       error.toString().replaceFirst('Exception: ', '');
+
+  String _formatBytes(int bytes) {
+    if (bytes <= 0) return '0 B';
+    const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+    var value = bytes.toDouble();
+    var unitIndex = 0;
+    while (value >= 1024 && unitIndex < units.length - 1) {
+      value /= 1024;
+      unitIndex++;
+    }
+    final digits = value >= 10 || unitIndex == 0 ? 0 : 1;
+    return '${value.toStringAsFixed(digits)} ${units[unitIndex]}';
+  }
 
   void _syncUpdateState({bool showNotice = false}) {
     final environment = ref.read(pubEnvironmentServiceProvider);

@@ -85,6 +85,16 @@ class LocalProjectService {
     }
   }
 
+  Future<bool> clearBuildDirectory(String projectPath) async {
+    await validate(projectPath);
+    final buildDirectory = Directory(
+      '$projectPath${Platform.pathSeparator}build',
+    );
+    if (!await buildDirectory.exists()) return false;
+    await buildDirectory.delete(recursive: true);
+    return true;
+  }
+
   /// 在系统文件管理器中显示并选中文件。
   Future<void> revealFile(String filePath) async {
     late final ProcessResult result;
@@ -101,19 +111,7 @@ class LocalProjectService {
   }
 
   Future<void> openInAndroidStudio(String projectPath) async {
-    // macOS: Android Studio 通常通过 `open -a` 调用
-    final result = await Process.run('open', [
-      '-a',
-      'Android Studio',
-      projectPath,
-    ]);
-    if (result.exitCode != 0) {
-      // 备选：尝试命令行工具
-      final result2 = await Process.run('studio', [projectPath]);
-      if (result2.exitCode != 0) {
-        throw Exception('无法打开 Android Studio，请确认已安装');
-      }
-    }
+    await _openAndroidStudio(projectPath);
   }
 
   Future<void> openAndroidModuleInAndroidStudio(String projectPath) async {
@@ -123,17 +121,7 @@ class LocalProjectService {
     if (!await androidDirectory.exists()) {
       throw Exception('该项目不存在 Android 工程目录');
     }
-    final result = await Process.run('open', [
-      '-a',
-      'Android Studio',
-      androidDirectory.path,
-    ]);
-    if (result.exitCode != 0) {
-      final fallback = await Process.run('studio', [androidDirectory.path]);
-      if (fallback.exitCode != 0) {
-        throw Exception('无法打开 Android Studio，请确认已安装');
-      }
-    }
+    await _openAndroidStudio(androidDirectory.path);
   }
 
   Future<void> openWindowsProjectInVisualStudio(String projectPath) async {
@@ -206,9 +194,72 @@ class LocalProjectService {
   }
 
   Future<void> openInVSCode(String projectPath) async {
-    final result = await Process.run('code', [projectPath]);
-    if (result.exitCode != 0) {
-      throw Exception('无法打开 VS Code，请确认已安装且 `code` 命令可用');
+    if (await _tryStart('code', [projectPath])) return;
+    if (Platform.isWindows) {
+      final localAppData = Platform.environment['LOCALAPPDATA'];
+      final programFiles = Platform.environment['ProgramFiles'];
+      final candidates = [
+        if (localAppData != null)
+          '$localAppData${Platform.pathSeparator}Programs${Platform.pathSeparator}'
+              'Microsoft VS Code${Platform.pathSeparator}Code.exe',
+        if (programFiles != null)
+          '$programFiles${Platform.pathSeparator}Microsoft VS Code'
+              '${Platform.pathSeparator}Code.exe',
+      ];
+      for (final candidate in candidates) {
+        if (await File(candidate).exists() &&
+            await _tryStart(candidate, [projectPath])) {
+          return;
+        }
+      }
+    }
+    throw Exception('无法打开 VS Code，请确认已安装且 `code` 命令可用');
+  }
+
+  Future<void> _openAndroidStudio(String path) async {
+    if (Platform.isMacOS &&
+        await _tryStart('open', ['-a', 'Android Studio', path])) {
+      return;
+    }
+    if (await _tryStart('studio', [path]) ||
+        await _tryStart('studio64', [path])) {
+      return;
+    }
+    if (Platform.isWindows) {
+      final programFiles = Platform.environment['ProgramFiles'];
+      final programFilesX86 = Platform.environment['ProgramFiles(x86)'];
+      final localAppData = Platform.environment['LOCALAPPDATA'];
+      final candidates = [
+        if (programFiles != null)
+          '$programFiles${Platform.pathSeparator}Android${Platform.pathSeparator}'
+              'Android Studio${Platform.pathSeparator}bin${Platform.pathSeparator}studio64.exe',
+        if (programFilesX86 != null)
+          '$programFilesX86${Platform.pathSeparator}Android${Platform.pathSeparator}'
+              'Android Studio${Platform.pathSeparator}bin${Platform.pathSeparator}studio64.exe',
+        if (localAppData != null)
+          '$localAppData${Platform.pathSeparator}Programs${Platform.pathSeparator}'
+              'Android Studio${Platform.pathSeparator}bin${Platform.pathSeparator}studio64.exe',
+      ];
+      for (final candidate in candidates) {
+        if (await File(candidate).exists() &&
+            await _tryStart(candidate, [path])) {
+          return;
+        }
+      }
+    }
+    throw Exception('无法打开 Android Studio，请确认已安装');
+  }
+
+  Future<bool> _tryStart(String executable, List<String> arguments) async {
+    try {
+      await Process.start(
+        executable,
+        arguments,
+        runInShell: Platform.isWindows,
+      );
+      return true;
+    } on ProcessException {
+      return false;
     }
   }
 

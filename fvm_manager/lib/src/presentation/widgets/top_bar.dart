@@ -15,7 +15,7 @@ class _TopBar extends ConsumerWidget {
     child: Row(
       children: [
         const Text(
-          'Flutter 开发环境',
+          'Flutter 管理器',
           style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
         ),
         const Spacer(),

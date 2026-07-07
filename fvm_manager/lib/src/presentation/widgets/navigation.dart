@@ -57,10 +57,6 @@ class _Sidebar extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                 ),
               ),
-              subtitle: const Text(
-                'Flutter SDK 管理器',
-                style: TextStyle(color: Colors.white54),
-              ),
             ),
             const SizedBox(height: 28),
             Expanded(

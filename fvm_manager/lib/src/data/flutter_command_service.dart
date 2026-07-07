@@ -128,9 +128,10 @@ class FlutterCommandService {
     }
   }
 
-  Future<void> stop(String taskId) async {
+  Future<void> stop(String taskId, {bool gracefulFlutterRun = false}) async {
     final process = _activeProcesses[taskId];
     if (process == null) return;
+    if (gracefulFlutterRun && await _quitFlutterRun(process)) return;
     if (Platform.isWindows) {
       await Process.run('taskkill', [
         '/PID',
@@ -140,6 +141,17 @@ class FlutterCommandService {
       ], runInShell: true);
     } else {
       process.kill(ProcessSignal.sigterm);
+    }
+  }
+
+  Future<bool> _quitFlutterRun(Process process) async {
+    try {
+      process.stdin.writeln('q');
+      await process.stdin.flush();
+      await process.exitCode.timeout(const Duration(seconds: 5));
+      return true;
+    } on Object {
+      return false;
     }
   }
 
