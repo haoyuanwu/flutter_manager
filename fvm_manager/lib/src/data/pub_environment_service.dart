@@ -56,6 +56,7 @@ class PubEnvironmentService {
   String? _ignoredFvmVersion;
   String? _ignoredFlutterVersion;
   String? _customFvmExecutable;
+  String? _cachedFvmExecutable;
   bool _autoOpenConsoleWindow = true;
   bool _showMainWindowConsole = false;
   bool _showConsoleQuickCommands = true;
@@ -73,6 +74,7 @@ class PubEnvironmentService {
   String? get ignoredFvmVersion => _ignoredFvmVersion;
   String? get ignoredFlutterVersion => _ignoredFlutterVersion;
   String? get customFvmExecutable => _customFvmExecutable;
+  String? get cachedFvmExecutable => _cachedFvmExecutable;
   bool get autoOpenConsoleWindow => _autoOpenConsoleWindow;
   bool get showMainWindowConsole => _showMainWindowConsole;
   bool get showConsoleQuickCommands => _showConsoleQuickCommands;
@@ -177,6 +179,7 @@ class PubEnvironmentService {
       _ignoredFvmVersion = settings['ignoredFvmVersion'] as String?;
       _ignoredFlutterVersion = settings['ignoredFlutterVersion'] as String?;
       _customFvmExecutable = settings['customFvmExecutable'] as String?;
+      _cachedFvmExecutable = settings['cachedFvmExecutable'] as String?;
       _autoOpenConsoleWindow =
           settings['autoOpenConsoleWindow'] as bool? ?? true;
       _showMainWindowConsole =
@@ -246,6 +249,11 @@ class PubEnvironmentService {
 
   Future<void> setCustomFvmExecutable(String executable) async {
     _customFvmExecutable = executable;
+    await _persist();
+  }
+
+  Future<void> setCachedFvmExecutable(String? executable) async {
+    _cachedFvmExecutable = executable;
     await _persist();
   }
 
@@ -330,6 +338,7 @@ class PubEnvironmentService {
         'ignoredFvmVersion': _ignoredFvmVersion,
         'ignoredFlutterVersion': _ignoredFlutterVersion,
         'customFvmExecutable': _customFvmExecutable,
+        'cachedFvmExecutable': _cachedFvmExecutable,
         'autoOpenConsoleWindow': _autoOpenConsoleWindow,
         'showMainWindowConsole': _showMainWindowConsole,
         'showConsoleQuickCommands': _showConsoleQuickCommands,
