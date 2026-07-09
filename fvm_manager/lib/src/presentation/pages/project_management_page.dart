@@ -1132,6 +1132,24 @@ class _ProjectDetail extends ConsumerWidget {
                             ),
                           ),
                         ],
+                        if (state.projectBuildTarget ==
+                            ProjectBuildTarget.windows) ...[
+                          const SizedBox(width: 8),
+                          Tooltip(
+                            message: '生成安装包（Inno Setup）',
+                            child: IconButton.outlined(
+                              onPressed:
+                                  state.loading ||
+                                      controller.selectedTaskActive('build')
+                                  ? null
+                                  : controller.packageWindowsInstaller,
+                              icon: const Icon(
+                                Icons.install_desktop_outlined,
+                                size: 18,
+                              ),
+                            ),
+                          ),
+                        ],
                         const SizedBox(width: 8),
                         Tooltip(
                           message: '分发上传',
@@ -1296,10 +1314,7 @@ class _ProjectDetail extends ConsumerWidget {
                   '产物位置',
                   'build/windows/x64/runner/Release/ 目录下，含 .exe 和 DLL 文件',
                 ),
-                (
-                  'Inno Setup',
-                  '下载 Inno Setup，创建安装脚本将整个 Release 目录打包为安装程序 .exe',
-                ),
+                ('Inno Setup', '安装 Inno Setup 后，可使用本工具的「生成安装包」按钮生成 setup.exe'),
                 ('NSIS', '或使用 NSIS (Nullsoft Scriptable Install System) 创建安装包'),
                 ('MSIX', 'Windows 10+ 推荐 MSIX 格式，可上传 Microsoft Store'),
                 ('直接压缩', '最简单方式：将 Release 目录压缩为 .zip 分发'),

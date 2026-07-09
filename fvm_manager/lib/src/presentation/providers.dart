@@ -1191,6 +1191,7 @@ class FvmController extends Notifier<FvmState> {
       'devtools' => openProjectDevTools(),
       'openBuildOutput' => openBuildOutput(),
       'openApkOutput' => openProjectApkFolder(),
+      'packageWindowsInstaller' => packageWindowsInstaller(),
       _ => null,
     };
     if (command != null) unawaited(command);
@@ -1678,6 +1679,38 @@ class FvmController extends Notifier<FvmState> {
           .packageMacosDmg(project.path, project.name);
       state = state.copyWith(statusMessage: 'DMG 已生成：$dmgPath');
       await ref.read(localProjectServiceProvider).revealFile(dmgPath);
+    } catch (error) {
+      state = state.copyWith(errorMessage: _message(error));
+    } finally {
+      state = state.copyWith(loading: false);
+    }
+  }
+
+  Future<void> packageWindowsInstaller() async {
+    final project = _selectedManagedProject;
+    if (project == null) return;
+    _consoleModes[project.path] = 'build';
+    if (state.buildOpensConsoleWindow) {
+      unawaited(_openConsoleWindow(project.path));
+    } else {
+      _mainBuildConsoleProjectPath = project.path;
+      state = state.copyWith(buildConsoleVisible: true);
+    }
+    state = state.copyWith(
+      loading: true,
+      statusMessage: '正在生成 Windows 安装包…',
+      errorMessage: null,
+    );
+    try {
+      final installerPath = await ref
+          .read(localProjectServiceProvider)
+          .packageWindowsInnoSetup(
+            projectPath: project.path,
+            appNameHint: project.displayName,
+            onOutput: (output) => _appendCommandLog(project.path, output),
+          );
+      state = state.copyWith(statusMessage: 'Windows 安装包已生成：$installerPath');
+      await ref.read(localProjectServiceProvider).revealFile(installerPath);
     } catch (error) {
       state = state.copyWith(errorMessage: _message(error));
     } finally {

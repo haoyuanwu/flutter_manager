@@ -298,6 +298,196 @@ class LocalProjectService {
     }
   }
 
+  Future<String> packageWindowsInnoSetup({
+    required String projectPath,
+    required String appNameHint,
+    required void Function(String output) onOutput,
+  }) async {
+    if (!Platform.isWindows) {
+      throw Exception('Inno Setup 打包仅支持 Windows');
+    }
+    final separator = Platform.pathSeparator;
+    final releaseDirectory = Directory(
+      '$projectPath${separator}build${separator}windows${separator}x64'
+      '${separator}runner${separator}Release',
+    );
+    if (!await releaseDirectory.exists()) {
+      throw Exception('Windows Release 目录不存在，请先完成 Windows 构建');
+    }
+    final mainExe = await _findWindowsMainExe(releaseDirectory, appNameHint);
+    final pubspec = await _readPubspec(projectPath);
+    final appName = _safeInnoValue(
+      pubspec['name']?.toString().trim().isNotEmpty == true
+          ? pubspec['name'].toString().trim()
+          : appNameHint,
+    );
+    final version = _safeInnoValue(
+      (pubspec['version']?.toString().split('+').first.trim().isNotEmpty == true
+              ? pubspec['version'].toString().split('+').first.trim()
+              : '1.0.0')
+          .replaceAll(RegExp(r'[^0-9A-Za-z_.-]'), '.'),
+    );
+    final outputDirectory = Directory(
+      '$projectPath${separator}build${separator}windows${separator}installer',
+    );
+    await outputDirectory.create(recursive: true);
+    final scriptFile = File('${outputDirectory.path}${separator}installer.iss');
+    final outputBaseName = '${_safeFileName(appName)}-$version-setup';
+    await scriptFile.writeAsString(
+      _windowsInnoScript(
+        appName: appName,
+        appVersion: version,
+        releaseDirectory: releaseDirectory.path,
+        mainExeName: mainExe.uri.pathSegments.last,
+        outputDirectory: outputDirectory.path,
+        outputBaseName: outputBaseName,
+      ),
+    );
+    final iscc = await _findInnoCompiler();
+    if (iscc == null) {
+      throw Exception(
+        '未找到 Inno Setup 编译器 ISCC.exe。请安装 Inno Setup 6，'
+        '或将 ISCC.exe 添加到 PATH 后重试。',
+      );
+    }
+    onOutput('\n[Inno Setup] $iscc\n');
+    onOutput('[Inno Setup] ${scriptFile.path}\n');
+    final process = await Process.start(iscc, [
+      scriptFile.path,
+    ], runInShell: true);
+    process.stdout
+        .transform(const Utf8Decoder(allowMalformed: true))
+        .listen(onOutput);
+    process.stderr
+        .transform(const Utf8Decoder(allowMalformed: true))
+        .listen(onOutput);
+    final exitCode = await process.exitCode;
+    if (exitCode != 0) {
+      throw Exception('Inno Setup 打包失败（退出码 $exitCode）');
+    }
+    final installerPath =
+        '${outputDirectory.path}$separator$outputBaseName.exe';
+    if (!await File(installerPath).exists()) {
+      throw Exception('Inno Setup 已结束，但未找到安装包：$installerPath');
+    }
+    return installerPath;
+  }
+
+  Future<File> _findWindowsMainExe(
+    Directory releaseDirectory,
+    String appNameHint,
+  ) async {
+    final files =
+        await releaseDirectory
+              .list(followLinks: false)
+              .where((entity) => entity is File && entity.path.endsWith('.exe'))
+              .cast<File>()
+              .toList()
+          ..sort((a, b) => a.path.compareTo(b.path));
+    if (files.isEmpty) {
+      throw Exception('Windows Release 目录中未找到主程序 .exe');
+    }
+    final normalizedHint = _normalizeName(appNameHint);
+    return files.firstWhere(
+      (file) => _normalizeName(
+        file.uri.pathSegments.last.replaceAll(
+          RegExp(r'\.exe$', caseSensitive: false),
+          '',
+        ),
+      ).contains(normalizedHint),
+      orElse: () => files.first,
+    );
+  }
+
+  Future<String?> _findInnoCompiler() async {
+    final candidates = <String>[
+      r'C:\Program Files (x86)\Inno Setup 6\ISCC.exe',
+      r'C:\Program Files\Inno Setup 6\ISCC.exe',
+      r'C:\Program Files (x86)\Inno Setup 5\ISCC.exe',
+      r'C:\Program Files\Inno Setup 5\ISCC.exe',
+    ];
+    for (final candidate in candidates) {
+      if (await File(candidate).exists()) return candidate;
+    }
+    try {
+      final result = await Process.run('where', ['ISCC.exe'], runInShell: true);
+      if (result.exitCode == 0) {
+        final found = result.stdout
+            .toString()
+            .split(RegExp(r'\r?\n'))
+            .map((line) => line.trim())
+            .firstWhere((line) => line.isNotEmpty, orElse: () => '');
+        if (found.isNotEmpty && await File(found).exists()) return found;
+      }
+    } on ProcessException {
+      // Fall through to not found.
+    }
+    return null;
+  }
+
+  Future<YamlMap> _readPubspec(String projectPath) async {
+    final pubspecFile = File(
+      '$projectPath${Platform.pathSeparator}pubspec.yaml',
+    );
+    return loadYaml(await pubspecFile.readAsString()) as YamlMap;
+  }
+
+  String _windowsInnoScript({
+    required String appName,
+    required String appVersion,
+    required String releaseDirectory,
+    required String mainExeName,
+    required String outputDirectory,
+    required String outputBaseName,
+  }) {
+    final escapedRelease = _innoPath(releaseDirectory);
+    final escapedOutput = _innoPath(outputDirectory);
+    final escapedExe = _safeInnoValue(mainExeName);
+    return '''
+#define MyAppName "$appName"
+#define MyAppVersion "$appVersion"
+#define MyAppExeName "$escapedExe"
+
+[Setup]
+AppName={#MyAppName}
+AppVersion={#MyAppVersion}
+AppPublisher={#MyAppName}
+DefaultDirName={autopf}\\{#MyAppName}
+DefaultGroupName={#MyAppName}
+DisableProgramGroupPage=yes
+OutputDir=$escapedOutput
+OutputBaseFilename=$outputBaseName
+Compression=lzma
+SolidCompression=yes
+WizardStyle=modern
+ArchitecturesAllowed=x64compatible
+ArchitecturesInstallIn64BitMode=x64compatible
+
+[Tasks]
+Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
+
+[Files]
+Source: "$escapedRelease\\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[Icons]
+Name: "{group}\\{#MyAppName}"; Filename: "{app}\\{#MyAppExeName}"
+Name: "{autodesktop}\\{#MyAppName}"; Filename: "{app}\\{#MyAppExeName}"; Tasks: desktopicon
+
+[Run]
+Filename: "{app}\\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent
+''';
+  }
+
+  String _safeInnoValue(String value) => value.replaceAll('"', r'\"');
+
+  String _innoPath(String value) => _safeInnoValue(value);
+
+  String _safeFileName(String value) =>
+      value.replaceAll(RegExp(r'[\\/:*?"<>|\s]+'), '-').trim();
+
+  String _normalizeName(String value) =>
+      value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
   /// 将 macOS .app 打包成 .dmg
   Future<String> packageMacosDmg(String projectPath, String appName) async {
     final separator = Platform.pathSeparator;

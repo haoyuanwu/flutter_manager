@@ -273,6 +273,12 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
               icon: const Icon(Icons.android),
               label: const Text('打开 APK 目录'),
             ),
+          if (_buildTarget == 'windows')
+            OutlinedButton.icon(
+              onPressed: () => _runAction('packageWindowsInstaller'),
+              icon: const Icon(Icons.install_desktop_outlined),
+              label: const Text('生成安装包'),
+            ),
         ],
       ),
     ),
