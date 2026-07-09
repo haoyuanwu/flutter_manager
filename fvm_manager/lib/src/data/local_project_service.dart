@@ -341,6 +341,7 @@ class LocalProjectService {
         mainExeName: mainExe.uri.pathSegments.last,
         outputDirectory: outputDirectory.path,
         outputBaseName: outputBaseName,
+        setupIconPath: await _windowsAppIconPath(projectPath),
       ),
     );
     final iscc = await _findInnoCompiler();
@@ -439,10 +440,14 @@ class LocalProjectService {
     required String mainExeName,
     required String outputDirectory,
     required String outputBaseName,
+    String? setupIconPath,
   }) {
     final escapedRelease = _innoPath(releaseDirectory);
     final escapedOutput = _innoPath(outputDirectory);
     final escapedExe = _safeInnoValue(mainExeName);
+    final setupIconLine = setupIconPath == null
+        ? ''
+        : 'SetupIconFile=${_innoPath(setupIconPath)}';
     return '''
 #define MyAppName "$appName"
 #define MyAppVersion "$appVersion"
@@ -462,6 +467,7 @@ SolidCompression=yes
 WizardStyle=modern
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+$setupIconLine
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
@@ -487,6 +493,15 @@ Filename: "{app}\\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChan
 
   String _normalizeName(String value) =>
       value.toLowerCase().replaceAll(RegExp(r'[^a-z0-9]'), '');
+
+  Future<String?> _windowsAppIconPath(String projectPath) async {
+    final icon = File(
+      '$projectPath${Platform.pathSeparator}windows${Platform.pathSeparator}'
+      'runner${Platform.pathSeparator}resources${Platform.pathSeparator}'
+      'app_icon.ico',
+    );
+    return await icon.exists() ? icon.path : null;
+  }
 
   /// 将 macOS .app 打包成 .dmg
   Future<String> packageMacosDmg(String projectPath, String appName) async {
