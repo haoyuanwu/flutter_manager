@@ -7,6 +7,20 @@ import 'package:yaml/yaml.dart';
 
 import '../domain/project_models.dart';
 
+class InnoCompilerNotFoundException implements Exception {
+  const InnoCompilerNotFoundException();
+
+  static const examplePaths = <String>[
+    r'C:\Program Files (x86)\Inno Setup 6\ISCC.exe',
+    r'C:\Program Files\Inno Setup 6\ISCC.exe',
+  ];
+
+  @override
+  String toString() =>
+      '未找到 Inno Setup 编译器 ISCC.exe。请安装 Inno Setup 6，'
+      '或手动指定 ISCC.exe 路径。';
+}
+
 class LocalProjectService {
   Future<String?> chooseDirectory() async {
     try {
@@ -302,6 +316,7 @@ class LocalProjectService {
     required String projectPath,
     required String appNameHint,
     required void Function(String output) onOutput,
+    String? innoCompilerPath,
   }) async {
     if (!Platform.isWindows) {
       throw Exception('Inno Setup 打包仅支持 Windows');
@@ -344,12 +359,18 @@ class LocalProjectService {
         setupIconPath: await _windowsAppIconPath(projectPath),
       ),
     );
-    final iscc = await _findInnoCompiler();
+    final iscc = innoCompilerPath == null || innoCompilerPath.trim().isEmpty
+        ? await _findInnoCompiler()
+        : innoCompilerPath.trim();
+    final validSelectedCompiler =
+        iscc == null ||
+        (await File(iscc).exists() &&
+            iscc.split(RegExp(r'[\\/]')).last.toLowerCase() == 'iscc.exe');
+    if (!validSelectedCompiler) {
+      throw Exception('请选择有效的 Inno Setup 编译器 ISCC.exe：$iscc');
+    }
     if (iscc == null) {
-      throw Exception(
-        '未找到 Inno Setup 编译器 ISCC.exe。请安装 Inno Setup 6，'
-        '或将 ISCC.exe 添加到 PATH 后重试。',
-      );
+      throw const InnoCompilerNotFoundException();
     }
     onOutput('\n[Inno Setup] $iscc\n');
     onOutput('[Inno Setup] ${scriptFile.path}\n');

@@ -1686,7 +1686,10 @@ class FvmController extends Notifier<FvmState> {
     }
   }
 
-  Future<void> packageWindowsInstaller() async {
+  Future<void> packageWindowsInstaller({
+    String? innoCompilerPath,
+    bool rethrowInnoCompilerNotFound = false,
+  }) async {
     final project = _selectedManagedProject;
     if (project == null) return;
     _consoleModes[project.path] = 'build';
@@ -1707,10 +1710,15 @@ class FvmController extends Notifier<FvmState> {
           .packageWindowsInnoSetup(
             projectPath: project.path,
             appNameHint: project.displayName,
+            innoCompilerPath: innoCompilerPath,
             onOutput: (output) => _appendCommandLog(project.path, output),
           );
       state = state.copyWith(statusMessage: 'Windows 安装包已生成：$installerPath');
       await ref.read(localProjectServiceProvider).revealFile(installerPath);
+    } on InnoCompilerNotFoundException catch (error) {
+      state = state.copyWith(loading: false);
+      if (rethrowInnoCompilerNotFound) rethrow;
+      state = state.copyWith(errorMessage: _message(error));
     } catch (error) {
       state = state.copyWith(errorMessage: _message(error));
     } finally {

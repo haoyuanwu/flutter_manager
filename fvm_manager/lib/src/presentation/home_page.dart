@@ -10,6 +10,7 @@ import '../domain/models.dart';
 import '../domain/project_models.dart';
 import '../data/log_service.dart';
 import '../data/distribution_service.dart';
+import '../data/local_project_service.dart';
 import '../data/pub_environment_service.dart';
 import 'confirm_dialog.dart';
 import 'providers.dart';

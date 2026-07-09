@@ -1142,7 +1142,12 @@ class _ProjectDetail extends ConsumerWidget {
                                   state.loading ||
                                       controller.selectedTaskActive('build')
                                   ? null
-                                  : controller.packageWindowsInstaller,
+                                  : () => unawaited(
+                                      _packageWindowsInstaller(
+                                        context,
+                                        controller,
+                                      ),
+                                    ),
                               icon: const Icon(
                                 Icons.install_desktop_outlined,
                                 size: 18,
@@ -1347,6 +1352,78 @@ Future<void> _confirmRemoveManagedProject(
     confirmLabel: '删除记录',
   );
   if (confirmed) await controller.removeManagedProject(project.path);
+}
+
+Future<void> _packageWindowsInstaller(
+  BuildContext context,
+  FvmController controller,
+) async {
+  try {
+    await controller.packageWindowsInstaller(rethrowInnoCompilerNotFound: true);
+  } on InnoCompilerNotFoundException {
+    if (!context.mounted) return;
+    final compilerPath = await _showInnoCompilerPickerDialog(context);
+    if (compilerPath == null || compilerPath.isEmpty) return;
+    await controller.packageWindowsInstaller(innoCompilerPath: compilerPath);
+  }
+}
+
+Future<String?> _showInnoCompilerPickerDialog(BuildContext context) {
+  const downloadUrl = 'https://jrsoftware.org/isdl.php#v6';
+  return showDialog<String>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      icon: const Icon(Icons.install_desktop_outlined),
+      title: const Text('指定 Inno Setup 编译器'),
+      content: SizedBox(
+        width: 460,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('未找到 Inno Setup 编译器 ISCC.exe，请手动选择文件后继续打包。'),
+            const SizedBox(height: 12),
+            const Text('示例路径：'),
+            const SizedBox(height: 6),
+            for (final path in InnoCompilerNotFoundException.examplePaths)
+              SelectableText(path),
+            const SizedBox(height: 12),
+            const Text('下载地址：'),
+            const SizedBox(height: 6),
+            const SelectableText(downloadUrl),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext),
+          child: const Text('取消'),
+        ),
+        TextButton.icon(
+          onPressed: () => unawaited(_openExternalUrl(downloadUrl)),
+          icon: const Icon(Icons.open_in_new),
+          label: const Text('打开下载页'),
+        ),
+        FilledButton.icon(
+          onPressed: () async {
+            final selected = await openFile(
+              acceptedTypeGroups: const [
+                XTypeGroup(
+                  label: 'Inno Setup 编译器',
+                  extensions: ['exe'],
+                ),
+              ],
+              confirmButtonText: '选择 ISCC.exe',
+            );
+            if (selected == null || !dialogContext.mounted) return;
+            Navigator.pop(dialogContext, selected.path);
+          },
+          icon: const Icon(Icons.file_open_outlined),
+          label: const Text('浏览选择'),
+        ),
+      ],
+    ),
+  );
 }
 
 class _ProjectVersionSettings extends ConsumerStatefulWidget {
