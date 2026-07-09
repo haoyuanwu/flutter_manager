@@ -1073,7 +1073,7 @@ class FvmController extends Notifier<FvmState> {
           break;
         }
         if (code != 0 && !_stoppingCommandTasks.contains(taskId)) {
-          throw Exception('$label 失败（退出码 $code）');
+          throw Exception(_commandFailureMessage(label, path, code));
         }
         if (afterEach != null) await afterEach(index);
         if (index < commands.length - 1) {
@@ -1098,6 +1098,18 @@ class FvmController extends Notifier<FvmState> {
     final tail = log.length > 2000 ? log.substring(log.length - 2000) : log;
     _parseVmServiceUri(projectPath, tail);
     _syncConsoleWindow(projectPath);
+  }
+
+  String _commandFailureMessage(String label, String projectPath, int code) {
+    final tail = _commandLogs.logFor(projectPath).toLowerCase();
+    if (tail.contains('tls error') ||
+        tail.contains('certificate') && tail.contains('pub.dev') ||
+        tail.contains('failed to update packages') &&
+            tail.contains('pub.dev')) {
+      return '$label 失败（退出码 $code）：访问 pub.dev 出现 TLS/证书错误。'
+          '请在“环境配置”里切换到国内镜像，或检查 Windows 证书、代理和系统时间后重试。';
+    }
+    return '$label 失败（退出码 $code）';
   }
 
   String _projectTitle(String projectPath) =>

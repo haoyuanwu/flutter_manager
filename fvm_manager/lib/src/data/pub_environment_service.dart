@@ -100,13 +100,9 @@ class PubEnvironmentService {
     final mirror = currentMirror;
     if (mirror.pubUrl != null) {
       environment['PUB_HOSTED_URL'] = mirror.pubUrl!;
-    } else {
-      environment.remove('PUB_HOSTED_URL');
     }
     if (mirror.storageUrl != null) {
       environment['FLUTTER_STORAGE_BASE_URL'] = mirror.storageUrl!;
-    } else {
-      environment.remove('FLUTTER_STORAGE_BASE_URL');
     }
     return environment;
   }
