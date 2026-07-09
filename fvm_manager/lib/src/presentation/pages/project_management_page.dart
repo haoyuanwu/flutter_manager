@@ -1364,6 +1364,7 @@ Future<void> _packageWindowsInstaller(
     if (!context.mounted) return;
     final compilerPath = await _showInnoCompilerPickerDialog(context);
     if (compilerPath == null || compilerPath.isEmpty) return;
+    await controller.setInnoCompilerPath(compilerPath);
     await controller.packageWindowsInstaller(innoCompilerPath: compilerPath);
   }
 }

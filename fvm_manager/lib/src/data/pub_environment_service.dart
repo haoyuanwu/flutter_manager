@@ -67,6 +67,7 @@ class PubEnvironmentService {
   String _mcpServerToken = '';
   String _globalPgyerApiKey = '';
   String _globalFirApiToken = '';
+  String _innoCompilerPath = '';
 
   String get mirrorId => _mirrorId;
   bool get useDomesticMirror => _mirrorId != 'official';
@@ -85,6 +86,7 @@ class PubEnvironmentService {
   String get mcpServerToken => _mcpServerToken;
   String get globalPgyerApiKey => _globalPgyerApiKey;
   String get globalFirApiToken => _globalFirApiToken;
+  String get innoCompilerPath => _innoCompilerPath;
 
   String get flutterStorageBaseUrl {
     final mirror = currentMirror;
@@ -190,6 +192,7 @@ class PubEnvironmentService {
       _mcpServerToken = settings['mcpServerToken'] as String? ?? '';
       _globalPgyerApiKey = settings['globalPgyerApiKey'] as String? ?? '';
       _globalFirApiToken = settings['globalFirApiToken'] as String? ?? '';
+      _innoCompilerPath = settings['innoCompilerPath'] as String? ?? '';
     } on Object {
       _mirrorId = 'official';
     }
@@ -299,6 +302,11 @@ class PubEnvironmentService {
     await _persist();
   }
 
+  Future<void> setInnoCompilerPath(String path) async {
+    _innoCompilerPath = path.trim();
+    await _persist();
+  }
+
   /// 测试镜像源连通性，返回延迟毫秒数，失败返回 -1。
   Future<int> testMirror(String mirrorId) async {
     final mirror = mirrors.firstWhere(
@@ -345,6 +353,7 @@ class PubEnvironmentService {
         'mcpServerToken': _mcpServerToken,
         'globalPgyerApiKey': _globalPgyerApiKey,
         'globalFirApiToken': _globalFirApiToken,
+        'innoCompilerPath': _innoCompilerPath,
       }),
       flush: true,
     );

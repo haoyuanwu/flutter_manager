@@ -1705,12 +1705,21 @@ class FvmController extends Notifier<FvmState> {
       errorMessage: null,
     );
     try {
+      final environment = ref.read(pubEnvironmentServiceProvider);
+      final savedCompilerPath = environment.innoCompilerPath;
+      String? compilerPath;
+      if (innoCompilerPath?.trim().isNotEmpty == true) {
+        compilerPath = innoCompilerPath!.trim();
+      } else if (savedCompilerPath.isNotEmpty &&
+          File(savedCompilerPath).existsSync()) {
+        compilerPath = savedCompilerPath;
+      }
       final installerPath = await ref
           .read(localProjectServiceProvider)
           .packageWindowsInnoSetup(
             projectPath: project.path,
             appNameHint: project.displayName,
-            innoCompilerPath: innoCompilerPath,
+            innoCompilerPath: compilerPath,
             onOutput: (output) => _appendCommandLog(project.path, output),
           );
       state = state.copyWith(statusMessage: 'Windows 安装包已生成：$installerPath');
@@ -2604,5 +2613,9 @@ class FvmController extends Notifier<FvmState> {
     await ref
         .read(pubEnvironmentServiceProvider)
         .setGlobalFirApiToken(apiToken);
+  }
+
+  Future<void> setInnoCompilerPath(String path) async {
+    await ref.read(pubEnvironmentServiceProvider).setInnoCompilerPath(path);
   }
 }
