@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -25,12 +26,32 @@ class FvmService {
 
     // 2. 全量扫描所有候选路径
     for (final candidate in _candidates()) {
-      final version = await _tryExecutable(candidate);
-      if (version != null) {
-        _executable = candidate;
-        // 持久化，下次启动直接用
-        await _environment.setCachedFvmExecutable(candidate);
-        return version;
+      // macos 
+      if (Platform.isMacOS) {
+        try {
+          final result = await Process.run(
+            candidate,
+            const ['--version'],
+            environment: _environment.processEnvironment,
+            includeParentEnvironment: false,
+          ).timeout(const Duration(seconds: 2));
+          if (result.exitCode == 0) {
+            _executable = candidate;
+            return result.stdout.toString().trim();
+          }
+        } on ProcessException {
+          // Try the next well-known location.
+        } on TimeoutException {
+          // Try the next well-known location.
+        }
+      } else if (Platform.isWindows){
+        final version = await _tryExecutable(candidate);
+        if (version != null) {
+          _executable = candidate;
+          // 持久化，下次启动直接用
+          await _environment.setCachedFvmExecutable(candidate);
+          return version;
+        }
       }
     }
     _executable = null;

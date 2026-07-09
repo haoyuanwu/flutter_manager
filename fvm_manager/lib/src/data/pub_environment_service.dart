@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'dart:io';
@@ -583,7 +584,7 @@ class PubEnvironmentService {
       final result = await Process.run('bash', [
         '-c',
         'source "$configFile" && env',
-      ]);
+      ]).timeout(const Duration(seconds: 2));
 
       if (result.exitCode == 0) {
         // 解析新的环境变量
@@ -595,7 +596,11 @@ class PubEnvironmentService {
             _cachedPath = newPath;
             // 更新 launchctl 环境变量（影响新打开的终端和应用）
             if (Platform.isMacOS) {
-              await Process.run('launchctl', ['setenv', 'PATH', newPath]);
+              await Process.run('launchctl', [
+                'setenv',
+                'PATH',
+                newPath,
+              ]).timeout(const Duration(seconds: 1));
             }
             break;
           }

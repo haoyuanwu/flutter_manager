@@ -197,30 +197,18 @@ class FvmController extends Notifier<FvmState> {
         androidTargetPlatform:
             projects.firstOrNull?.androidTargetPlatform ?? 'android-arm64',
       );
-      await _syncMcpControlServer();
-      final results = await Future.wait<Object?>([
-        fvm.detect(),
-        ref.read(releaseServiceProvider).fetchReleases(),
-        ref.read(releaseServiceProvider).fetchLatestFvmVersion(),
-      ]);
-      final version = results[0] as String?;
-      final releases = results[1] as List<FlutterRelease>;
-      final latestStable = releases
-          .where((release) => release.channel == ReleaseChannel.stable)
-          .firstOrNull;
+      unawaited(_syncMcpControlServer());
+      final version = await fvm.detect();
       state = state.copyWith(
         fvmInstalled: version != null,
         fvmVersion: version,
-        releases: releases,
-        latestFvmVersion: results[2] as String?,
-        latestFlutterVersion: latestStable?.version,
       );
       if (version != null) {
-        await refreshInstalled();
+        unawaited(refreshInstalled());
       } else {
-        unawaited(_startDeviceMonitoring());
+        unawaited(_startDeviceMonitoringAfterDelay());
       }
-      _syncUpdateState(showNotice: true);
+      unawaited(_refreshReleaseMetadata(showNotice: true));
     } catch (error) {
       state = state.copyWith(errorMessage: _message(error));
     } finally {
@@ -229,27 +217,60 @@ class FvmController extends Notifier<FvmState> {
     }
   }
 
-  Future<void> refreshInstalled() async {
-    final fvm = ref.read(fvmServiceProvider);
+  Future<void> _refreshReleaseMetadata({bool showNotice = false}) async {
     try {
       final results = await Future.wait<Object?>([
+        ref.read(releaseServiceProvider).fetchReleases(),
+        ref.read(releaseServiceProvider).fetchLatestFvmVersion(),
+      ]);
+      final releases = results[0] as List<FlutterRelease>;
+      final latestStable = releases
+          .where((release) => release.channel == ReleaseChannel.stable)
+          .firstOrNull;
+      state = state.copyWith(
+        releases: releases,
+        latestFvmVersion: results[1] as String?,
+        latestFlutterVersion: latestStable?.version,
+      );
+      _syncUpdateState(showNotice: showNotice);
+      _publishStatusMenu();
+    } catch (_) {
+      // 网络版本信息不应该阻塞首次启动；失败后用户刷新或下次启动再试。
+    }
+  }
+
+  Future<void> refreshInstalled({
+    bool includeCacheSize = false,
+    bool startDeviceMonitoring = true,
+  }) async {
+    final fvm = ref.read(fvmServiceProvider);
+    try {
+      final futures = <Future<Object?>>[
         fvm.listInstalled(),
         fvm.globalVersion(),
-        fvm.cacheSizeBytes(),
-      ]);
+        if (includeCacheSize) fvm.cacheSizeBytes(),
+      ];
+      final results = await Future.wait<Object?>(futures);
       final installed = [...results[0] as List<InstalledSdk>]
         ..sort(_compareInstalledSdks);
       state = state.copyWith(
         installed: installed,
         globalVersion: results[1] as String?,
-        fvmCacheSizeBytes: results[2] as int,
+        fvmCacheSizeBytes: includeCacheSize
+            ? results[2] as int
+            : state.fvmCacheSizeBytes,
         errorMessage: null,
       );
       _publishStatusMenu();
-      unawaited(_startDeviceMonitoring());
+      if (startDeviceMonitoring) unawaited(_startDeviceMonitoringAfterDelay());
     } catch (error) {
       state = state.copyWith(errorMessage: _message(error));
     }
+  }
+
+  Future<void> _startDeviceMonitoringAfterDelay() async {
+    await Future<void>.delayed(const Duration(milliseconds: 600));
+    await _startDeviceMonitoring();
   }
 
   void selectChannel(ReleaseChannel channel) {
@@ -2161,6 +2182,7 @@ class FvmController extends Notifier<FvmState> {
       await refreshInstalled();
       _syncUpdateState();
       state = state.copyWith(
+        fvmCacheSizeBytes: 0,
         statusMessage: removedBytes > 0
             ? '已清理 Flutter SDK bin/cache ${_formatBytes(removedBytes)}'
             : '没有可清理的 Flutter SDK bin/cache',

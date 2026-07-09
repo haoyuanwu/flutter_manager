@@ -171,6 +171,7 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
+                final isNarrow = constraints.maxWidth < 900;
                 final artifacts = _ArtifactsPanel(
                   artifacts: _artifacts,
                   selectedPath: _selectedArtifactPath,
@@ -180,25 +181,37 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
                       setState(() => _selectedArtifactPath = path),
                   onReveal: (path) =>
                       ref.read(localProjectServiceProvider).revealFile(path),
+                  compact: isNarrow,
                 );
                 final platforms = _DistributionPlatforms(
                   artifact: _selectedArtifact,
+                  compact: isNarrow,
                 );
-                if (constraints.maxWidth < 900) {
-                  return ListView(
-                    children: [
-                      SizedBox(height: 360, child: artifacts),
-                      const SizedBox(height: 12),
-                      platforms,
-                    ],
+                if (isNarrow) {
+                  return SingleChildScrollView(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          height: _artifacts.isEmpty ? 120 : 200,
+                          child: artifacts,
+                        ),
+                        const SizedBox(height: 12),
+                        platforms,
+                      ],
+                    ),
                   );
                 }
+                // 宽度足够时，左右布局，各自独立滚动
                 return Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(child: artifacts),
                     const SizedBox(width: 16),
-                    SizedBox(width: 330, child: platforms),
+                    SizedBox(
+                      width: 330,
+                      child: platforms,
+                    ),
                   ],
                 );
               },
@@ -218,6 +231,7 @@ class _ArtifactsPanel extends StatelessWidget {
     required this.hasProject,
     required this.onSelected,
     required this.onReveal,
+    this.compact = false,
   });
 
   final List<DistributionArtifact> artifacts;
@@ -226,6 +240,7 @@ class _ArtifactsPanel extends StatelessWidget {
   final bool hasProject;
   final ValueChanged<String> onSelected;
   final ValueChanged<String> onReveal;
+  final bool compact;
 
   @override
   Widget build(BuildContext context) => Card(
@@ -233,11 +248,28 @@ class _ArtifactsPanel extends StatelessWidget {
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Padding(
-          padding: EdgeInsets.fromLTRB(18, 16, 18, 12),
-          child: Text(
-            '已打包文件',
-            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
+        Padding(
+          padding: EdgeInsets.fromLTRB(18, compact ? 12 : 16, 18, compact ? 8 : 12),
+          child: Row(
+            children: [
+              Text(
+                '已打包文件',
+                style: TextStyle(
+                  fontSize: compact ? 15 : 17,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              if (artifacts.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Text(
+                  '(${artifacts.length})',
+                  style: TextStyle(
+                    fontSize: compact ? 13 : 14,
+                    color: Colors.black54,
+                  ),
+                ),
+              ],
+            ],
           ),
         ),
         const Divider(height: 1),
@@ -252,12 +284,50 @@ class _ArtifactsPanel extends StatelessWidget {
                   ),
                 )
               : ListView.separated(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
+                  padding: EdgeInsets.symmetric(vertical: compact ? 4 : 8),
                   itemCount: artifacts.length,
                   separatorBuilder: (_, _) => const Divider(height: 1),
                   itemBuilder: (context, index) {
                     final artifact = artifacts[index];
                     final selected = selectedPath == artifact.path;
+                    if (compact) {
+                      return ListTile(
+                        dense: true,
+                        selected: selected,
+                        selectedTileColor: const Color(0xffeef8ff),
+                        leading: Icon(
+                          selected
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_off,
+                          color: selected ? const Color(0xff087ea4) : null,
+                          size: 20,
+                        ),
+                        title: Text(
+                          artifact.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 13),
+                        ),
+                        subtitle: Text(
+                          '${artifact.platformLabel} · ${_formatArtifactSize(artifact.size)}',
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        trailing: IconButton(
+                          tooltip: '在文件管理器中显示',
+                          onPressed: () => onReveal(artifact.path),
+                          icon: const Icon(Icons.folder_open, size: 17),
+                          iconSize: 17,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(
+                            minWidth: 32,
+                            minHeight: 32,
+                          ),
+                        ),
+                        onTap: () => onSelected(artifact.path),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                        visualDensity: VisualDensity.compact,
+                      );
+                    }
                     return ListTile(
                       selected: selected,
                       selectedTileColor: const Color(0xffeef8ff),
@@ -293,9 +363,10 @@ class _ArtifactsPanel extends StatelessWidget {
 }
 
 class _DistributionPlatforms extends ConsumerWidget {
-  const _DistributionPlatforms({required this.artifact});
+  const _DistributionPlatforms({required this.artifact, this.compact = false});
 
   final DistributionArtifact? artifact;
+  final bool compact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -317,58 +388,76 @@ class _DistributionPlatforms extends ConsumerWidget {
 
     return Card(
       margin: EdgeInsets.zero,
-      child: ListView(
-        shrinkWrap: true,
-        padding: const EdgeInsets.all(16),
-        children: [
-          const Text(
-            '分发渠道',
-            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 12),
-          _PgyerTile(artifact: artifact, project: project, state: state),
-          _FirTile(artifact: artifact, project: project, state: state),
-          const SizedBox(height: 4),
-          const Text(
-            '打开平台',
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: Colors.black54,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
+      child: SingleChildScrollView(
+        child: Padding(
+          padding: EdgeInsets.all(compact ? 12 : 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
             children: [
-              _PlatformActionChip(
-                icon: Icons.apple,
-                label: 'App Store',
-                onPressed: () =>
-                    run(service.openAppStoreConnect, '已打开 App Store Connect'),
-              ),
-              _PlatformActionChip(
-                icon: Icons.local_shipping_outlined,
-                label: 'Transporter',
-                onPressed: Platform.isMacOS
-                    ? () => run(
-                        () => service.openTransporter(artifact),
-                        '已打开 Transporter',
-                      )
-                    : null,
-              ),
-              _PlatformActionChip(
-                icon: Icons.android,
-                label: 'Google Play',
-                onPressed: () => run(
-                  service.openGooglePlayConsole,
-                  '已打开 Google Play Console',
+              Text(
+                '分发渠道',
+                style: TextStyle(
+                  fontSize: compact ? 15 : 17,
+                  fontWeight: FontWeight.w700,
                 ),
+              ),
+              SizedBox(height: compact ? 8 : 12),
+              _PgyerTile(
+                artifact: artifact,
+                project: project,
+                state: state,
+                compact: compact,
+              ),
+              _FirTile(
+                artifact: artifact,
+                project: project,
+                state: state,
+                compact: compact,
+              ),
+              const SizedBox(height: 4),
+              Text(
+                '打开平台',
+                style: TextStyle(
+                  fontSize: compact ? 12 : 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black54,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  _PlatformActionChip(
+                    icon: Icons.apple,
+                    label: 'App Store',
+                    onPressed: () =>
+                        run(service.openAppStoreConnect, '已打开 App Store Connect'),
+                  ),
+                  _PlatformActionChip(
+                    icon: Icons.local_shipping_outlined,
+                    label: 'Transporter',
+                    onPressed: Platform.isMacOS
+                        ? () => run(
+                            () => service.openTransporter(artifact),
+                            '已打开 Transporter',
+                          )
+                        : null,
+                  ),
+                  _PlatformActionChip(
+                    icon: Icons.android,
+                    label: 'Google Play',
+                    onPressed: () => run(
+                      service.openGooglePlayConsole,
+                      '已打开 Google Play Console',
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -379,11 +468,13 @@ class _PgyerTile extends ConsumerWidget {
     required this.artifact,
     required this.project,
     required this.state,
+    this.compact = false,
   });
 
   final DistributionArtifact? artifact;
   final FlutterProject? project;
   final FvmState state;
+  final bool compact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -403,32 +494,39 @@ class _PgyerTile extends ConsumerWidget {
     final downloadUrl = state.pgyerUploadResult ?? storedDownloadUrl;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.only(bottom: compact ? 8 : 12),
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: const Color(0xfff7f9fb),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(compact ? 8 : 10),
           border: Border.all(color: const Color(0xffe4e8ec)),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: EdgeInsets.all(compact ? 8 : 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  const Icon(Icons.cloud_upload_outlined, size: 21),
-                  const SizedBox(width: 8),
-                  const Expanded(
+                  Icon(Icons.cloud_upload_outlined, size: compact ? 18 : 21),
+                  SizedBox(width: compact ? 6 : 8),
+                  Expanded(
                     child: Text(
                       '蒲公英',
-                      style: TextStyle(fontWeight: FontWeight.w700),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: compact ? 14 : null,
+                      ),
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.settings, size: 18),
+                    icon: Icon(Icons.settings, size: compact ? 16 : 18),
                     tooltip: '配置蒲公英 API',
                     onPressed: () => _showPgyerConfigDialog(context, ref),
+                    padding: EdgeInsets.zero,
+                    constraints: compact
+                        ? const BoxConstraints(minWidth: 32, minHeight: 32)
+                        : null,
                   ),
                   if (downloadUrl != null)
                     TextButton.icon(
@@ -438,41 +536,49 @@ class _PgyerTile extends ConsumerWidget {
                     ),
                 ],
               ),
-              const SizedBox(height: 5),
+              SizedBox(height: compact ? 3 : 5),
               if (hasApiKey)
                 Text(
                   'API Key: ${hasProjectKey ? pgyerConfig.apiKey.substring(0, 8) : env.globalPgyerApiKey.substring(0, 8)}... ($keySource)',
-                  style: const TextStyle(color: Colors.black54),
+                  style: TextStyle(
+                    color: Colors.black54,
+                    fontSize: compact ? 12 : null,
+                  ),
                 )
               else
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      '未配置 API Key',
-                      style: TextStyle(color: Colors.orange),
-                    ),
-                    const SizedBox(height: 4),
                     Text(
-                      '请在设置页面配置全局 API Key，或点击右侧齿轮为当前项目配置',
+                      '未配置 API Key',
                       style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
+                        color: Colors.orange,
+                        fontSize: compact ? 13 : null,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    TextButton.icon(
-                      icon: const Icon(Icons.settings, size: 16),
-                      label: const Text('去设置页面配置'),
-                      onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('请点击左侧导航栏的"设置"菜单，配置全局 API Key'),
-                            duration: Duration(seconds: 3),
-                          ),
-                        );
-                      },
-                    ),
+                    if (!compact) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '请在设置页面配置全局 API Key，或点击右侧齿轮为当前项目配置',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      TextButton.icon(
+                        icon: const Icon(Icons.settings, size: 16),
+                        label: const Text('去设置页面配置'),
+                        onPressed: () {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            const SnackBar(
+                              content: Text('请点击左侧导航栏的"设置"菜单，配置全局 API Key'),
+                              duration: Duration(seconds: 3),
+                            ),
+                          );
+                        },
+                      ),
+                    ],
                   ],
                 ),
               if (isUploading) ...[
@@ -681,11 +787,13 @@ class _FirTile extends ConsumerWidget {
     required this.artifact,
     required this.project,
     required this.state,
+    this.compact = false,
   });
 
   final DistributionArtifact? artifact;
   final FlutterProject? project;
   final FvmState state;
+  final bool compact;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -707,32 +815,39 @@ class _FirTile extends ConsumerWidget {
     final downloadUrl = state.firUploadResult ?? storedDownloadUrl;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
+      padding: EdgeInsets.only(bottom: compact ? 8 : 12),
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: const Color(0xfff7f9fb),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(compact ? 8 : 10),
           border: Border.all(color: const Color(0xffe4e8ec)),
         ),
         child: Padding(
-          padding: const EdgeInsets.all(12),
+          padding: EdgeInsets.all(compact ? 8 : 12),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  const Icon(Icons.rocket_launch_outlined, size: 21),
-                  const SizedBox(width: 8),
-                  const Expanded(
+                  Icon(Icons.rocket_launch_outlined, size: compact ? 18 : 21),
+                  SizedBox(width: compact ? 6 : 8),
+                  Expanded(
                     child: Text(
                       'fir.im',
-                      style: TextStyle(fontWeight: FontWeight.w700),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w700,
+                        fontSize: compact ? 14 : null,
+                      ),
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.settings, size: 18),
+                    icon: Icon(Icons.settings, size: compact ? 16 : 18),
                     tooltip: '配置 fir.im',
                     onPressed: () => _showFirConfigDialog(context, ref),
+                    padding: EdgeInsets.zero,
+                    constraints: compact
+                        ? const BoxConstraints(minWidth: 32, minHeight: 32)
+                        : null,
                   ),
                   if (downloadUrl != null)
                     TextButton.icon(
@@ -742,28 +857,36 @@ class _FirTile extends ConsumerWidget {
                     ),
                 ],
               ),
-              const SizedBox(height: 5),
+              SizedBox(height: compact ? 3 : 5),
               if (hasApiToken)
                 Text(
                   'API Token: ${hasProjectToken ? firConfig.apiToken.substring(0, 8) : env.globalFirApiToken.substring(0, 8)}... ($tokenSource)',
-                  style: const TextStyle(color: Colors.black54),
+                  style: TextStyle(
+                    color: Colors.black54,
+                    fontSize: compact ? 12 : null,
+                  ),
                 )
               else
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
-                      '未配置 API Token',
-                      style: TextStyle(color: Colors.orange),
-                    ),
-                    const SizedBox(height: 4),
                     Text(
-                      '请在设置页面配置全局 API Token，或点击右侧齿轮为当前项目配置',
+                      '未配置 API Token',
                       style: TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey.shade600,
+                        color: Colors.orange,
+                        fontSize: compact ? 13 : null,
                       ),
                     ),
+                    if (!compact) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        '请在设置页面配置全局 API Token，或点击右侧齿轮为当前项目配置',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey.shade600,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               if (isUploading) ...[

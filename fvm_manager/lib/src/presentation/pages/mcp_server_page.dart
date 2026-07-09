@@ -44,7 +44,7 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
         '${Platform.pathSeparator}dist${Platform.pathSeparator}index.js';
     const relativeSkillPath = 'codex_skills/flutter-manager-mcp';
     final codexConfig = _codexConfig(mcpServerPath);
-    final jsonConfig = _jsonConfig(mcpServerPath);
+    final crushConfigValue = _crushConfig(mcpServerPath);
     final installCommands = _installCommands(relativeSkillPath);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
@@ -136,79 +136,6 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    '第一版工具',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: const [
-                      Chip(label: Text('list_projects')),
-                      Chip(label: Text('get_current_project')),
-                      Chip(label: Text('select_project')),
-                      Chip(label: Text('list_devices')),
-                      Chip(label: Text('run')),
-                      Chip(label: Text('rerun')),
-                      Chip(label: Text('stop')),
-                      Chip(label: Text('read_console')),
-                      Chip(label: Text('pub_get')),
-                      Chip(label: Text('clean')),
-                      Chip(label: Text('build')),
-                      Chip(label: Text('devtools')),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '启动说明',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text('先启动 App 内控制接口，再把 MCP Server 配到 AI 工具里。'),
-                  const SizedBox(height: 12),
-                  _CodeBlock(
-                    title: '准备 MCP Server',
-                    text: [
-                      'cd mcp_server',
-                      'npm install',
-                      'npm run build',
-                    ].join('\n'),
-                    onCopy: _copy,
-                  ),
-                  const SizedBox(height: 12),
-                  _CodeBlock(
-                    title: 'Codex config.toml',
-                    text: codexConfig,
-                    onCopy: _copy,
-                  ),
-                  const SizedBox(height: 12),
-                  _CodeBlock(
-                    title: 'Claude / Cursor MCP JSON',
-                    text: jsonConfig,
-                    onCopy: _copy,
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
                     'AI 工具安装',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                   ),
@@ -250,6 +177,89 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
               ),
             ),
           ),
+          const SizedBox(height: 20),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'opencode / codex 配置',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text('将 MCP 服务配置到 AI 工具中，即可使用 Flutter Manager 的工具。'),
+                  const SizedBox(height: 16),
+                  _CodeBlock(
+                    title: 'opencode (Crush) 配置文件路径',
+                    text: Platform.isMacOS
+                        ? '~/.config/crush/crush.json'
+                        : r'%APPDATA%\crush\crush.json',
+                    onCopy: _copy,
+                  ),
+                  const SizedBox(height: 12),
+                  _CodeBlock(
+                    title: 'opencode (Crush) 配置内容',
+                    text: crushConfigValue,
+                    onCopy: _copy,
+                  ),
+                  const SizedBox(height: 16),
+                  _CodeBlock(
+                    title: 'codex 配置文件路径',
+                    text: Platform.isMacOS
+                        ? '~/.codex/config.toml'
+                        : r'%USERPROFILE%\.codex\config.toml',
+                    onCopy: _copy,
+                  ),
+                  const SizedBox(height: 12),
+                  _CodeBlock(
+                    title: 'codex 配置内容',
+                    text: codexConfig,
+                    onCopy: _copy,
+                  ),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.blue.shade200),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(Icons.tips_and_updates_outlined, size: 16, color: Colors.blue.shade700),
+                            const SizedBox(width: 8),
+                            Text(
+                              '提示',
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.blue.shade700,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          '• 配置完成后需要重启 opencode (Crush) 或 codex\n'
+                          '• 确保上方的 MCP 控制接口已启用\n'
+                          '• Token 用于验证请求，请勿泄露',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.blue.shade700,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
       ),
     );
@@ -268,11 +278,13 @@ FLUTTER_MANAGER_TOKEN = "${widget.state.mcpServerToken}"
 '''
           .trim();
 
-  String _jsonConfig(String mcpServerPath) =>
+  String _crushConfig(String mcpServerPath) =>
       '''
 {
-  "mcpServers": {
+  "\$schema": "https://charm.land/crush.json",
+  "mcp": {
     "flutter_manager": {
+      "type": "stdio",
       "command": "node",
       "args": ["$mcpServerPath"],
       "env": {

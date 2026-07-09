@@ -3,19 +3,23 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "bin": "dist/flutter-manager-mcp.js",
   "scripts": {
     "build": "tsc",
-    "start": "node dist/index.js",
+    "bundle": "esbuild src/index.ts --bundle --platform=node --target=node18 --outfile=dist/flutter-manager-mcp.js --format=esm",
+    "start": "node dist/flutter-manager-mcp.js",
     "dev": "tsx src/index.ts"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.18.2"
   },
   "devDependencies": {
+    "esbuild": "^0.25.0",
     "tsx": "^4.20.6",
     "typescript": "^5.9.3"
   },
   "engines": {
     "node": ">=18"
   }
+}
 }
