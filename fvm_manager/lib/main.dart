@@ -21,6 +21,9 @@ Future<void> main(List<String> args) async {
       final showQuickCommands = params['showQuickCommands'] as bool? ?? true;
       final consoleMode = params['consoleMode'] as String? ?? 'run';
       final buildTarget = params['buildTarget'] as String? ?? 'apk';
+      final actionChannelName =
+          params['actionChannelName'] as String? ??
+          'fvm_manager/console_commands';
       final tasks = (params['tasks'] as List<dynamic>? ?? const [])
           .whereType<Map<dynamic, dynamic>>()
           .map(
@@ -40,6 +43,7 @@ Future<void> main(List<String> args) async {
             initialShowQuickCommands: showQuickCommands,
             initialConsoleMode: consoleMode,
             initialBuildTarget: buildTarget,
+            initialActionChannelName: actionChannelName,
           ),
         ),
       );

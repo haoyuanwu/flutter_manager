@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/services.dart';
@@ -15,15 +16,19 @@ class ConsoleWindowService {
   );
 
   final Map<String, WindowController> _windows = {};
+  final Map<String, String> _actionChannelNames = {};
+  final Map<String, WindowMethodChannel> _actionChannels = {};
   final Map<String, Map<String, dynamic>> _latestPayloads = {};
   final Map<String, Map<String, dynamic>> _pendingSync = {};
   final Set<String> _syncingProjects = {};
   final Map<String, Completer<void>> _readySignals = {};
+  Future<dynamic> Function(MethodCall call)? _mainHandler;
   bool _mainHandlerRegistered = false;
 
   Future<void> registerMainHandler(
     Future<dynamic> Function(MethodCall call) handler,
   ) async {
+    _mainHandler = handler;
     if (_mainHandlerRegistered) return;
     await _commandChannel.setMethodCallHandler(handler);
     _mainHandlerRegistered = true;
@@ -38,6 +43,7 @@ class ConsoleWindowService {
     required String consoleMode,
     required String buildTarget,
   }) async {
+    final actionChannelName = await _actionChannelNameFor(projectPath);
     final payload = _payload(
       projectPath: projectPath,
       projectTitle: projectTitle,
@@ -46,6 +52,7 @@ class ConsoleWindowService {
       showQuickCommands: showQuickCommands,
       consoleMode: consoleMode,
       buildTarget: buildTarget,
+      actionChannelName: actionChannelName,
     );
     _latestPayloads[projectPath] = payload;
     final existing = _windows[projectPath];
@@ -92,6 +99,7 @@ class ConsoleWindowService {
     required String consoleMode,
     required String buildTarget,
   }) async {
+    final actionChannelName = await _actionChannelNameFor(projectPath);
     final payload = _payload(
       projectPath: projectPath,
       projectTitle: projectTitle,
@@ -100,6 +108,7 @@ class ConsoleWindowService {
       showQuickCommands: showQuickCommands,
       consoleMode: consoleMode,
       buildTarget: buildTarget,
+      actionChannelName: actionChannelName,
     );
     _latestPayloads[projectPath] = payload;
     _pendingSync[projectPath] = payload;
@@ -143,14 +152,29 @@ class ConsoleWindowService {
   Future<void> requestStop(String taskId) =>
       _commandChannel.invokeMethod<void>('stopCommand', {'taskId': taskId});
 
+  Future<void> requestStopOn(String channelName, String taskId) =>
+      _actionChannel(
+        channelName,
+      ).invokeMethod<void>('stopCommand', {'taskId': taskId});
+
   Future<void> requestClear(String projectPath) => _commandChannel
       .invokeMethod<void>('clearCommandLog', {'projectPath': projectPath});
+
+  Future<void> requestClearOn(String channelName, String projectPath) =>
+      _actionChannel(
+        channelName,
+      ).invokeMethod<void>('clearCommandLog', {'projectPath': projectPath});
 
   Future<void> close(String projectPath) async {
     final window = _windows.remove(projectPath);
     _latestPayloads.remove(projectPath);
     _pendingSync.remove(projectPath);
     _readySignals.remove(projectPath);
+    final actionChannelName = _actionChannelNames.remove(projectPath);
+    if (actionChannelName != null) {
+      final actionChannel = _actionChannels.remove(actionChannelName);
+      unawaited(actionChannel?.setMethodCallHandler(null));
+    }
     if (window == null) return;
     try {
       await window.hide();
@@ -165,13 +189,55 @@ class ConsoleWindowService {
         'action': action,
       });
 
+  Future<void> requestActionOn(
+    String channelName,
+    String projectPath,
+    String action,
+  ) => _actionChannel(channelName).invokeMethod<void>('runProjectAction', {
+    'projectPath': projectPath,
+    'action': action,
+  });
+
   Future<void> notifyReady(String projectPath) => _commandChannel
       .invokeMethod<void>('consoleReady', {'projectPath': projectPath});
+
+  Future<void> notifyReadyOn(String channelName, String projectPath) =>
+      _actionChannel(
+        channelName,
+      ).invokeMethod<void>('consoleReady', {'projectPath': projectPath});
 
   void markReady(String projectPath) {
     final signal = _readySignals[projectPath];
     if (signal != null && !signal.isCompleted) signal.complete();
   }
+
+  Future<String> _ensureActionChannel(String projectPath) async {
+    final existing = _actionChannelNames[projectPath];
+    if (existing != null) return existing;
+    final handler = _mainHandler;
+    final channelName =
+        'fvm_manager/console_commands/${DateTime.now().microsecondsSinceEpoch}';
+    _actionChannelNames[projectPath] = channelName;
+    if (handler != null) {
+      final channel = _actionChannel(channelName);
+      await channel.setMethodCallHandler(handler);
+    }
+    return channelName;
+  }
+
+  Future<String> _actionChannelNameFor(String projectPath) {
+    if (!Platform.isWindows) {
+      return Future.value('fvm_manager/console_commands');
+    }
+    return _ensureActionChannel(projectPath);
+  }
+
+  WindowMethodChannel _actionChannel(String channelName) =>
+      _actionChannels.putIfAbsent(
+        channelName,
+        () =>
+            WindowMethodChannel(channelName, mode: ChannelMode.unidirectional),
+      );
 
   Map<String, dynamic> _payload({
     required String projectPath,
@@ -181,6 +247,7 @@ class ConsoleWindowService {
     required bool showQuickCommands,
     required String consoleMode,
     required String buildTarget,
+    required String actionChannelName,
   }) => {
     'windowType': 'console',
     'projectPath': projectPath,
@@ -190,5 +257,6 @@ class ConsoleWindowService {
     'showQuickCommands': showQuickCommands,
     'consoleMode': consoleMode,
     'buildTarget': buildTarget,
+    'actionChannelName': actionChannelName,
   };
 }

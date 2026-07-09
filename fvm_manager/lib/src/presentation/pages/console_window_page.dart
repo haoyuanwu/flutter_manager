@@ -18,6 +18,7 @@ class ConsoleWindowApp extends StatelessWidget {
     required this.initialShowQuickCommands,
     required this.initialConsoleMode,
     required this.initialBuildTarget,
+    required this.initialActionChannelName,
   });
 
   final String windowId;
@@ -28,6 +29,7 @@ class ConsoleWindowApp extends StatelessWidget {
   final bool initialShowQuickCommands;
   final String initialConsoleMode;
   final String initialBuildTarget;
+  final String initialActionChannelName;
 
   @override
   Widget build(BuildContext context) => MaterialApp(
@@ -45,6 +47,7 @@ class ConsoleWindowApp extends StatelessWidget {
       initialShowQuickCommands: initialShowQuickCommands,
       initialConsoleMode: initialConsoleMode,
       initialBuildTarget: initialBuildTarget,
+      initialActionChannelName: initialActionChannelName,
     ),
   );
 }
@@ -59,6 +62,7 @@ class ConsoleWindowPage extends StatefulWidget {
     required this.initialShowQuickCommands,
     required this.initialConsoleMode,
     required this.initialBuildTarget,
+    required this.initialActionChannelName,
   });
 
   final String projectTitle;
@@ -68,6 +72,7 @@ class ConsoleWindowPage extends StatefulWidget {
   final bool initialShowQuickCommands;
   final String initialConsoleMode;
   final String initialBuildTarget;
+  final String initialActionChannelName;
 
   @override
   State<ConsoleWindowPage> createState() => _ConsoleWindowPageState();
@@ -83,6 +88,7 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
   late bool _showQuickCommands;
   late String _consoleMode;
   late String _buildTarget;
+  late String _actionChannelName;
   bool _showSearch = false;
   bool _stickToBottom = true;
   String _searchQuery = '';
@@ -96,6 +102,7 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
     _showQuickCommands = widget.initialShowQuickCommands;
     _consoleMode = widget.initialConsoleMode;
     _buildTarget = widget.initialBuildTarget;
+    _actionChannelName = widget.initialActionChannelName;
     _scrollController.addListener(_handleScroll);
     HardwareKeyboard.instance.addHandler(_handleKeyEvent);
     _registerChannel();
@@ -123,6 +130,8 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
             data['showQuickCommands'] as bool? ?? _showQuickCommands;
         _consoleMode = data['consoleMode'] as String? ?? _consoleMode;
         _buildTarget = data['buildTarget'] as String? ?? _buildTarget;
+        _actionChannelName =
+            data['actionChannelName'] as String? ?? _actionChannelName;
       });
       if (_stickToBottom) _scrollToBottom();
     });
@@ -133,7 +142,14 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
 
   Future<void> _notifyReady() async {
     try {
-      await ConsoleWindowService.instance.notifyReady(widget.projectPath);
+      await _request(
+        onGlobal: () =>
+            ConsoleWindowService.instance.notifyReady(widget.projectPath),
+        onChannel: () => ConsoleWindowService.instance.notifyReadyOn(
+          _actionChannelName,
+          widget.projectPath,
+        ),
+      );
     } on Object {
       // The main window has a timeout fallback if the handshake is delayed.
     }
@@ -312,9 +328,16 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
 
   Future<void> _runAction(String action) async {
     try {
-      await ConsoleWindowService.instance.requestAction(
-        widget.projectPath,
-        action,
+      await _request(
+        onGlobal: () => ConsoleWindowService.instance.requestAction(
+          widget.projectPath,
+          action,
+        ),
+        onChannel: () => ConsoleWindowService.instance.requestActionOn(
+          _actionChannelName,
+          widget.projectPath,
+          action,
+        ),
       );
     } on Object catch (error) {
       _showError('执行命令失败：$error');
@@ -364,7 +387,13 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
     );
     if (!confirmed) return;
     try {
-      await ConsoleWindowService.instance.requestStop(task['id']!);
+      await _request(
+        onGlobal: () => ConsoleWindowService.instance.requestStop(task['id']!),
+        onChannel: () => ConsoleWindowService.instance.requestStopOn(
+          _actionChannelName,
+          task['id']!,
+        ),
+      );
     } on Object catch (error) {
       _showError('结束命令失败：$error');
     }
@@ -445,8 +474,24 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
       confirmLabel: '清空输出',
     );
     if (confirmed) {
-      await ConsoleWindowService.instance.requestClear(widget.projectPath);
+      await _request(
+        onGlobal: () =>
+            ConsoleWindowService.instance.requestClear(widget.projectPath),
+        onChannel: () => ConsoleWindowService.instance.requestClearOn(
+          _actionChannelName,
+          widget.projectPath,
+        ),
+      );
     }
+  }
+
+  Future<void> _request({
+    required Future<void> Function() onGlobal,
+    required Future<void> Function() onChannel,
+  }) {
+    return _actionChannelName == 'fvm_manager/console_commands'
+        ? onGlobal()
+        : onChannel();
   }
 
   List<TextSpan> _spans() {
