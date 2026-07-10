@@ -3,12 +3,15 @@ import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_manager/src/data/build_directory_watcher.dart';
+import 'package:flutter_manager/src/data/environment_diagnostics_service.dart';
+import 'package:flutter_manager/src/domain/build_history_models.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
+import '../data/apk_signing_service.dart';
 import '../domain/models.dart';
 import '../domain/project_models.dart';
-import '../data/environment_diagnostics_service.dart';
 import '../data/log_service.dart';
 import '../data/distribution_service.dart';
 import '../data/local_project_service.dart';
@@ -22,6 +25,7 @@ part 'pages/distribution_page.dart';
 part 'pages/overview_page.dart';
 part 'pages/project_configuration_page.dart';
 part 'pages/project_management_page.dart';
+part 'pages/apk_signing_page.dart';
 part 'pages/log_page.dart';
 part 'pages/mcp_server_page.dart';
 part 'pages/settings_page.dart';
@@ -192,9 +196,10 @@ class _HomePageState extends ConsumerState<HomePage> {
                                   onAddProject: _openProjectManagerAndAdd,
                                 ),
                                 5 => _DistributionPage(state: state),
-                                6 => const _LogPage(),
-                                7 => _EnvironmentGuide(state: state),
-                                8 => _McpServerPage(state: state),
+                                6 => _ApkSigningPage(state: state),
+                                7 => const _LogPage(),
+                                8 => _EnvironmentGuide(state: state),
+                                9 => _McpServerPage(state: state),
                                 _ => _SettingsPage(state: state),
                               },
                             ),

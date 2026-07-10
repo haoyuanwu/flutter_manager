@@ -18,14 +18,18 @@ import '../data/distribution_service.dart';
 import '../data/pgyer_service.dart';
 import '../data/fir_service.dart';
 import '../data/custom_command_parser.dart';
+import '../data/build_history_repository.dart';
 import '../data/local_project_service.dart';
 import '../data/project_repository.dart';
 import '../data/pub_environment_service.dart';
 import '../domain/models.dart';
+import '../domain/build_history_models.dart';
 import '../domain/project_models.dart';
 import 'console_window_service.dart';
 import 'mcp_control_server.dart';
 import 'status_menu_service.dart';
+import '../data/apk_signing_service.dart';
+import '../data/build_directory_watcher.dart';
 
 final dioProvider = Provider<Dio>(
   (ref) => Dio(
@@ -56,6 +60,16 @@ final distributionServiceProvider = Provider<DistributionService>(
   (ref) => DistributionService(),
 );
 
+final buildDirectoryWatcherProvider = Provider<BuildDirectoryWatcher>((ref) {
+  final watcher = BuildDirectoryWatcher();
+  ref.onDispose(() => watcher.dispose());
+  return watcher;
+});
+
+final apkSigningServiceProvider = Provider<ApkSigningService>(
+  (ref) => ApkSigningService(),
+);
+
 final environmentDiagnosticsServiceProvider =
     Provider<EnvironmentDiagnosticsService>(
       (ref) => EnvironmentDiagnosticsService(
@@ -73,6 +87,10 @@ final firServiceProvider = Provider<FirService>(
 
 final projectRepositoryProvider = Provider<ProjectRepository>(
   (ref) => ProjectRepository(),
+);
+
+final buildHistoryRepositoryProvider = Provider<BuildHistoryRepository>(
+  (ref) => BuildHistoryRepository(),
 );
 
 final flutterCommandServiceProvider = Provider<FlutterCommandService>(
@@ -180,6 +198,13 @@ class FvmController extends Notifier<FvmState> {
     try {
       final environment = ref.read(pubEnvironmentServiceProvider);
       await environment.load();
+      try {
+        await ref
+            .read(buildHistoryRepositoryProvider)
+            .recoverInterruptedSessions();
+      } on Object {
+        // 构建历史恢复失败不应阻断 App 初始化，原文件保留供后续恢复。
+      }
       final projects = await ref.read(projectRepositoryProvider).load();
       state = state.copyWith(
         useDomesticMirror: environment.useDomesticMirror,
@@ -1098,8 +1123,37 @@ class FvmController extends Notifier<FvmState> {
     }
     final taskId = _taskId(taskKind, path);
     if (_activeCommandTasks.containsKey(taskId)) return;
+    final buildSession = taskKind == 'build'
+        ? BuildSession(
+            id: 'build-${DateTime.now().microsecondsSinceEpoch}',
+            projectPath: path,
+            taskId: taskId,
+            label: label,
+            commands: commands
+                .map((arguments) => 'fvm flutter ${arguments.join(' ')}')
+                .toList(growable: false),
+            target: state.projectBuildTarget.name,
+            mode: state.projectBuildMode.name,
+            flavors: [...state.selectedAndroidFlavors],
+            startedAt: DateTime.now(),
+            flutterVersion:
+                _selectedManagedProject?.fvmVersion ?? state.globalVersion,
+            status: BuildSessionStatus.running,
+          )
+        : null;
+    if (buildSession != null) {
+      try {
+        await ref
+            .read(buildHistoryRepositoryProvider)
+            .startSession(buildSession);
+      } catch (error) {
+        _appendCommandLog(path, '\n[构建历史记录启动失败：${_message(error)}]\n');
+      }
+    }
     _startCommandTask(taskId, path, label);
     var stoppedByUser = false;
+    var failed = false;
+    int? lastExitCode;
     try {
       for (var index = 0; index < commands.length; index++) {
         _updateCommandTaskLabel(
@@ -1116,6 +1170,7 @@ class FvmController extends Notifier<FvmState> {
               arguments: commands[index],
               onOutput: (output) => _appendCommandLog(path, output),
             );
+        lastExitCode = code;
         if (_stoppingCommandTasks.contains(taskId)) {
           stoppedByUser = true;
           state = state.copyWith(statusMessage: '$label 已停止');
@@ -1133,9 +1188,84 @@ class FvmController extends Notifier<FvmState> {
         state = state.copyWith(statusMessage: '$label 完成');
       }
     } catch (error) {
+      failed = true;
       state = state.copyWith(errorMessage: _message(error));
     } finally {
+      if (buildSession != null) {
+        await _completeBuildSession(
+          buildSession,
+          stoppedByUser: stoppedByUser,
+          failed: failed,
+          exitCode: lastExitCode,
+        );
+      }
       _finishCommandTask(taskId);
+    }
+  }
+
+  Future<void> _completeBuildSession(
+    BuildSession session, {
+    required bool stoppedByUser,
+    required bool failed,
+    required int? exitCode,
+  }) async {
+    try {
+      final status = stoppedByUser
+          ? BuildSessionStatus.stopped
+          : failed
+          ? BuildSessionStatus.failed
+          : BuildSessionStatus.success;
+      final artifacts = status == BuildSessionStatus.success
+          ? await ref
+                .read(distributionServiceProvider)
+                .scanArtifacts(session.projectPath)
+          : const <DistributionArtifact>[];
+      final earliestModified = session.startedAt.subtract(
+        const Duration(seconds: 2),
+      );
+      final records = artifacts
+          .where((artifact) => !artifact.modified.isBefore(earliestModified))
+          .toList()
+          .asMap()
+          .entries
+          .map(
+            (entry) => BuildArtifactRecord(
+              id: '${session.id}-artifact-${entry.key}',
+              buildSessionId: session.id,
+              projectPath: session.projectPath,
+              path: entry.value.path,
+              name: entry.value.name,
+              type: entry.value.type.name,
+              platform: entry.value.platformLabel,
+              size: entry.value.size,
+              modified: entry.value.modified,
+              source: 'build',
+              fingerprint:
+                  '${entry.value.path}|${entry.value.size}|'
+                  '${entry.value.modified.millisecondsSinceEpoch}',
+            ),
+          )
+          .toList(growable: false);
+      await ref
+          .read(buildHistoryRepositoryProvider)
+          .completeSession(
+            sessionId: session.id,
+            status: status,
+            finishedAt: DateTime.now(),
+            exitCode: exitCode,
+            artifacts: records,
+          );
+      if (status == BuildSessionStatus.success) {
+        _appendCommandLog(
+          session.projectPath,
+          '\n[已记录构建历史，关联 ${records.length} 个新产物]\n',
+        );
+      }
+    } catch (error) {
+      _appendCommandLog(
+        session.projectPath,
+        '\n[保存构建历史失败：${_message(error)}]\n',
+      );
     }
   }
 
@@ -2744,5 +2874,86 @@ class FvmController extends Notifier<FvmState> {
 
   Future<void> setInnoCompilerPath(String path) async {
     await ref.read(pubEnvironmentServiceProvider).setInnoCompilerPath(path);
+  }
+
+  // ---- APK 签名相关方法 ----
+
+  void addUnsignedApks(List<ApkInfo> apks) {
+    final existing = state.unsignedApks.map((a) => a.path).toSet();
+    final newApks = apks.where((a) => !existing.contains(a.path)).toList();
+    state = state.copyWith(
+      unsignedApks: [...state.unsignedApks, ...newApks],
+    );
+  }
+
+  void updateApkOutputName(String path, String outputName) {
+    state = state.copyWith(
+      unsignedApks: state.unsignedApks.map((a) {
+        if (a.path == path) return a.copyWith(outputName: outputName);
+        return a;
+      }).toList(),
+    );
+  }
+
+  void removeUnsignedApk(String path) {
+    state = state.copyWith(
+      unsignedApks: state.unsignedApks.where((a) => a.path != path).toList(),
+    );
+  }
+
+  void clearUnsignedApks() {
+    state = state.copyWith(unsignedApks: []);
+  }
+
+  void clearSignedApks() {
+    state = state.copyWith(signedApks: []);
+  }
+
+  Future<void> signSelectedApks({
+    required String jksPath,
+    required String password,
+    required String keyAlias,
+    required List<String> selectedPaths,
+  }) async {
+    if (selectedPaths.isEmpty) return;
+
+    final service = ref.read(apkSigningServiceProvider);
+    final outputDir = '${Platform.environment['HOME']}/Desktop/signed_apks';
+
+    final apksToSign = state.unsignedApks
+        .where((a) => selectedPaths.contains(a.path))
+        .toList();
+
+    state = state.copyWith(
+      apkSigningInProgress: true,
+      apkSigningStatus: '正在签名...',
+      signedApks: [...state.signedApks],
+    );
+
+    final results = <SignedApkInfo>[];
+    final total = apksToSign.length;
+
+    for (var i = 0; i < total; i++) {
+      final apk = apksToSign[i];
+      state = state.copyWith(
+        apkSigningStatus: '签名中 (${i + 1}/$total): ${apk.name}',
+      );
+
+      final result = await service.signApk(
+        apkPath: apk.path,
+        jksPath: jksPath,
+        password: password,
+        keyAlias: keyAlias,
+        outputDir: outputDir,
+        customOutputName: apk.outputName.isNotEmpty ? apk.outputName : null,
+      );
+      results.add(result);
+    }
+
+    state = state.copyWith(
+      apkSigningInProgress: false,
+      apkSigningStatus: '签名完成: ${results.where((r) => r.success).length}/$total 成功',
+      signedApks: [...state.signedApks, ...results],
+    );
   }
 }

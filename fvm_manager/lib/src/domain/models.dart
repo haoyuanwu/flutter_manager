@@ -1,5 +1,6 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import '../data/apk_signing_service.dart';
 import 'project_models.dart';
 
 part 'models.freezed.dart';
@@ -118,5 +119,10 @@ abstract class FvmState with _$FvmState {
     @Default(0) double firUploadProgress,
     @Default('') String firUploadPhase,
     String? firUploadResult,
+    // APK 签名相关状态
+    @Default(<ApkInfo>[]) List<ApkInfo> unsignedApks,
+    @Default(<SignedApkInfo>[]) List<SignedApkInfo> signedApks,
+    @Default(false) bool apkSigningInProgress,
+    @Default('') String apkSigningStatus,
   }) = _FvmState;
 }

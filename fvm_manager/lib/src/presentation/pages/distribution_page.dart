@@ -19,7 +19,10 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
   DistributionArtifactType? _typeFilter;
   final TextEditingController _searchController = TextEditingController();
   _ArtifactSort _sort = _ArtifactSort.newest;
+  BuildHistorySnapshot _history = const BuildHistorySnapshot();
+  bool _historyLoading = false;
   bool _loading = false;
+  late final BuildDirectoryWatcher _watcher;
 
   DistributionArtifact? get _selectedArtifact => _artifacts
       .where((artifact) => artifact.path == _selectedArtifactPath)
@@ -52,7 +55,12 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) => _scan());
+    _watcher = ref.read(buildDirectoryWatcherProvider);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scan();
+      _loadHistory();
+      _startWatching();
+    });
   }
 
   @override
@@ -60,12 +68,17 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.state.selectedManagedProjectPath !=
         widget.state.selectedManagedProjectPath) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _scan());
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scan();
+        _loadHistory();
+        _startWatching();
+      });
     }
   }
 
   @override
   void dispose() {
+    _watcher.stop();
     _searchController.dispose();
     super.dispose();
   }
@@ -116,6 +129,59 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
       if (mounted && _scannedProjectPath == projectPath) {
         setState(() => _loading = false);
       }
+    }
+  }
+
+  Future<void> _loadHistory() async {
+    if (!mounted) return;
+    setState(() => _historyLoading = true);
+    try {
+      final history = await ref.read(buildHistoryRepositoryProvider).load();
+      if (mounted) setState(() => _history = history);
+    } catch (error) {
+      ref.read(fvmControllerProvider.notifier).showError(error);
+    } finally {
+      if (mounted) setState(() => _historyLoading = false);
+    }
+  }
+
+  Future<void> _refresh() async {
+    await Future.wait([_scan(), _loadHistory()]);
+  }
+
+  void _startWatching() {
+    final projectPath = widget.state.selectedManagedProjectPath;
+    if (projectPath == null) {
+      _watcher.stop();
+      return;
+    }
+    _watcher.watch(projectPath, _silentScan);
+  }
+
+  /// Silent re-scan triggered by the build directory watcher. Does not flash
+  /// the full-screen loading indicator — only updates the artifact list.
+  Future<void> _silentScan() async {
+    if (!mounted) return;
+    final projectPath = widget.state.selectedManagedProjectPath;
+    if (projectPath == null) return;
+    try {
+      final artifacts = await ref
+          .read(distributionServiceProvider)
+          .scanArtifacts(projectPath);
+      if (!mounted || widget.state.selectedManagedProjectPath != projectPath) {
+        return;
+      }
+      setState(() {
+        _artifacts = artifacts;
+        _selectedArtifactPath =
+            artifacts
+                .where((item) => item.path == _selectedArtifactPath)
+                .firstOrNull
+                ?.path ??
+            artifacts.firstOrNull?.path;
+      });
+    } catch (_) {
+      // Silent refresh — ignore transient errors.
     }
   }
 
@@ -223,7 +289,7 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
               const SizedBox(width: 8),
               IconButton.filledTonal(
                 tooltip: '重新扫描构建产物',
-                onPressed: _loading ? null : _scan,
+                onPressed: _loading || _historyLoading ? null : _refresh,
                 icon: const Icon(Icons.refresh),
               ),
             ],
@@ -287,6 +353,19 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
                 final inspector = _ArtifactInspector(
                   details: details,
                   distribution: platforms,
+                  history: _BuildHistoryView(
+                    snapshot: _history,
+                    projectPath: state.selectedManagedProjectPath,
+                    loading: _historyLoading,
+                    onReveal: (path) => unawaited(_revealArtifact(path)),
+                  ),
+                  historyCount: state.selectedManagedProjectPath == null
+                      ? 0
+                      : _history
+                            .sessionsForProject(
+                              state.selectedManagedProjectPath!,
+                            )
+                            .length,
                 );
                 if (isNarrow) {
                   return SingleChildScrollView(
@@ -703,34 +782,268 @@ class _ArtifactTypeBadge extends StatelessWidget {
 }
 
 class _ArtifactInspector extends StatelessWidget {
-  const _ArtifactInspector({required this.details, required this.distribution});
+  const _ArtifactInspector({
+    required this.details,
+    required this.distribution,
+    required this.history,
+    required this.historyCount,
+  });
 
   final Widget details;
   final Widget distribution;
+  final Widget history;
+  final int historyCount;
 
   @override
   Widget build(BuildContext context) => DefaultTabController(
-    length: 2,
+    length: 3,
     child: Card(
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
       child: Column(
         children: [
-          const TabBar(
+          TabBar(
             tabs: [
-              Tab(icon: Icon(Icons.info_outline, size: 18), text: '产物详情'),
-              Tab(
+              const Tab(icon: Icon(Icons.info_outline, size: 18), text: '产物详情'),
+              const Tab(
                 icon: Icon(Icons.cloud_upload_outlined, size: 18),
                 text: '分发上传',
+              ),
+              Tab(
+                icon: const Icon(Icons.history, size: 18),
+                text: historyCount == 0 ? '构建历史' : '历史 $historyCount',
               ),
             ],
           ),
           const Divider(height: 1),
-          Expanded(child: TabBarView(children: [details, distribution])),
+          Expanded(
+            child: TabBarView(children: [details, distribution, history]),
+          ),
         ],
       ),
     ),
   );
+}
+
+class _BuildHistoryView extends StatelessWidget {
+  const _BuildHistoryView({
+    required this.snapshot,
+    required this.projectPath,
+    required this.loading,
+    required this.onReveal,
+  });
+
+  final BuildHistorySnapshot snapshot;
+  final String? projectPath;
+  final bool loading;
+  final ValueChanged<String> onReveal;
+
+  @override
+  Widget build(BuildContext context) {
+    if (loading) return const Center(child: CircularProgressIndicator());
+    final path = projectPath;
+    if (path == null) {
+      return const Center(
+        child: Text('请先选择项目', style: TextStyle(color: Colors.black54)),
+      );
+    }
+    final sessions = snapshot.sessionsForProject(path);
+    if (sessions.isEmpty) {
+      return const Center(
+        child: Padding(
+          padding: EdgeInsets.all(24),
+          child: Text(
+            '尚无构建历史\n从项目详情执行一次标准 Build 后会自动记录。',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.black54, height: 1.5),
+          ),
+        ),
+      );
+    }
+    return ListView.separated(
+      padding: const EdgeInsets.all(10),
+      itemCount: sessions.length,
+      separatorBuilder: (_, _) => const SizedBox(height: 8),
+      itemBuilder: (context, index) {
+        final session = sessions[index];
+        final artifacts = snapshot.artifactsForSession(session.id);
+        final color = _buildStatusColor(session.status);
+        return Card(
+          margin: EdgeInsets.zero,
+          color: index == 0 ? const Color(0xfffbfdff) : null,
+          child: ExpansionTile(
+            initiallyExpanded: index == 0,
+            leading: Icon(_buildStatusIcon(session.status), color: color),
+            title: Text(
+              session.label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            subtitle: Text(
+              '${_formatArtifactTime(session.startedAt)} · '
+              '${_buildStatusLabel(session.status)}',
+              style: TextStyle(fontSize: 11, color: color),
+            ),
+            childrenPadding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+            children: [
+              const Divider(height: 1),
+              const SizedBox(height: 12),
+              _HistoryInfoLine(label: '目标', value: session.target),
+              _HistoryInfoLine(label: '模式', value: session.mode),
+              if (session.flavors.isNotEmpty)
+                _HistoryInfoLine(
+                  label: 'Flavor',
+                  value: session.flavors.join('、'),
+                ),
+              if (session.flutterVersion case final version?)
+                _HistoryInfoLine(label: 'Flutter', value: version),
+              _HistoryInfoLine(label: '耗时', value: _buildDuration(session)),
+              if (session.exitCode case final code?)
+                _HistoryInfoLine(label: '退出码', value: '$code'),
+              const SizedBox(height: 8),
+              const Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '命令',
+                  style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                ),
+              ),
+              const SizedBox(height: 5),
+              for (final command in session.commands)
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: SelectableText(
+                    command,
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: Colors.black54,
+                      fontFamily: 'monospace',
+                    ),
+                  ),
+                ),
+              const SizedBox(height: 12),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  '关联产物 (${artifacts.length})',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 5),
+              if (artifacts.isEmpty)
+                const Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    '本次构建未发现新的最终安装包',
+                    style: TextStyle(fontSize: 11, color: Colors.black54),
+                  ),
+                )
+              else
+                for (final artifact in artifacts)
+                  ListTile(
+                    dense: true,
+                    contentPadding: EdgeInsets.zero,
+                    leading: Icon(
+                      artifact.exists
+                          ? Icons.inventory_2_outlined
+                          : Icons.link_off_outlined,
+                      size: 18,
+                      color: artifact.exists ? Colors.blueGrey : Colors.orange,
+                    ),
+                    title: Text(
+                      artifact.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontSize: 12),
+                    ),
+                    subtitle: Text(
+                      artifact.exists
+                          ? '${artifact.platform} · ${artifact.type.toUpperCase()} · ${_formatArtifactSize(artifact.size)}'
+                          : '文件已丢失',
+                      style: const TextStyle(fontSize: 10),
+                    ),
+                    trailing: IconButton(
+                      tooltip: artifact.exists ? '在文件管理器中显示' : '文件已丢失',
+                      onPressed: artifact.exists
+                          ? () => onReveal(artifact.path)
+                          : null,
+                      icon: const Icon(Icons.folder_open_outlined, size: 17),
+                    ),
+                  ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _HistoryInfoLine extends StatelessWidget {
+  const _HistoryInfoLine({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 4),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SizedBox(
+          width: 52,
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 11, color: Colors.black54),
+          ),
+        ),
+        Expanded(child: Text(value, style: const TextStyle(fontSize: 11))),
+      ],
+    ),
+  );
+}
+
+String _buildStatusLabel(BuildSessionStatus status) => switch (status) {
+  BuildSessionStatus.running => '构建中',
+  BuildSessionStatus.success => '成功',
+  BuildSessionStatus.failed => '失败',
+  BuildSessionStatus.stopped => '已停止',
+  BuildSessionStatus.interrupted => '异常中断',
+};
+
+IconData _buildStatusIcon(BuildSessionStatus status) => switch (status) {
+  BuildSessionStatus.running => Icons.sync,
+  BuildSessionStatus.success => Icons.check_circle_outline,
+  BuildSessionStatus.failed => Icons.error_outline,
+  BuildSessionStatus.stopped => Icons.stop_circle_outlined,
+  BuildSessionStatus.interrupted => Icons.power_settings_new_outlined,
+};
+
+Color _buildStatusColor(BuildSessionStatus status) => switch (status) {
+  BuildSessionStatus.running => Colors.blue,
+  BuildSessionStatus.success => Colors.green,
+  BuildSessionStatus.failed => Colors.red,
+  BuildSessionStatus.stopped => Colors.orange,
+  BuildSessionStatus.interrupted => Colors.deepOrange,
+};
+
+String _buildDuration(BuildSession session) {
+  final finishedAt = session.finishedAt;
+  if (finishedAt == null) {
+    return session.status == BuildSessionStatus.running ? '进行中' : '-';
+  }
+  final duration = finishedAt.difference(session.startedAt);
+  if (duration.inHours > 0) {
+    return '${duration.inHours}小时 ${duration.inMinutes.remainder(60)}分';
+  }
+  if (duration.inMinutes > 0) {
+    return '${duration.inMinutes}分 ${duration.inSeconds.remainder(60)}秒';
+  }
+  return '${duration.inSeconds}秒';
 }
 
 class _ArtifactsPanel extends StatelessWidget {
