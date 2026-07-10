@@ -133,6 +133,8 @@ abstract class FlutterProject with _$FlutterProject {
     @Default('android-arm64') String androidTargetPlatform,
     @Default(false) bool useCustomCommands,
     @Default('') String customCommandCode,
+    @Default(<String>[]) List<String> tags,
+    @Default(0) int sortOrder,
   }) = _FlutterProject;
 
   String get displayName => alias.trim().isEmpty ? name : alias.trim();
@@ -175,6 +177,8 @@ abstract class FlutterProject with _$FlutterProject {
         map['androidTargetPlatform'] as String? ?? 'android-arm64',
     useCustomCommands: map['useCustomCommands'] as bool? ?? false,
     customCommandCode: map['customCommandCode'] as String? ?? '',
+    tags: (map['tags'] as List<dynamic>? ?? const []).cast<String>(),
+    sortOrder: map['sortOrder'] as int? ?? 0,
   );
 
   Map<String, dynamic> toMap() => {
@@ -201,5 +205,7 @@ abstract class FlutterProject with _$FlutterProject {
     'androidTargetPlatform': androidTargetPlatform,
     'useCustomCommands': useCustomCommands,
     'customCommandCode': customCommandCode,
+    'tags': tags,
+    'sortOrder': sortOrder,
   };
 }

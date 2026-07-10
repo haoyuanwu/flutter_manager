@@ -2183,6 +2183,69 @@ class FvmController extends Notifier<FvmState> {
     _publishStatusMenu();
   }
 
+  Future<void> reorderProjects(int oldIndex, int newIndex) async {
+    final projects = [...state.managedProjects];
+    if (oldIndex < 0 ||
+        oldIndex >= projects.length ||
+        newIndex < 0 ||
+        newIndex >= projects.length) {
+      return;
+    }
+    final project = projects.removeAt(oldIndex);
+    projects.insert(newIndex, project);
+    final updatedProjects = projects.asMap().entries.map((entry) {
+      return entry.value.copyWith(sortOrder: entry.key);
+    }).toList();
+    state = state.copyWith(managedProjects: updatedProjects);
+    await ref.read(projectRepositoryProvider).save(updatedProjects);
+    _publishStatusMenu();
+  }
+
+  Future<void> updateProjectTags(String path, List<String> tags) async {
+    final project = state.managedProjects
+        .where((item) => item.path == path)
+        .firstOrNull;
+    if (project == null) return;
+    final updated = project.copyWith(tags: tags);
+    final projects = await ref
+        .read(projectRepositoryProvider)
+        .upsert(state.managedProjects, updated);
+    state = state.copyWith(
+      managedProjects: projects,
+      statusMessage: '项目标签已更新',
+    );
+    _publishStatusMenu();
+  }
+
+  Future<void> addProjectTag(String path, String tag) async {
+    final project = state.managedProjects
+        .where((item) => item.path == path)
+        .firstOrNull;
+    if (project == null) return;
+    if (project.tags.contains(tag)) return;
+    final updated = project.copyWith(tags: [...project.tags, tag]);
+    final projects = await ref
+        .read(projectRepositoryProvider)
+        .upsert(state.managedProjects, updated);
+    state = state.copyWith(managedProjects: projects);
+    _publishStatusMenu();
+  }
+
+  Future<void> removeProjectTag(String path, String tag) async {
+    final project = state.managedProjects
+        .where((item) => item.path == path)
+        .firstOrNull;
+    if (project == null) return;
+    final updated = project.copyWith(
+      tags: project.tags.where((t) => t != tag).toList(),
+    );
+    final projects = await ref
+        .read(projectRepositoryProvider)
+        .upsert(state.managedProjects, updated);
+    state = state.copyWith(managedProjects: projects);
+    _publishStatusMenu();
+  }
+
   Future<void> loadDevices() async {
     await _startDeviceMonitoring();
   }

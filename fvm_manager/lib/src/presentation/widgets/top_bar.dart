@@ -7,17 +7,14 @@ class _TopBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) => Container(
     height: 72,
-    padding: const EdgeInsets.symmetric(horizontal: 28),
+    padding: AppSpacing.pagePaddingHorizontal,
     decoration: const BoxDecoration(
-      color: Colors.white,
-      border: Border(bottom: BorderSide(color: Color(0xffe1e6eb))),
+      color: AppColors.surface,
+      border: Border(bottom: BorderSide(color: AppColors.border)),
     ),
     child: Row(
       children: [
-        const Text(
-          'Flutter 管理器',
-          style: TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
-        ),
+        const Text('Flutter 管理器', style: AppTextStyles.h2),
         const Spacer(),
         Stack(
           clipBehavior: Clip.none,
@@ -26,7 +23,7 @@ class _TopBar extends ConsumerWidget {
               state.fvmInstalled
                   ? Icons.check_circle
                   : Icons.warning_amber_rounded,
-              color: state.fvmInstalled ? Colors.green : Colors.orange,
+              color: state.fvmInstalled ? AppColors.success : AppColors.warning,
             ),
             if (state.hasFvmUpdate)
               Positioned(
@@ -41,9 +38,12 @@ class _TopBar extends ConsumerWidget {
               ),
           ],
         ),
-        const SizedBox(width: 8),
-        Text(state.fvmInstalled ? 'FVM ${state.fvmVersion}' : '未安装 FVM'),
-        const SizedBox(width: 16),
+        const SizedBox(width: AppSpacing.sm),
+        Text(
+          state.fvmInstalled ? 'FVM ${state.fvmVersion}' : '未安装 FVM',
+          style: AppTextStyles.bodyMedium,
+        ),
+        const SizedBox(width: AppSpacing.lg),
         IconButton(
           tooltip: '刷新',
           onPressed: state.loading

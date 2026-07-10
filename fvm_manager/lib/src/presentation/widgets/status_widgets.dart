@@ -15,21 +15,21 @@ class _DownloadStatusBar extends StatelessWidget {
         : null;
     return Container(
       width: double.infinity,
-      color: const Color(0xffeef7fb),
-      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 8),
+      color: AppColors.downloadBackground,
+      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl, vertical: AppSpacing.sm),
       child: Wrap(
-        spacing: 18,
-        runSpacing: 6,
+        spacing: AppSpacing.lg + 2,
+        runSpacing: AppSpacing.xs + 2,
         crossAxisAlignment: WrapCrossAlignment.center,
         children: [
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.downloading, size: 17, color: Color(0xff087ea4)),
+              const Icon(Icons.downloading, size: 17, color: AppColors.primary),
               const SizedBox(width: 7),
               Text(
                 'Flutter ${state.activeVersion} · ${state.downloadPhase}',
-                style: const TextStyle(fontWeight: FontWeight.w600),
+                style: AppTextStyles.label,
               ),
             ],
           ),
@@ -37,10 +37,12 @@ class _DownloadStatusBar extends StatelessWidget {
             total > 0
                 ? '${_formatBytes(received)} / ${_formatBytes(total)}'
                 : _formatBytes(received),
+            style: AppTextStyles.bodySmall,
           ),
-          if (speed > 0) Text('${_formatBytes(speed.round())}/s'),
+          if (speed > 0)
+            Text('${_formatBytes(speed.round())}/s', style: AppTextStyles.bodySmall),
           if (remainingSeconds != null)
-            Text('预计剩余 ${_formatDuration(remainingSeconds)}'),
+            Text('预计剩余 ${_formatDuration(remainingSeconds)}', style: AppTextStyles.bodySmall),
         ],
       ),
     );
@@ -114,7 +116,6 @@ class _MessageBarState extends ConsumerState<_MessageBar> {
   void _dismiss() {
     setState(() => _visible = false);
     _timer?.cancel();
-    // 清除 state 中的消息
     Future.microtask(() {
       final controller = ref.read(fvmControllerProvider.notifier);
       if (widget.error) {
@@ -135,12 +136,12 @@ class _MessageBarState extends ConsumerState<_MessageBar> {
   Widget build(BuildContext context) {
     if (!_visible) return const SizedBox.shrink();
     final foreground = widget.error
-        ? Colors.red.shade800
-        : const Color(0xff075985);
+        ? AppColors.messageErrorText
+        : AppColors.messageSuccessText;
     final showDiagnosticsAction =
         widget.error && widget.onDiagnosticsTap != null;
     return TweenAnimationBuilder<double>(
-      duration: const Duration(milliseconds: 180),
+      duration: AppAnimations.normal,
       tween: Tween(begin: 0, end: 1),
       builder: (context, value, child) => Opacity(
         opacity: value,
@@ -152,18 +153,20 @@ class _MessageBarState extends ConsumerState<_MessageBar> {
       child: Material(
         elevation: 12,
         shadowColor: Colors.black.withValues(alpha: 0.25),
-        color: widget.error ? const Color(0xfffff1f2) : const Color(0xfff0f9ff),
-        borderRadius: BorderRadius.circular(12),
+        color: widget.error
+            ? AppColors.messageErrorBackground
+            : AppColors.messageSuccessBackground,
+        borderRadius: AppRadius.mdAll,
         child: Container(
           width: 460,
-          padding: const EdgeInsets.fromLTRB(16, 13, 10, 13),
+          padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md + 1, AppSpacing.md, AppSpacing.md + 1),
           decoration: BoxDecoration(
             border: Border.all(
               color: widget.error
-                  ? const Color(0xffffcdd2)
-                  : const Color(0xffbae6fd),
+                  ? AppColors.messageErrorBorder
+                  : AppColors.messageSuccessBorder,
             ),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: AppRadius.mdAll,
           ),
           child: Row(
             children: [
@@ -172,17 +175,17 @@ class _MessageBarState extends ConsumerState<_MessageBar> {
                 size: 20,
                 color: foreground,
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: AppSpacing.md),
               Expanded(
                 child: Text(
                   widget.message,
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
-                  style: TextStyle(color: foreground, height: 1.35),
+                  style: AppTextStyles.bodyMedium.copyWith(color: foreground, height: 1.35),
                 ),
               ),
               if (showDiagnosticsAction) ...[
-                const SizedBox(width: 8),
+                const SizedBox(width: AppSpacing.sm),
                 TextButton.icon(
                   onPressed: () {
                     widget.onDiagnosticsTap?.call();
@@ -196,10 +199,10 @@ class _MessageBarState extends ConsumerState<_MessageBar> {
                   ),
                 ),
               ],
-              const SizedBox(width: 8),
+              const SizedBox(width: AppSpacing.sm),
               InkWell(
                 onTap: _dismiss,
-                borderRadius: BorderRadius.circular(14),
+                borderRadius: AppRadius.fullAll,
                 child: Padding(
                   padding: const EdgeInsets.all(5),
                   child: Icon(Icons.close, size: 16, color: foreground),
@@ -222,7 +225,7 @@ class _UpdateDot extends StatelessWidget {
   Widget build(BuildContext context) {
     const dot = DecoratedBox(
       decoration: BoxDecoration(
-        color: Color(0xfff04438),
+        color: AppColors.error,
         shape: BoxShape.circle,
       ),
       child: SizedBox.square(dimension: 9),

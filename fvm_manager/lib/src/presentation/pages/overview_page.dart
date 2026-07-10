@@ -6,16 +6,13 @@ class _Overview extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) => SingleChildScrollView(
-    padding: const EdgeInsets.all(28),
+    padding: AppSpacing.pagePadding,
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            const Text(
-              '概览',
-              style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
-            ),
+            const Text('概览', style: AppTextStyles.h1),
             const Spacer(),
             OutlinedButton.icon(
               onPressed: state.fvmInstalled
@@ -24,7 +21,7 @@ class _Overview extends ConsumerWidget {
               icon: const Icon(Icons.folder_open),
               label: const Text('打开 FVM 目录'),
             ),
-            const SizedBox(width: 10),
+            const SizedBox(width: AppSpacing.md),
             OutlinedButton.icon(
               onPressed: state.globalVersion != null
                   ? ref
@@ -36,10 +33,10 @@ class _Overview extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: AppSpacing.xl),
         Wrap(
-          spacing: 16,
-          runSpacing: 16,
+          spacing: AppSpacing.lg,
+          runSpacing: AppSpacing.lg,
           children: [
             _MetricCard(
               title: 'FVM 版本',
@@ -67,32 +64,26 @@ class _Overview extends ConsumerWidget {
             ),
           ],
         ),
-        const SizedBox(height: 24),
+        const SizedBox(height: AppSpacing.xl),
         if (!state.fvmInstalled)
           Card(
             child: Padding(
-              padding: const EdgeInsets.all(24),
+              padding: AppSpacing.cardPadding,
               child: Row(
                 children: [
                   const Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(
-                          '开始使用 FVM',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        SizedBox(height: 6),
+                        Text('开始使用 FVM', style: AppTextStyles.h3),
+                        SizedBox(height: AppSpacing.xs + 2),
                         Text('通过 Dart Pub 安装 FVM，完成后即可下载和切换 Flutter SDK。'),
                       ],
                     ),
                   ),
                   Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
+                    spacing: AppSpacing.md,
+                    runSpacing: AppSpacing.md,
                     children: [
                       OutlinedButton.icon(
                         onPressed: state.loading
@@ -121,24 +112,18 @@ class _Overview extends ConsumerWidget {
         if (state.fvmInstalled)
           Card(
             child: Padding(
-              padding: const EdgeInsets.all(24),
+              padding: AppSpacing.cardPadding,
               child: Row(
                 children: [
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text(
-                          'FVM 更新',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text('当前版本：${state.fvmVersion ?? '-'}'),
-                        const SizedBox(height: 4),
-                        Text('最新版本：${state.latestFvmVersion ?? '检查中'}'),
+                        const Text('FVM 更新', style: AppTextStyles.h3),
+                        const SizedBox(height: AppSpacing.xs + 2),
+                        Text('当前版本：${state.fvmVersion ?? '-'}', style: AppTextStyles.bodyMedium),
+                        const SizedBox(height: AppSpacing.xs),
+                        Text('最新版本：${state.latestFvmVersion ?? '检查中'}', style: AppTextStyles.bodyMedium),
                       ],
                     ),
                   ),
@@ -150,7 +135,7 @@ class _Overview extends ConsumerWidget {
                       icon: const Icon(Icons.visibility_off_outlined),
                       label: const Text('忽略此次更新'),
                     ),
-                    const SizedBox(width: 8),
+                    const SizedBox(width: AppSpacing.sm),
                   ],
                   FilledButton.tonalIcon(
                     onPressed: state.loading
@@ -164,16 +149,13 @@ class _Overview extends ConsumerWidget {
             ),
           ),
         if (state.fvmInstalled) ...[
-          const SizedBox(height: 16),
+          const SizedBox(height: AppSpacing.lg),
           _FvmCacheCard(state: state),
         ],
         if (state.installed.isNotEmpty) ...[
-          const SizedBox(height: 24),
-          const Text(
-            '已安装版本',
-            style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 12),
+          const SizedBox(height: AppSpacing.xl),
+          const Text('已安装版本', style: AppTextStyles.h3),
+          const SizedBox(height: AppSpacing.md),
           Card(
             child: Column(
               children: state.installed
@@ -216,30 +198,27 @@ class _FvmCacheCard extends ConsumerWidget {
     final controller = ref.read(fvmControllerProvider.notifier);
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(24),
+        padding: AppSpacing.cardPadding,
         child: Row(
           children: [
             const CircleAvatar(child: Icon(Icons.cleaning_services_outlined)),
-            const SizedBox(width: 16),
+            const SizedBox(width: AppSpacing.lg),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'FVM 缓存管理',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 6),
+                  const Text('FVM 缓存管理', style: AppTextStyles.h3),
+                  const SizedBox(height: AppSpacing.xs + 2),
                   Text(
                     '当前缓存：${_Overview._formatBytes(state.fvmCacheSizeBytes)}',
-                    style: TextStyle(color: Colors.black54),
+                    style: AppTextStyles.caption,
                   ),
                 ],
               ),
             ),
             Wrap(
-              spacing: 10,
-              runSpacing: 10,
+              spacing: AppSpacing.md,
+              runSpacing: AppSpacing.md,
               children: [
                 OutlinedButton.icon(
                   onPressed: state.fvmCacheLoading
@@ -280,7 +259,7 @@ class _FvmCacheCard extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        icon: const Icon(Icons.warning_amber_rounded, color: Colors.orange),
+        icon: const Icon(Icons.warning_amber_rounded, color: AppColors.warning),
         title: const Text('确认清理 FVM 缓存？'),
         content: const Text(
           '只会清理每个 Flutter SDK 下的 bin/cache 目录，不会删除 Flutter 版本目录本身。',
@@ -291,7 +270,7 @@ class _FvmCacheCard extends ConsumerWidget {
             child: const Text('取消'),
           ),
           FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: Colors.red),
+            style: AppButtonStyles.danger,
             onPressed: () => Navigator.pop(dialogContext, true),
             child: const Text('确认清理'),
           ),
@@ -319,12 +298,13 @@ class _MetricCard extends StatelessWidget {
     width: 250,
     height: 116,
     child: Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
+      child: Container(
+        decoration: AppCardStyles.metricDecoration,
+        padding: const EdgeInsets.all(AppSpacing.xl - 4),
         child: Row(
           children: [
             CircleAvatar(child: Icon(icon)),
-            const SizedBox(width: 14),
+            const SizedBox(width: AppSpacing.md + 2),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -334,17 +314,14 @@ class _MetricCard extends StatelessWidget {
                     title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.black54),
+                    style: AppTextStyles.caption,
                   ),
-                  const SizedBox(height: 4),
+                  const SizedBox(height: AppSpacing.xs),
                   Text(
                     value,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.w700,
-                    ),
+                    style: AppTextStyles.h2,
                   ),
                   const SizedBox(height: 3),
                   SizedBox(
@@ -355,10 +332,7 @@ class _MetricCard extends StatelessWidget {
                             subtitle!,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              color: Colors.black54,
-                              fontSize: 12,
-                            ),
+                            style: AppTextStyles.captionSmall,
                           ),
                   ),
                 ],

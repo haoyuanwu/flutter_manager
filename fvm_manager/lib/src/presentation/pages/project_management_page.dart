@@ -287,7 +287,7 @@ class _ProjectManagementState extends ConsumerState<_ProjectManagement> {
   }
 }
 
-class _ProjectList extends ConsumerWidget {
+class _ProjectList extends ConsumerStatefulWidget {
   const _ProjectList({
     super.key,
     required this.state,
@@ -298,70 +298,298 @@ class _ProjectList extends ConsumerWidget {
   final VoidCallback onCollapse;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => Card(
-    child: Column(
-      children: [
-        Align(
-          alignment: Alignment.centerRight,
-          child: IconButton(
-            tooltip: '收起项目列表',
-            onPressed: onCollapse,
-            icon: const Icon(Icons.chevron_left),
+  ConsumerState<_ProjectList> createState() => _ProjectListState();
+}
+
+class _ProjectListState extends ConsumerState<_ProjectList> {
+  String? _selectedTag;
+
+  List<FlutterProject> get _filteredProjects {
+    if (_selectedTag == null) return widget.state.managedProjects;
+    return widget.state.managedProjects
+        .where((p) => p.tags.contains(_selectedTag))
+        .toList();
+  }
+
+  List<String> get _allTags {
+    final tags = <String>{};
+    for (final project in widget.state.managedProjects) {
+      tags.addAll(project.tags);
+    }
+    return tags.toList()..sort();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = ref.read(fvmControllerProvider.notifier);
+    final allTags = _allTags;
+    return Card(
+      child: Column(
+        children: [
+          Row(
+            children: [
+              if (allTags.isNotEmpty)
+                Expanded(
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: Row(
+                      children: [
+                        _TagFilterChip(
+                          label: '全部',
+                          selected: _selectedTag == null,
+                          onSelected: () =>
+                              setState(() => _selectedTag = null),
+                        ),
+                        ...allTags.map(
+                          (tag) => _TagFilterChip(
+                            label: tag,
+                            selected: _selectedTag == tag,
+                            onSelected: () => setState(
+                              () => _selectedTag =
+                                  _selectedTag == tag ? null : tag,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              IconButton(
+                tooltip: '收起项目列表',
+                onPressed: widget.onCollapse,
+                icon: const Icon(Icons.chevron_left),
+              ),
+            ],
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: _filteredProjects.isEmpty
+                ? Center(
+                    child: Padding(
+                      padding: const EdgeInsets.all(20),
+                      child: Text(
+                        _selectedTag != null
+                            ? '没有标签为 "$_selectedTag" 的项目'
+                            : '还没有项目记录',
+                      ),
+                    ),
+                  )
+                : ReorderableListView.builder(
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    itemCount: _filteredProjects.length,
+                    onReorderItem: (oldIndex, newIndex) {
+                      if (oldIndex < newIndex) newIndex -= 1;
+                      final project = _filteredProjects[oldIndex];
+                      final realOldIndex = widget.state.managedProjects
+                          .indexOf(project);
+                      final targetProject = _filteredProjects[newIndex];
+                      final realNewIndex = widget.state.managedProjects
+                          .indexOf(targetProject);
+                      controller.reorderProjects(realOldIndex, realNewIndex);
+                    },
+                    itemBuilder: (context, index) {
+                      final project = _filteredProjects[index];
+                      final selected =
+                          project.path ==
+                          widget.state.selectedManagedProjectPath;
+                      return GestureDetector(
+                        key: ValueKey(project.path),
+                        onSecondaryTapUp: (details) =>
+                            _showProjectContextMenu(
+                              context,
+                              project,
+                              details.globalPosition,
+                            ),
+                        child: ListTile(
+                          selected: selected,
+                          selectedTileColor: Theme.of(context)
+                              .colorScheme
+                              .primaryContainer
+                              .withValues(alpha: .45),
+                          leading: Icon(
+                            project.pathExists
+                                ? Icons.folder_outlined
+                                : Icons.folder_off_outlined,
+                            color: project.pathExists ? null : Colors.red,
+                          ),
+                          title: Row(
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  project.displayName,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              if (project.tags.isNotEmpty) ...[
+                                const SizedBox(width: 4),
+                                ...project.tags.take(2).map(
+                                  (tag) => Padding(
+                                    padding: const EdgeInsets.only(left: 2),
+                                    child: Container(
+                                      padding: const EdgeInsets.symmetric(
+                                        horizontal: 6,
+                                        vertical: 1,
+                                      ),
+                                      decoration: BoxDecoration(
+                                        color: Theme.of(context)
+                                            .colorScheme
+                                            .primaryContainer,
+                                        borderRadius: BorderRadius.circular(
+                                          4,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        tag,
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          color: Theme.of(context)
+                                              .colorScheme
+                                              .onPrimaryContainer,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                          subtitle: Text(
+                            [
+                              if (project.alias.trim().isNotEmpty)
+                                project.name,
+                              if (!project.pathExists)
+                                '目录不存在'
+                              else if (project.fvmVersion == null)
+                                '默认 Flutter'
+                              else
+                                'FVM ${project.fvmVersion}',
+                            ].join(' · '),
+                          ),
+                          trailing: _ProjectMoreMenu(project: project),
+                          onTap: () => ref
+                              .read(fvmControllerProvider.notifier)
+                              .selectManagedProject(project.path),
+                        ),
+                      );
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showProjectContextMenu(
+    BuildContext context,
+    FlutterProject project,
+    Offset position,
+  ) {
+    final controller = ref.read(fvmControllerProvider.notifier);
+    showMenu<String>(
+      context: context,
+      position: RelativeRect.fromLTRB(
+        position.dx,
+        position.dy,
+        position.dx + 1,
+        position.dy + 1,
+      ),
+      items: [
+        const PopupMenuItem(
+          value: 'open',
+          child: ListTile(
+            leading: Icon(Icons.folder_open),
+            title: Text('打开项目'),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
           ),
         ),
-        const Divider(height: 1),
-        Expanded(
-          child: state.managedProjects.isEmpty
-              ? const Center(
-                  child: Padding(
-                    padding: EdgeInsets.all(20),
-                    child: Text('还没有项目记录'),
-                  ),
-                )
-              : ListView.separated(
-                  padding: const EdgeInsets.symmetric(vertical: 8),
-                  itemCount: state.managedProjects.length,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    final project = state.managedProjects[index];
-                    final selected =
-                        project.path == state.selectedManagedProjectPath;
-                    return ListTile(
-                      selected: selected,
-                      selectedTileColor: Theme.of(
-                        context,
-                      ).colorScheme.primaryContainer.withValues(alpha: .45),
-                      leading: Icon(
-                        project.pathExists
-                            ? Icons.folder_outlined
-                            : Icons.folder_off_outlined,
-                        color: project.pathExists ? null : Colors.red,
-                      ),
-                      title: Text(
-                        project.displayName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Text(
-                        [
-                          if (project.alias.trim().isNotEmpty) project.name,
-                          if (!project.pathExists)
-                            '目录不存在'
-                          else if (project.fvmVersion == null)
-                            '默认 Flutter'
-                          else
-                            'FVM ${project.fvmVersion}',
-                        ].join(' · '),
-                      ),
-                      trailing: _ProjectMoreMenu(project: project),
-                      onTap: () => ref
-                          .read(fvmControllerProvider.notifier)
-                          .selectManagedProject(project.path),
-                    );
-                  },
-                ),
+        const PopupMenuItem(
+          value: 'vscode',
+          child: ListTile(
+            leading: Icon(Icons.code),
+            title: Text('在 VS Code 中打开'),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'android_studio',
+          child: ListTile(
+            leading: Icon(Icons.android),
+            title: Text('在 Android Studio 中打开'),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'folder',
+          child: ListTile(
+            leading: Icon(Icons.folder),
+            title: Text('打开项目文件夹'),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem(
+          value: 'rename',
+          child: ListTile(
+            leading: Icon(Icons.edit_outlined),
+            title: Text('备注名称'),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        const PopupMenuItem(
+          value: 'tags',
+          child: ListTile(
+            leading: Icon(Icons.label_outline),
+            title: Text('管理标签'),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
+        ),
+        const PopupMenuDivider(),
+        const PopupMenuItem(
+          value: 'delete',
+          child: ListTile(
+            leading: Icon(Icons.delete_outline, color: Colors.red),
+            title: Text('移除项目', style: TextStyle(color: Colors.red)),
+            dense: true,
+            contentPadding: EdgeInsets.zero,
+          ),
         ),
       ],
+    ).then((action) {
+      if (action == null || !context.mounted) return;
+      _handleProjectAction(context, controller, project, action);
+    });
+  }
+}
+
+class _TagFilterChip extends StatelessWidget {
+  const _TagFilterChip({
+    required this.label,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onSelected;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(horizontal: 2),
+    child: FilterChip(
+      label: Text(label, style: const TextStyle(fontSize: 11)),
+      selected: selected,
+      onSelected: (_) => onSelected(),
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
+      labelPadding: const EdgeInsets.symmetric(horizontal: 6),
     ),
   );
 }
@@ -443,8 +671,8 @@ class _ProjectMoreMenu extends ConsumerWidget {
       project,
       action,
     ),
-    itemBuilder: (context) => const [
-      PopupMenuItem(
+    itemBuilder: (context) => [
+      const PopupMenuItem(
         value: 'rename',
         child: ListTile(
           leading: Icon(Icons.edit_outlined),
@@ -453,8 +681,45 @@ class _ProjectMoreMenu extends ConsumerWidget {
           contentPadding: EdgeInsets.zero,
         ),
       ),
-      PopupMenuDivider(),
-      PopupMenuItem(
+      const PopupMenuItem(
+        value: 'tags',
+        child: ListTile(
+          leading: Icon(Icons.label_outline),
+          title: Text('管理标签'),
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+        ),
+      ),
+      const PopupMenuDivider(),
+      const PopupMenuItem(
+        value: 'run',
+        child: ListTile(
+          leading: Icon(Icons.play_arrow),
+          title: Text('运行项目'),
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+        ),
+      ),
+      const PopupMenuItem(
+        value: 'pub_get',
+        child: ListTile(
+          leading: Icon(Icons.download),
+          title: Text('Pub Get'),
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+        ),
+      ),
+      const PopupMenuItem(
+        value: 'clean',
+        child: ListTile(
+          leading: Icon(Icons.cleaning_services_outlined),
+          title: Text('Clean'),
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+        ),
+      ),
+      const PopupMenuDivider(),
+      const PopupMenuItem(
         value: 'folder',
         child: ListTile(
           leading: Icon(Icons.folder_open),
@@ -463,7 +728,7 @@ class _ProjectMoreMenu extends ConsumerWidget {
           contentPadding: EdgeInsets.zero,
         ),
       ),
-      PopupMenuItem(
+      const PopupMenuItem(
         value: 'android_studio',
         child: ListTile(
           leading: Icon(Icons.android),
@@ -472,11 +737,21 @@ class _ProjectMoreMenu extends ConsumerWidget {
           contentPadding: EdgeInsets.zero,
         ),
       ),
-      PopupMenuItem(
+      const PopupMenuItem(
         value: 'vscode',
         child: ListTile(
           leading: Icon(Icons.code),
           title: Text('VS Code 打开 Flutter 项目'),
+          dense: true,
+          contentPadding: EdgeInsets.zero,
+        ),
+      ),
+      const PopupMenuDivider(),
+      const PopupMenuItem(
+        value: 'delete',
+        child: ListTile(
+          leading: Icon(Icons.delete_outline, color: Colors.red),
+          title: Text('移除项目', style: TextStyle(color: Colors.red)),
           dense: true,
           contentPadding: EdgeInsets.zero,
         ),
@@ -495,6 +770,21 @@ Future<void> _handleProjectAction(
     case 'rename':
       await _showProjectAliasDialog(context, controller, project);
       return;
+    case 'tags':
+      await _showTagManagementDialog(context, controller, project);
+      return;
+    case 'run':
+      await controller.selectManagedProject(project.path);
+      await controller.runManagedProject();
+      return;
+    case 'pub_get':
+      await controller.selectManagedProject(project.path);
+      await controller.projectPubGet();
+      return;
+    case 'clean':
+      await controller.selectManagedProject(project.path);
+      await controller.projectClean();
+      return;
     case 'folder':
       await controller.openProjectFolderAt(project.path);
       return;
@@ -503,6 +793,9 @@ Future<void> _handleProjectAction(
       return;
     case 'vscode':
       await controller.openInVSCodeAt(project.path);
+      return;
+    case 'delete':
+      await _confirmRemoveManagedProject(context, controller, project);
       return;
   }
 }
@@ -517,6 +810,152 @@ Future<void> _showProjectAliasDialog(
     builder: (dialogContext) => _ProjectAliasDialog(project: project),
   );
   if (alias != null) await controller.renameManagedProject(project.path, alias);
+}
+
+Future<void> _showTagManagementDialog(
+  BuildContext context,
+  FvmController controller,
+  FlutterProject project,
+) async {
+  final tags = await showDialog<List<String>>(
+    context: context,
+    builder: (dialogContext) => _TagManagementDialog(project: project),
+  );
+  if (tags != null) {
+    await controller.updateProjectTags(project.path, tags);
+  }
+}
+
+class _TagManagementDialog extends StatefulWidget {
+  const _TagManagementDialog({required this.project});
+
+  final FlutterProject project;
+
+  @override
+  State<_TagManagementDialog> createState() => _TagManagementDialogState();
+}
+
+class _TagManagementDialogState extends State<_TagManagementDialog> {
+  late List<String> _tags;
+  final _tagController = TextEditingController();
+
+  static const _presetTags = [
+    '工作',
+    '个人',
+    '实验',
+    '生产',
+    '测试',
+    '重要',
+    '待维护',
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _tags = [...widget.project.tags];
+  }
+
+  @override
+  void dispose() {
+    _tagController.dispose();
+    super.dispose();
+  }
+
+  void _addTag(String tag) {
+    final normalized = tag.trim();
+    if (normalized.isEmpty || _tags.contains(normalized)) return;
+    setState(() => _tags.add(normalized));
+    _tagController.clear();
+  }
+
+  void _removeTag(String tag) {
+    setState(() => _tags.remove(tag));
+  }
+
+  @override
+  Widget build(BuildContext context) => AlertDialog(
+    title: const Text('管理项目标签'),
+    content: SizedBox(
+      width: 420,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('预设标签：'),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _presetTags.map((tag) {
+              final isSelected = _tags.contains(tag);
+              return FilterChip(
+                label: Text(tag),
+                selected: isSelected,
+                onSelected: (selected) {
+                  if (selected) {
+                    _addTag(tag);
+                  } else {
+                    _removeTag(tag);
+                  }
+                },
+              );
+            }).toList(),
+          ),
+          const SizedBox(height: 16),
+          const Text('自定义标签：'),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _tagController,
+                  decoration: const InputDecoration(
+                    hintText: '输入标签名称',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  onSubmitted: _addTag,
+                ),
+              ),
+              const SizedBox(width: 8),
+              FilledButton.icon(
+                onPressed: () => _addTag(_tagController.text),
+                icon: const Icon(Icons.add),
+                label: const Text('添加'),
+              ),
+            ],
+          ),
+          if (_tags.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            const Text('已选标签：'),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: _tags
+                  .map(
+                    (tag) => Chip(
+                      label: Text(tag),
+                      onDeleted: () => _removeTag(tag),
+                    ),
+                  )
+                  .toList(),
+            ),
+          ],
+        ],
+      ),
+    ),
+    actions: [
+      TextButton(
+        onPressed: () => Navigator.pop(context),
+        child: const Text('取消'),
+      ),
+      FilledButton(
+        onPressed: () => Navigator.pop(context, _tags),
+        child: const Text('保存'),
+      ),
+    ],
+  );
 }
 
 class _ProjectAliasDialog extends StatefulWidget {
@@ -2235,6 +2674,7 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
   Widget build(BuildContext context) {
     final controller = ref.read(fvmControllerProvider.notifier);
     final tasks = controller.activeTasksForSelectedProject;
+    final hasRunTask = tasks.any((t) => t.id.startsWith('run::'));
     return Card(
       color: const Color(0xff101820),
       child: Padding(
@@ -2252,6 +2692,21 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
                   ),
                 ),
                 const Spacer(),
+                if (hasRunTask) ...[
+                  IconButton(
+                    tooltip: '清空并重新运行',
+                    onPressed: () async {
+                      controller.clearCommandLog();
+                      await controller.rerunManagedProject();
+                    },
+                    icon: const Icon(Icons.replay, color: Colors.white70),
+                  ),
+                ],
+                IconButton(
+                  tooltip: '搜索日志 (⌘F)',
+                  onPressed: _openSearch,
+                  icon: const Icon(Icons.search, color: Colors.white70),
+                ),
                 IconButton(
                   tooltip: '在新窗口中打开',
                   onPressed: controller.openSelectedProjectConsole,
