@@ -1,9 +1,7 @@
 part of '../home_page.dart';
 
 class _ApkSigningPage extends ConsumerStatefulWidget {
-  const _ApkSigningPage({required this.state});
-
-  final FvmState state;
+  const _ApkSigningPage();
 
   @override
   ConsumerState<_ApkSigningPage> createState() => _ApkSigningPageState();
@@ -24,7 +22,10 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
 
   Future<void> _loadConfig() async {
     final service = ref.read(apkSigningServiceProvider);
-    final config = await service.loadConfig();
+    var config = await service.loadConfig();
+    if (config.outputDirectory.isEmpty) {
+      config = config.copyWith(outputDirectory: service.defaultOutputDirectory);
+    }
     if (mounted) {
       setState(() {
         _config = config;
@@ -44,8 +45,8 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
 
   @override
   Widget build(BuildContext context) {
-    final controller = ref.read(fvmControllerProvider.notifier);
-    final state = widget.state;
+    final controller = ref.read(apkSigningControllerProvider.notifier);
+    final state = ref.watch(apkSigningControllerProvider);
 
     if (_loading) {
       return const Center(child: CircularProgressIndicator());
@@ -69,13 +70,27 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
           _buildConfigSection(),
           const SizedBox(height: 12),
           Expanded(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Expanded(child: _buildUnsignedPanel(state, controller)),
-                const SizedBox(width: 12),
-                Expanded(child: _buildSignedPanel(state)),
-              ],
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final compact = constraints.maxWidth < 980;
+                if (compact) {
+                  return Column(
+                    children: [
+                      Expanded(child: _buildUnsignedPanel(state, controller)),
+                      const SizedBox(height: 12),
+                      Expanded(child: _buildSignedPanel(state)),
+                    ],
+                  );
+                }
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Expanded(child: _buildUnsignedPanel(state, controller)),
+                    const SizedBox(width: 12),
+                    Expanded(child: _buildSignedPanel(state)),
+                  ],
+                );
+              },
             ),
           ),
         ],
@@ -129,12 +144,19 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.insert_drive_file_outlined, size: 14, color: Colors.grey),
+                    const Icon(
+                      Icons.insert_drive_file_outlined,
+                      size: 14,
+                      color: Colors.grey,
+                    ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         _config.jksPath,
-                        style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          color: Colors.grey,
+                        ),
                         overflow: TextOverflow.ellipsis,
                       ),
                     ),
@@ -142,6 +164,8 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                 ),
               ),
             ],
+            const SizedBox(height: 8),
+            _buildOutputDirectoryField(),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -153,7 +177,10 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                             labelText: 'Key Alias',
                             border: OutlineInputBorder(),
                             isDense: true,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
                           ),
                           style: const TextStyle(fontSize: 14),
                           onChanged: (_) => _saveConfig(),
@@ -161,15 +188,26 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                       : DropdownMenu<String>(
                           controller: _keyAliasController,
                           label: const Text('Key Alias'),
-                          trailingIcon: const Icon(Icons.arrow_drop_down, size: 20),
-                          selectedTrailingIcon: const Icon(Icons.arrow_drop_up, size: 20),
+                          trailingIcon: const Icon(
+                            Icons.arrow_drop_down,
+                            size: 20,
+                          ),
+                          selectedTrailingIcon: const Icon(
+                            Icons.arrow_drop_up,
+                            size: 20,
+                          ),
                           inputDecorationTheme: const InputDecorationTheme(
                             isDense: true,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
                             border: OutlineInputBorder(),
                           ),
                           textStyle: const TextStyle(fontSize: 14),
-                          dropdownMenuEntries: _config.keyAliasHistory.map((item) {
+                          dropdownMenuEntries: _config.keyAliasHistory.map((
+                            item,
+                          ) {
                             return DropdownMenuEntry<String>(
                               value: item,
                               label: item,
@@ -196,7 +234,10 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                             labelText: '密码',
                             border: OutlineInputBorder(),
                             isDense: true,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
                           ),
                           style: const TextStyle(fontSize: 14),
                           onChanged: (_) => _saveConfig(),
@@ -204,15 +245,26 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                       : DropdownMenu<String>(
                           controller: _passwordController,
                           label: const Text('密码'),
-                          trailingIcon: const Icon(Icons.arrow_drop_down, size: 20),
-                          selectedTrailingIcon: const Icon(Icons.arrow_drop_up, size: 20),
+                          trailingIcon: const Icon(
+                            Icons.arrow_drop_down,
+                            size: 20,
+                          ),
+                          selectedTrailingIcon: const Icon(
+                            Icons.arrow_drop_up,
+                            size: 20,
+                          ),
                           inputDecorationTheme: const InputDecorationTheme(
                             isDense: true,
-                            contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 12,
+                              vertical: 10,
+                            ),
                             border: OutlineInputBorder(),
                           ),
                           textStyle: const TextStyle(fontSize: 14),
-                          dropdownMenuEntries: _config.passwordHistory.map((item) {
+                          dropdownMenuEntries: _config.passwordHistory.map((
+                            item,
+                          ) {
                             return DropdownMenuEntry<String>(
                               value: item,
                               label: item,
@@ -238,11 +290,57 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
     );
   }
 
-  Widget _buildUnsignedPanel(FvmState state, FvmController controller) {
+  Widget _buildOutputDirectoryField() {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: const Color(0xfff7f9fb),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: const Color(0xffe4e8ec)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Row(
+          children: [
+            const Icon(Icons.drive_folder_upload_outlined, size: 18),
+            const SizedBox(width: 8),
+            const Text(
+              '输出目录',
+              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                _config.outputDirectory,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: _pickOutputDirectory,
+              icon: const Icon(Icons.folder_open, size: 16),
+              label: const Text('选择'),
+              style: OutlinedButton.styleFrom(
+                minimumSize: const Size(0, 32),
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildUnsignedPanel(
+    ApkSigningState state,
+    ApkSigningController controller,
+  ) {
     final hasApks = state.unsignedApks.isNotEmpty;
-    final signing = state.apkSigningInProgress;
+    final signing = state.signingInProgress;
     final progress = signing
-        ? _parseSigningProgress(state.apkSigningStatus, state.unsignedApks.length)
+        ? _parseSigningProgress(state.signingStatus, state.unsignedApks.length)
         : 0.0;
 
     return Card(
@@ -263,7 +361,10 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                 if (hasApks) ...[
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: Theme.of(context).colorScheme.primaryContainer,
                       borderRadius: BorderRadius.circular(10),
@@ -295,10 +396,13 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                     child: TextButton(
                       onPressed: () {
                         setState(() {
-                          if (_selectedApkPaths.length == state.unsignedApks.length) {
+                          if (_selectedApkPaths.length ==
+                              state.unsignedApks.length) {
                             _selectedApkPaths.clear();
                           } else {
-                            _selectedApkPaths.addAll(state.unsignedApks.map((a) => a.path));
+                            _selectedApkPaths.addAll(
+                              state.unsignedApks.map((a) => a.path),
+                            );
                           }
                         });
                       },
@@ -308,7 +412,9 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
                       child: Text(
-                        _selectedApkPaths.length == state.unsignedApks.length ? '取消全选' : '全选',
+                        _selectedApkPaths.length == state.unsignedApks.length
+                            ? '取消全选'
+                            : '全选',
                         style: const TextStyle(fontSize: 13),
                       ),
                     ),
@@ -339,7 +445,7 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                   LinearProgressIndicator(value: progress, minHeight: 4),
                   const SizedBox(height: 4),
                   Text(
-                    state.apkSigningStatus,
+                    state.signingStatus,
                     style: const TextStyle(fontSize: 12, color: Colors.orange),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -358,14 +464,23 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                     itemBuilder: (context, index) {
                       final apk = state.unsignedApks[index];
                       final selected = _selectedApkPaths.contains(apk.path);
-                      return _buildUnsignedApkTile(apk, selected, signing, controller);
+                      return _buildUnsignedApkTile(
+                        apk,
+                        selected,
+                        signing,
+                        controller,
+                      );
                     },
                   )
                 : const Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.inbox_outlined, size: 48, color: Colors.black26),
+                        Icon(
+                          Icons.inbox_outlined,
+                          size: 48,
+                          color: Colors.black26,
+                        ),
                         SizedBox(height: 12),
                         Text(
                           '点击上方添加 APK',
@@ -386,7 +501,10 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                     ? const SizedBox(
                         width: 16,
                         height: 16,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
                       )
                     : const Icon(Icons.app_shortcut_outlined, size: 20),
                 label: Text(
@@ -407,7 +525,7 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
     ApkInfo apk,
     bool selected,
     bool signing,
-    FvmController controller,
+    ApkSigningController controller,
   ) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -441,7 +559,10 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                   apk.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 _buildColoredSubtitle(_buildApkSubtitle(apk)),
@@ -460,7 +581,10 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
               height: 32,
               child: IconButton(
                 icon: const Icon(Icons.close, size: 18),
-                onPressed: () => controller.removeUnsignedApk(apk.path),
+                onPressed: () {
+                  setState(() => _selectedApkPaths.remove(apk.path));
+                  controller.removeUnsignedApk(apk.path);
+                },
                 padding: EdgeInsets.zero,
                 tooltip: '移除',
               ),
@@ -470,7 +594,7 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
     );
   }
 
-  Widget _buildSignedPanel(FvmState state) {
+  Widget _buildSignedPanel(ApkSigningState state) {
     final hasApks = state.signedApks.isNotEmpty;
     final successCount = state.signedApks.where((a) => a.success).length;
 
@@ -492,7 +616,10 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                 if (hasApks) ...[
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: successCount == state.signedApks.length
                           ? Colors.green.shade50
@@ -516,7 +643,9 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                     height: 30,
                     child: TextButton(
                       onPressed: () {
-                        ref.read(fvmControllerProvider.notifier).clearSignedApks();
+                        ref
+                            .read(apkSigningControllerProvider.notifier)
+                            .clearSignedApks();
                       },
                       style: TextButton.styleFrom(
                         padding: const EdgeInsets.symmetric(horizontal: 10),
@@ -543,14 +672,16 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
               ],
             ),
           ),
-          if (state.apkSigningStatus.isNotEmpty && !state.apkSigningInProgress)
+          if (state.signingStatus.isNotEmpty && !state.signingInProgress)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
               child: Text(
-                state.apkSigningStatus,
+                state.signingStatus,
                 style: TextStyle(
                   fontSize: 12,
-                  color: successCount == state.signedApks.length ? Colors.green : Colors.orange,
+                  color: successCount == state.signedApks.length
+                      ? Colors.green
+                      : Colors.orange,
                 ),
               ),
             ),
@@ -569,7 +700,11 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(Icons.check_circle_outline, size: 48, color: Colors.black26),
+                        Icon(
+                          Icons.check_circle_outline,
+                          size: 48,
+                          color: Colors.black26,
+                        ),
                         SizedBox(height: 12),
                         Text(
                           '签名完成后显示结果',
@@ -615,7 +750,10 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w500),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 apk.success
@@ -668,10 +806,12 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
       if (segment.isEmpty) continue;
 
       if (i > 0) {
-        spans.add(TextSpan(
-          text: ' · ',
-          style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
-        ));
+        spans.add(
+          TextSpan(
+            text: ' · ',
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+          ),
+        );
       }
 
       Color? color;
@@ -683,21 +823,18 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
         color = Colors.orange;
       }
 
-      spans.add(TextSpan(
-        text: segment,
-        style: TextStyle(
-          fontSize: 12,
-          color: color ?? Colors.grey.shade600,
+      spans.add(
+        TextSpan(
+          text: segment,
+          style: TextStyle(fontSize: 12, color: color ?? Colors.grey.shade600),
         ),
-      ));
+      );
     }
 
     return RichText(
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      text: TextSpan(
-        children: spans,
-      ),
+      text: TextSpan(children: spans),
     );
   }
 
@@ -734,6 +871,15 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
     }
   }
 
+  Future<void> _pickOutputDirectory() async {
+    final service = ref.read(apkSigningServiceProvider);
+    final path = await service.pickOutputDirectory();
+    if (path != null) {
+      setState(() => _config = _config.copyWith(outputDirectory: path));
+      await _saveConfig();
+    }
+  }
+
   Future<void> _saveConfig() async {
     final service = ref.read(apkSigningServiceProvider);
     final keyAlias = _keyAliasController.text.trim();
@@ -766,18 +912,20 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
   }
 
   Future<void> _removeKeyAliasHistory(String value) async {
-    final newHistory = List<String>.from(_config.keyAliasHistory)..remove(value);
+    final newHistory = List<String>.from(_config.keyAliasHistory)
+      ..remove(value);
     setState(() => _config = _config.copyWith(keyAliasHistory: newHistory));
     await ref.read(apkSigningServiceProvider).saveConfig(_config);
   }
 
   Future<void> _removePasswordHistory(String value) async {
-    final newHistory = List<String>.from(_config.passwordHistory)..remove(value);
+    final newHistory = List<String>.from(_config.passwordHistory)
+      ..remove(value);
     setState(() => _config = _config.copyWith(passwordHistory: newHistory));
     await ref.read(apkSigningServiceProvider).saveConfig(_config);
   }
 
-  Future<void> _addApks(FvmController controller) async {
+  Future<void> _addApks(ApkSigningController controller) async {
     final service = ref.read(apkSigningServiceProvider);
     final paths = await service.pickLocalApks();
     if (paths.isEmpty) return;
@@ -790,23 +938,23 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
     controller.addUnsignedApks(apks);
   }
 
-  Future<void> _signSelected(FvmController controller) async {
+  Future<void> _signSelected(ApkSigningController controller) async {
     if (_config.jksPath.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请先选择 JKS 密钥库文件')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请先选择 JKS 密钥库文件')));
       return;
     }
     if (_passwordController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请输入密码')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请输入密码')));
       return;
     }
     if (_keyAliasController.text.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('请输入 Key Alias')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('请输入 Key Alias')));
       return;
     }
 
@@ -815,19 +963,23 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
       jksPath: _config.jksPath,
       password: _passwordController.text,
       keyAlias: _keyAliasController.text,
+      outputDir: _config.outputDirectory,
       selectedPaths: _selectedApkPaths.toList(),
     );
     setState(() => _selectedApkPaths.clear());
   }
 
   Future<void> _openSignedOutputDir() async {
-    final home = Platform.environment['HOME'];
-    if (home != null) {
-      final dir = Directory('$home/Desktop/signed_apks');
-      if (!await dir.exists()) {
-        await dir.create(recursive: true);
-      }
+    final dir = Directory(_config.outputDirectory);
+    if (!await dir.exists()) {
+      await dir.create(recursive: true);
+    }
+    if (Platform.isMacOS) {
       await Process.run('open', [dir.path]);
+    } else if (Platform.isWindows) {
+      await Process.run('explorer', [dir.path]);
+    } else {
+      await Process.run('xdg-open', [dir.path]);
     }
   }
 
@@ -837,6 +989,8 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
       await Process.run('open', ['-R', path]);
     } else if (Platform.isWindows) {
       await Process.run('explorer', ['/select,', path]);
+    } else {
+      await Process.run('xdg-open', [File(path).parent.path]);
     }
   }
 }
@@ -889,7 +1043,10 @@ class _OutputNameFieldState extends State<_OutputNameField> {
           hintStyle: TextStyle(fontSize: 11, color: Colors.grey.shade400),
           border: const OutlineInputBorder(),
           isDense: true,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 8,
+            vertical: 6,
+          ),
         ),
         style: const TextStyle(fontSize: 12),
         controller: _controller,

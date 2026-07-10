@@ -3,6 +3,8 @@ import 'dart:io';
 
 import 'package:file_selector/file_selector.dart';
 
+import 'process_runner.dart';
+
 /// Metadata extracted from a single APK.
 class ApkInfo {
   const ApkInfo({
@@ -99,12 +101,16 @@ class ApkSigningConfig {
         password: map['password'] as String? ?? '',
         keyAlias: map['keyAlias'] as String? ?? '',
         outputDirectory: map['outputDirectory'] as String? ?? '',
-        keyAliasHistory: (map['keyAliasHistory'] as List<dynamic>?)
-            ?.map((e) => e.toString())
-            .toList() ?? [],
-        passwordHistory: (map['passwordHistory'] as List<dynamic>?)
-            ?.map((e) => e.toString())
-            .toList() ?? [],
+        keyAliasHistory:
+            (map['keyAliasHistory'] as List<dynamic>?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            [],
+        passwordHistory:
+            (map['passwordHistory'] as List<dynamic>?)
+                ?.map((e) => e.toString())
+                .toList() ??
+            [],
       );
 
   Map<String, dynamic> toMap() => {
@@ -118,7 +124,18 @@ class ApkSigningConfig {
 }
 
 class ApkSigningService {
-  ApkSigningService();
+  ApkSigningService(this._processRunner);
+
+  final ProcessRunner _processRunner;
+
+  String get defaultOutputDirectory {
+    final home =
+        Platform.environment[Platform.isWindows ? 'USERPROFILE' : 'HOME'];
+    if (home == null || home.isEmpty) return Directory.current.path;
+    final desktop = Directory('$home${Platform.pathSeparator}Desktop');
+    final base = desktop.existsSync() ? desktop.path : home;
+    return '$base${Platform.pathSeparator}signed_apks';
+  }
 
   File get _configFile {
     final home =
@@ -190,19 +207,22 @@ class ApkSigningService {
       '$sdkPath${Platform.pathSeparator}build-tools',
     );
     if (!buildToolsDir.existsSync()) return null;
-    final versions = buildToolsDir
-        .listSync()
-        .whereType<Directory>()
-        .map((d) => d.path.split(Platform.pathSeparator).last)
-        .toList()
-      ..sort(_compareVersions);
+    final versions =
+        buildToolsDir
+            .listSync()
+            .whereType<Directory>()
+            .map((d) => d.path.split(Platform.pathSeparator).last)
+            .toList()
+          ..sort(_compareVersions);
     for (final version in versions.reversed) {
       final toolPath =
           '${buildToolsDir.path}${Platform.pathSeparator}$version'
           '${Platform.pathSeparator}$toolName';
       if (Platform.isWindows) {
-        final exe = File('$toolPath.exe');
-        if (exe.existsSync()) return exe.path;
+        for (final extension in const ['.exe', '.bat', '.cmd']) {
+          final file = File('$toolPath$extension');
+          if (file.existsSync()) return file.path;
+        }
       } else {
         final file = File(toolPath);
         if (file.existsSync()) return toolPath;
@@ -227,10 +247,7 @@ class ApkSigningService {
 
   /// Extracts channel and version info from [apkPath] using `aapt`.
   Future<ApkInfo> extractApkInfo(String apkPath) async {
-    final name = apkPath
-        .split(Platform.pathSeparator)
-        .where((s) => s.isNotEmpty)
-        .last;
+    final name = _fileName(apkPath);
     final aaptPath = await findAapt();
     if (aaptPath == null) {
       return ApkInfo(path: apkPath, name: name);
@@ -242,14 +259,14 @@ class ApkSigningService {
     String versionCode = '';
 
     try {
-      final xmlResult = await Process.run(aaptPath, [
-        'dump',
-        'xmltree',
-        apkPath,
-        'AndroidManifest.xml',
-      ]);
+      final xmlResult = await _processRunner.run(
+        executable: aaptPath,
+        arguments: ['dump', 'xmltree', apkPath, 'AndroidManifest.xml'],
+        taskId: 'apk-info:xml:$apkPath',
+        timeout: const Duration(seconds: 20),
+      );
       if (xmlResult.exitCode == 0) {
-        final xmlOut = xmlResult.stdout as String;
+        final xmlOut = xmlResult.stdout;
         channel = _extractMetaValue(xmlOut, 'CHANNEL_NAME') ?? '未知';
         gdtChannel = _extractMetaValue(xmlOut, 'gdt_action_channel_id') ?? '';
       }
@@ -258,13 +275,14 @@ class ApkSigningService {
     }
 
     try {
-      final badgingResult = await Process.run(aaptPath, [
-        'dump',
-        'badging',
-        apkPath,
-      ]);
+      final badgingResult = await _processRunner.run(
+        executable: aaptPath,
+        arguments: ['dump', 'badging', apkPath],
+        taskId: 'apk-info:badging:$apkPath',
+        timeout: const Duration(seconds: 20),
+      );
       if (badgingResult.exitCode == 0) {
-        final badging = badgingResult.stdout as String;
+        final badging = badgingResult.stdout;
         final firstLine = badging.split('\n').first;
         final vnMatch = RegExp(r"versionName='([^']*)'").firstMatch(firstLine);
         if (vnMatch != null) versionName = vnMatch.group(1)!;
@@ -293,7 +311,9 @@ class ApkSigningService {
       if (line.contains('android:name') && line.contains(metaName)) {
         // 检查同一行是否有 android:value
         if (line.contains('android:value')) {
-          final rawMatch = RegExp(r'android:value.*?Raw:\s*"([^"]*)"').firstMatch(line);
+          final rawMatch = RegExp(
+            r'android:value.*?Raw:\s*"([^"]*)"',
+          ).firstMatch(line);
           if (rawMatch != null) return rawMatch.group(1);
         }
         // 检查下一行是否有 android:value
@@ -330,9 +350,7 @@ class ApkSigningService {
   }
 
   Future<String?> pickOutputDirectory() async {
-    final result = await getDirectoryPath(
-      confirmButtonText: '选择输出目录',
-    );
+    final result = await getDirectoryPath(confirmButtonText: '选择输出目录');
     return result;
   }
 
@@ -358,15 +376,10 @@ class ApkSigningService {
       );
     }
 
-    final name = apkPath
-        .split(Platform.pathSeparator)
-        .where((s) => s.isNotEmpty)
-        .last;
+    final name = _fileName(apkPath);
     final dotIdx = name.lastIndexOf('.');
     final baseName = dotIdx > 0 ? name.substring(0, dotIdx) : name;
-    final outputName = customOutputName != null && customOutputName.isNotEmpty
-        ? '$customOutputName.apk'
-        : '${baseName}_signed.apk';
+    final outputName = _signedOutputName(baseName, customOutputName);
     final outputPath = '$outputDir${Platform.pathSeparator}$outputName';
 
     // Copy APK to output path first, then sign in-place.
@@ -384,18 +397,25 @@ class ApkSigningService {
     }
 
     try {
-      final result = await Process.run(apksigner, [
-        'sign',
-        '--ks',
-        jksPath,
-        '--ks-key-alias',
-        keyAlias,
-        '--ks-pass',
-        'pass:$password',
-        '--key-pass',
-        'pass:$password',
-        outputPath,
-      ]);
+      final result = await _processRunner.run(
+        executable: apksigner,
+        arguments: [
+          'sign',
+          '--ks',
+          jksPath,
+          '--ks-key-alias',
+          keyAlias,
+          '--ks-pass',
+          'env:FVM_MANAGER_APK_SIGNING_PASSWORD',
+          '--key-pass',
+          'env:FVM_MANAGER_APK_SIGNING_PASSWORD',
+          outputPath,
+        ],
+        taskId: 'apk-sign:$outputPath',
+        environment: {'FVM_MANAGER_APK_SIGNING_PASSWORD': password},
+        runInShell: Platform.isWindows,
+        timeout: const Duration(minutes: 5),
+      );
       if (result.exitCode != 0) {
         // Clean up failed output.
         try {
@@ -403,14 +423,36 @@ class ApkSigningService {
         } on Object {
           // ignore
         }
-        final stderr = result.stderr.toString();
-        final stdout = result.stdout.toString();
+        final stderr = result.stderr;
+        final stdout = result.stdout;
         return SignedApkInfo(
           originalPath: apkPath,
           outputPath: '',
           outputName: outputName,
           success: false,
           errorMessage: '签名失败: ${stderr.isNotEmpty ? stderr : stdout}',
+        );
+      }
+
+      final verifyResult = await _processRunner.run(
+        executable: apksigner,
+        arguments: ['verify', '--print-certs', outputPath],
+        taskId: 'apk-verify:$outputPath',
+        runInShell: Platform.isWindows,
+        timeout: const Duration(minutes: 2),
+      );
+      if (verifyResult.exitCode != 0) {
+        try {
+          await File(outputPath).delete();
+        } on Object {
+          // ignore
+        }
+        return SignedApkInfo(
+          originalPath: apkPath,
+          outputPath: '',
+          outputName: outputName,
+          success: false,
+          errorMessage: '签名校验失败: ${verifyResult.bestMessage}',
         );
       }
     } on Object catch (e) {
@@ -440,5 +482,21 @@ class ApkSigningService {
       versionCode: info.versionCode,
       success: true,
     );
+  }
+
+  String _fileName(String path) =>
+      path.split(RegExp(r'[\\/]')).where((s) => s.isNotEmpty).last;
+
+  String _signedOutputName(String baseName, String? customOutputName) {
+    final raw = customOutputName?.trim();
+    if (raw == null || raw.isEmpty) return '${baseName}_signed.apk';
+    final withoutExtension = raw.replaceFirst(
+      RegExp(r'\.apk$', caseSensitive: false),
+      '',
+    );
+    final safeName = withoutExtension
+        .replaceAll(RegExp(r'[\\/:*?"<>|]+'), '_')
+        .trim();
+    return '${safeName.isEmpty ? '${baseName}_signed' : safeName}.apk';
   }
 }

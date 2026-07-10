@@ -1091,6 +1091,7 @@ class _ProjectDetail extends ConsumerWidget {
                             ProjectBuildTarget.windows => '打开 Windows 构建目录',
                           },
                           child: IconButton.outlined(
+                            key: const ValueKey('open-build-output-button'),
                             onPressed: controller.selectedTaskActive('build')
                                 ? null
                                 : controller.openBuildOutput,

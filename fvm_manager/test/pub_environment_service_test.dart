@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter_manager/src/data/flutter_command_service.dart';
 import 'package:flutter_manager/src/data/fvm_service.dart';
+import 'package:flutter_manager/src/data/process_runner.dart';
 import 'package:flutter_manager/src/data/pub_environment_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -61,7 +62,10 @@ void main() {
     final version = await fvm.useLocalDirectory(root.path);
 
     expect(version, '9.9.9');
-    expect(environment.customFvmExecutable, executable.path);
+    expect(
+      _normalizedPath(environment.customFvmExecutable!),
+      _normalizedPath(executable.path),
+    );
 
     await File('${root.path}/.fvmrc').writeAsString('{}');
     final devices = await fvm.listDevices(root.path);
@@ -76,7 +80,7 @@ void main() {
 
     if (!Platform.isWindows) {
       final output = <String>[];
-      final commands = FlutterCommandService(fvm);
+      final commands = FlutterCommandService(fvm, ProcessRunner());
       final exitCodes = await Future.wait([
         commands.run(
           taskId: 'run::demo',
@@ -98,7 +102,10 @@ void main() {
 
     final reloaded = PubEnvironmentService(settingsFile: settings);
     await reloaded.load();
-    expect(reloaded.customFvmExecutable, executable.path);
+    expect(
+      _normalizedPath(reloaded.customFvmExecutable!),
+      _normalizedPath(executable.path),
+    );
     expect(await FvmService(reloaded).detect(), '9.9.9');
   });
 
@@ -141,3 +148,6 @@ void main() {
     expect(reloaded.buildOpensConsoleWindow, isTrue);
   });
 }
+
+String _normalizedPath(String path) =>
+    File(path).absolute.path.replaceAll('/', Platform.pathSeparator);

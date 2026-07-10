@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'fvm_service.dart';
+import 'process_runner.dart';
 
 class ProjectCommandLogBuffer {
   ProjectCommandLogBuffer({this.maxLength = 120000});
@@ -24,12 +25,12 @@ class ProjectCommandLogBuffer {
 }
 
 class FlutterCommandService {
-  FlutterCommandService(this._fvmService);
+  FlutterCommandService(this._fvmService, this._processRunner);
 
   final FvmService _fvmService;
-  final Map<String, Process> _activeProcesses = {};
+  final ProcessRunner _processRunner;
 
-  bool isRunning(String taskId) => _activeProcesses.containsKey(taskId);
+  bool isRunning(String taskId) => _processRunner.isRunning(taskId);
 
   Future<int> run({
     required String taskId,
@@ -38,11 +39,13 @@ class FlutterCommandService {
     required void Function(String output) onOutput,
   }) async {
     if (isRunning(taskId)) throw Exception('该任务已在运行');
-    final process = await _fvmService.startFlutterCommand(
-      projectPath: projectPath,
-      arguments: arguments,
+    final process = await _processRunner.startManaged(
+      taskId: taskId,
+      starter: () => _fvmService.startFlutterCommand(
+        projectPath: projectPath,
+        arguments: arguments,
+      ),
     );
-    _activeProcesses[taskId] = process;
     onOutput(
       r'$ flutter '
       '${arguments.join(' ')}\n\n',
@@ -53,13 +56,7 @@ class FlutterCommandService {
     process.stderr
         .transform(const Utf8Decoder(allowMalformed: true))
         .listen(onOutput);
-    try {
-      return await process.exitCode;
-    } finally {
-      if (identical(_activeProcesses[taskId], process)) {
-        _activeProcesses.remove(taskId);
-      }
-    }
+    return process.exitCode;
   }
 
   Future<int> runDart({
@@ -69,11 +66,13 @@ class FlutterCommandService {
     required void Function(String output) onOutput,
   }) async {
     if (isRunning(taskId)) throw Exception('该任务已在运行');
-    final process = await _fvmService.startDartCommand(
-      projectPath: projectPath,
-      arguments: arguments,
+    final process = await _processRunner.startManaged(
+      taskId: taskId,
+      starter: () => _fvmService.startDartCommand(
+        projectPath: projectPath,
+        arguments: arguments,
+      ),
     );
-    _activeProcesses[taskId] = process;
     onOutput(
       r'$ dart '
       '${arguments.join(' ')}\n\n',
@@ -84,13 +83,7 @@ class FlutterCommandService {
     process.stderr
         .transform(const Utf8Decoder(allowMalformed: true))
         .listen(onOutput);
-    try {
-      return await process.exitCode;
-    } finally {
-      if (identical(_activeProcesses[taskId], process)) {
-        _activeProcesses.remove(taskId);
-      }
-    }
+    return process.exitCode;
   }
 
   Future<int> runExternal({
@@ -102,13 +95,13 @@ class FlutterCommandService {
     required void Function(String output) onOutput,
   }) async {
     if (isRunning(taskId)) throw Exception('该任务已在运行');
-    final process = await Process.start(
-      executable,
-      arguments,
+    final process = await _processRunner.start(
+      taskId: taskId,
+      executable: executable,
+      arguments: arguments,
       workingDirectory: workingDirectory,
       runInShell: Platform.isWindows,
     );
-    _activeProcesses[taskId] = process;
     onOutput(
       r'$ '
       '$executable ${(displayArguments ?? arguments).join(' ')}\n\n',
@@ -119,29 +112,14 @@ class FlutterCommandService {
     process.stderr
         .transform(const Utf8Decoder(allowMalformed: true))
         .listen(onOutput);
-    try {
-      return await process.exitCode;
-    } finally {
-      if (identical(_activeProcesses[taskId], process)) {
-        _activeProcesses.remove(taskId);
-      }
-    }
+    return process.exitCode;
   }
 
   Future<void> stop(String taskId, {bool gracefulFlutterRun = false}) async {
-    final process = _activeProcesses[taskId];
-    if (process == null) return;
-    if (gracefulFlutterRun && await _quitFlutterRun(process)) return;
-    if (Platform.isWindows) {
-      await Process.run('taskkill', [
-        '/PID',
-        '${process.pid}',
-        '/T',
-        '/F',
-      ], runInShell: true);
-    } else {
-      process.kill(ProcessSignal.sigterm);
-    }
+    await _processRunner.stop(
+      taskId,
+      gracefulStop: gracefulFlutterRun ? _quitFlutterRun : null,
+    );
   }
 
   Future<bool> _quitFlutterRun(Process process) async {
@@ -160,7 +138,7 @@ class FlutterCommandService {
   Future<void> hotRestart(String taskId) => _sendRuntimeCommand(taskId, 'R');
 
   Future<void> _sendRuntimeCommand(String taskId, String command) async {
-    final process = _activeProcesses[taskId];
+    final process = _processRunner.processFor(taskId);
     if (process == null) throw Exception('Flutter Run 当前未运行');
     process.stdin.writeln(command);
     await process.stdin.flush();

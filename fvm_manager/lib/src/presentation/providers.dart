@@ -22,6 +22,7 @@ import '../data/build_history_repository.dart';
 import '../data/local_project_service.dart';
 import '../data/project_repository.dart';
 import '../data/pub_environment_service.dart';
+import '../data/process_runner.dart';
 import '../domain/models.dart';
 import '../domain/build_history_models.dart';
 import '../domain/project_models.dart';
@@ -48,6 +49,12 @@ final pubEnvironmentServiceProvider = Provider<PubEnvironmentService>(
   (ref) => PubEnvironmentService(),
 );
 
+final processRunnerProvider = Provider<ProcessRunner>((ref) {
+  final runner = ProcessRunner();
+  ref.onDispose(() => unawaited(runner.stopAll()));
+  return runner;
+});
+
 final fvmServiceProvider = Provider<FvmService>(
   (ref) => FvmService(ref.watch(pubEnvironmentServiceProvider)),
 );
@@ -67,8 +74,126 @@ final buildDirectoryWatcherProvider = Provider<BuildDirectoryWatcher>((ref) {
 });
 
 final apkSigningServiceProvider = Provider<ApkSigningService>(
-  (ref) => ApkSigningService(),
+  (ref) => ApkSigningService(ref.watch(processRunnerProvider)),
 );
+
+final apkSigningControllerProvider =
+    NotifierProvider<ApkSigningController, ApkSigningState>(
+      ApkSigningController.new,
+    );
+
+class ApkSigningState {
+  const ApkSigningState({
+    this.unsignedApks = const [],
+    this.signedApks = const [],
+    this.signingInProgress = false,
+    this.signingStatus = '',
+  });
+
+  final List<ApkInfo> unsignedApks;
+  final List<SignedApkInfo> signedApks;
+  final bool signingInProgress;
+  final String signingStatus;
+
+  ApkSigningState copyWith({
+    List<ApkInfo>? unsignedApks,
+    List<SignedApkInfo>? signedApks,
+    bool? signingInProgress,
+    String? signingStatus,
+  }) => ApkSigningState(
+    unsignedApks: unsignedApks ?? this.unsignedApks,
+    signedApks: signedApks ?? this.signedApks,
+    signingInProgress: signingInProgress ?? this.signingInProgress,
+    signingStatus: signingStatus ?? this.signingStatus,
+  );
+}
+
+class ApkSigningController extends Notifier<ApkSigningState> {
+  @override
+  ApkSigningState build() => const ApkSigningState();
+
+  void addUnsignedApks(List<ApkInfo> apks) {
+    final existing = state.unsignedApks.map((a) => a.path).toSet();
+    final newApks = apks.where((a) => !existing.contains(a.path)).toList();
+    state = state.copyWith(unsignedApks: [...state.unsignedApks, ...newApks]);
+  }
+
+  void updateApkOutputName(String path, String outputName) {
+    state = state.copyWith(
+      unsignedApks: state.unsignedApks.map((a) {
+        if (a.path == path) return a.copyWith(outputName: outputName);
+        return a;
+      }).toList(),
+    );
+  }
+
+  void removeUnsignedApk(String path) {
+    state = state.copyWith(
+      unsignedApks: state.unsignedApks.where((a) => a.path != path).toList(),
+    );
+  }
+
+  void clearUnsignedApks() {
+    state = state.copyWith(unsignedApks: const []);
+  }
+
+  void clearSignedApks() {
+    state = state.copyWith(signedApks: const [], signingStatus: '');
+  }
+
+  Future<void> signSelectedApks({
+    required String jksPath,
+    required String password,
+    required String keyAlias,
+    String? outputDir,
+    required List<String> selectedPaths,
+  }) async {
+    if (selectedPaths.isEmpty) return;
+
+    final service = ref.read(apkSigningServiceProvider);
+    final signingOutputDir = outputDir?.trim().isNotEmpty == true
+        ? outputDir!.trim()
+        : service.defaultOutputDirectory;
+
+    final apksToSign = state.unsignedApks
+        .where((a) => selectedPaths.contains(a.path))
+        .toList();
+    if (apksToSign.isEmpty) return;
+
+    state = state.copyWith(
+      signingInProgress: true,
+      signingStatus: '正在签名...',
+      signedApks: [...state.signedApks],
+    );
+
+    final results = <SignedApkInfo>[];
+    final total = apksToSign.length;
+
+    for (var i = 0; i < total; i++) {
+      final apk = apksToSign[i];
+      state = state.copyWith(
+        signingStatus: '签名中 (${i + 1}/$total): ${apk.name}',
+      );
+
+      final result = await service.signApk(
+        apkPath: apk.path,
+        jksPath: jksPath,
+        password: password,
+        keyAlias: keyAlias,
+        outputDir: signingOutputDir,
+        customOutputName: apk.outputName.isNotEmpty ? apk.outputName : null,
+      );
+      results.add(result);
+    }
+
+    state = state.copyWith(
+      signingInProgress: false,
+      signingStatus:
+          '签名完成: ${results.where((r) => r.success).length}/$total 成功',
+      signedApks: [...state.signedApks, ...results],
+    );
+  }
+}
 
 final environmentDiagnosticsServiceProvider =
     Provider<EnvironmentDiagnosticsService>(
@@ -94,7 +219,10 @@ final buildHistoryRepositoryProvider = Provider<BuildHistoryRepository>(
 );
 
 final flutterCommandServiceProvider = Provider<FlutterCommandService>(
-  (ref) => FlutterCommandService(ref.watch(fvmServiceProvider)),
+  (ref) => FlutterCommandService(
+    ref.watch(fvmServiceProvider),
+    ref.watch(processRunnerProvider),
+  ),
 );
 
 final flutterDeviceMonitorProvider = Provider<FlutterDeviceMonitor>((ref) {
@@ -2874,86 +3002,5 @@ class FvmController extends Notifier<FvmState> {
 
   Future<void> setInnoCompilerPath(String path) async {
     await ref.read(pubEnvironmentServiceProvider).setInnoCompilerPath(path);
-  }
-
-  // ---- APK 签名相关方法 ----
-
-  void addUnsignedApks(List<ApkInfo> apks) {
-    final existing = state.unsignedApks.map((a) => a.path).toSet();
-    final newApks = apks.where((a) => !existing.contains(a.path)).toList();
-    state = state.copyWith(
-      unsignedApks: [...state.unsignedApks, ...newApks],
-    );
-  }
-
-  void updateApkOutputName(String path, String outputName) {
-    state = state.copyWith(
-      unsignedApks: state.unsignedApks.map((a) {
-        if (a.path == path) return a.copyWith(outputName: outputName);
-        return a;
-      }).toList(),
-    );
-  }
-
-  void removeUnsignedApk(String path) {
-    state = state.copyWith(
-      unsignedApks: state.unsignedApks.where((a) => a.path != path).toList(),
-    );
-  }
-
-  void clearUnsignedApks() {
-    state = state.copyWith(unsignedApks: []);
-  }
-
-  void clearSignedApks() {
-    state = state.copyWith(signedApks: []);
-  }
-
-  Future<void> signSelectedApks({
-    required String jksPath,
-    required String password,
-    required String keyAlias,
-    required List<String> selectedPaths,
-  }) async {
-    if (selectedPaths.isEmpty) return;
-
-    final service = ref.read(apkSigningServiceProvider);
-    final outputDir = '${Platform.environment['HOME']}/Desktop/signed_apks';
-
-    final apksToSign = state.unsignedApks
-        .where((a) => selectedPaths.contains(a.path))
-        .toList();
-
-    state = state.copyWith(
-      apkSigningInProgress: true,
-      apkSigningStatus: '正在签名...',
-      signedApks: [...state.signedApks],
-    );
-
-    final results = <SignedApkInfo>[];
-    final total = apksToSign.length;
-
-    for (var i = 0; i < total; i++) {
-      final apk = apksToSign[i];
-      state = state.copyWith(
-        apkSigningStatus: '签名中 (${i + 1}/$total): ${apk.name}',
-      );
-
-      final result = await service.signApk(
-        apkPath: apk.path,
-        jksPath: jksPath,
-        password: password,
-        keyAlias: keyAlias,
-        outputDir: outputDir,
-        customOutputName: apk.outputName.isNotEmpty ? apk.outputName : null,
-      );
-      results.add(result);
-    }
-
-    state = state.copyWith(
-      apkSigningInProgress: false,
-      apkSigningStatus: '签名完成: ${results.where((r) => r.success).length}/$total 成功',
-      signedApks: [...state.signedApks, ...results],
-    );
   }
 }

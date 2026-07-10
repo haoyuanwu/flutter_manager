@@ -196,7 +196,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                                   onAddProject: _openProjectManagerAndAdd,
                                 ),
                                 5 => _DistributionPage(state: state),
-                                6 => _ApkSigningPage(state: state),
+                                6 => const _ApkSigningPage(),
                                 7 => const _LogPage(),
                                 8 => _EnvironmentGuide(state: state),
                                 9 => _McpServerPage(state: state),

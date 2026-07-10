@@ -3,6 +3,9 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_manager/src/data/local_project_service.dart';
 
+String _normalizePath(String path) =>
+    File(path).absolute.path.replaceAll('/', Platform.pathSeparator);
+
 void main() {
   test('reads Flutter platforms, FVM version, and Android flavors', () async {
     final root = await Directory.systemTemp.createTemp(
@@ -70,7 +73,7 @@ android {
         'demo_app',
       );
 
-      expect(result.path, app.path);
+      expect(_normalizePath(result.path), _normalizePath(app.path));
     },
   );
 
@@ -95,7 +98,7 @@ android {
       'unrelated_package_name',
     );
 
-    expect(result.path, expected.path);
+    expect(_normalizePath(result.path), _normalizePath(expected.path));
   });
 
   test('updates pubspec version and hardcoded Android version', () async {

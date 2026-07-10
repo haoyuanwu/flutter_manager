@@ -3,9 +3,15 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_manager/src/app.dart';
+import 'package:flutter_manager/src/data/pub_environment_service.dart';
 import 'package:flutter_manager/src/domain/models.dart';
 import 'package:flutter_manager/src/domain/project_models.dart';
 import 'package:flutter_manager/src/presentation/providers.dart';
+
+class _TestPubEnvironmentService extends PubEnvironmentService {
+  @override
+  Future<List<String>> getSystemPath() async => const ['/tmp/fvm/bin'];
+}
 
 class _TestController extends FvmController {
   @override
@@ -89,6 +95,9 @@ void main() {
       ProviderScope(
         overrides: [
           fvmControllerProvider.overrideWith(_MissingFvmController.new),
+          pubEnvironmentServiceProvider.overrideWithValue(
+            _TestPubEnvironmentService(),
+          ),
         ],
         child: const FvmManagerApp(),
       ),
@@ -107,7 +116,12 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [fvmControllerProvider.overrideWith(_TestController.new)],
+        overrides: [
+          fvmControllerProvider.overrideWith(_TestController.new),
+          pubEnvironmentServiceProvider.overrideWithValue(
+            _TestPubEnvironmentService(),
+          ),
+        ],
         child: const FvmManagerApp(),
       ),
     );
@@ -130,7 +144,12 @@ void main() {
     addTearDown(tester.view.resetPhysicalSize);
     await tester.pumpWidget(
       ProviderScope(
-        overrides: [fvmControllerProvider.overrideWith(_TestController.new)],
+        overrides: [
+          fvmControllerProvider.overrideWith(_TestController.new),
+          pubEnvironmentServiceProvider.overrideWithValue(
+            _TestPubEnvironmentService(),
+          ),
+        ],
         child: const FvmManagerApp(),
       ),
     );
@@ -205,7 +224,10 @@ void main() {
     await tester.tap(find.text('构建与打包'));
     await tester.pump();
     expect(find.text('Android 渠道（可多选）'), findsOneWidget);
-    expect(find.text('打开 APK 目录'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('open-build-output-button')),
+      findsOneWidget,
+    );
     expect(find.text('DevTools'), findsOneWidget);
     expect(find.text('热重载'), findsOneWidget);
     expect(find.text('热重启'), findsOneWidget);
