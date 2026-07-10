@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 
 import '../domain/models.dart';
 import '../domain/project_models.dart';
+import '../data/environment_diagnostics_service.dart';
 import '../data/log_service.dart';
 import '../data/distribution_service.dart';
 import '../data/local_project_service.dart';
@@ -16,6 +17,7 @@ import 'confirm_dialog.dart';
 import 'providers.dart';
 
 part 'pages/environment_guide_page.dart';
+part 'pages/environment_diagnostics_page.dart';
 part 'pages/distribution_page.dart';
 part 'pages/overview_page.dart';
 part 'pages/project_configuration_page.dart';
@@ -37,6 +39,8 @@ class HomePage extends ConsumerStatefulWidget {
 
 class _HomePageState extends ConsumerState<HomePage> {
   int _page = 0;
+  int _diagnosticsRunSeed = 0;
+  EnvironmentDiagnosticReport? _diagnosticsReport;
   final Set<String> _promptedMissingProjects = {};
   bool _promptedMissingFvm = false;
   MethodChannel? _dragDropChannel;
@@ -171,19 +175,26 @@ class _HomePageState extends ConsumerState<HomePage> {
                             Expanded(
                               child: switch (_page) {
                                 0 => _Overview(state: state),
-                                1 => _Versions(state: state),
-                                2 => _ProjectManagement(
+                                1 => _EnvironmentDiagnosticsPage(
+                                  state: state,
+                                  refreshToken: _diagnosticsRunSeed,
+                                  initialReport: _diagnosticsReport,
+                                  onReportChanged: (report) =>
+                                      _diagnosticsReport = report,
+                                ),
+                                2 => _Versions(state: state),
+                                3 => _ProjectManagement(
                                   state: state,
                                   onOpenDistribution: _openDistribution,
                                 ),
-                                3 => _ProjectConfiguration(
+                                4 => _ProjectConfiguration(
                                   state: state,
                                   onAddProject: _openProjectManagerAndAdd,
                                 ),
-                                4 => _DistributionPage(state: state),
-                                5 => const _LogPage(),
-                                6 => _EnvironmentGuide(state: state),
-                                7 => _McpServerPage(state: state),
+                                5 => _DistributionPage(state: state),
+                                6 => const _LogPage(),
+                                7 => _EnvironmentGuide(state: state),
+                                8 => _McpServerPage(state: state),
                                 _ => _SettingsPage(state: state),
                               },
                             ),
@@ -201,6 +212,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                 key: ValueKey('error:${state.errorMessage}'),
                 message: state.errorMessage!,
                 error: true,
+                onDiagnosticsTap: _openDiagnostics,
               ),
             )
           else if (state.statusMessage != null)
@@ -223,7 +235,14 @@ class _HomePageState extends ConsumerState<HomePage> {
         projectPath) {
       unawaited(controller.selectManagedProject(projectPath));
     }
-    setState(() => _page = 4);
+    setState(() => _page = 5);
+  }
+
+  void _openDiagnostics() {
+    setState(() {
+      _page = 1;
+      _diagnosticsRunSeed++;
+    });
   }
 
   Future<void> _showMissingFvmDialog() async {
@@ -236,7 +255,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         content: const SizedBox(
           width: 430,
           child: Text(
-            '你可以通过 Dart Pub 安装 FVM；如果已经安装但应用没有识别到，'
+            '点击“安装 FVM”可由软件自动选择当前系统可用的安装方式；如果已经安装但应用没有识别到，'
             '请选择包含 fvm 可执行文件的目录，例如 ~/.pub-cache/bin 或 /opt/homebrew/bin。',
           ),
         ),
@@ -307,7 +326,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   }
 
   void _openProjectManagerAndAdd() {
-    setState(() => _page = 2);
+    setState(() => _page = 3);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         ref.read(fvmControllerProvider.notifier).addManagedProject();

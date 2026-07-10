@@ -1,5 +1,7 @@
 part of '../home_page.dart';
 
+enum _ArtifactSort { newest, largest, name }
+
 class _DistributionPage extends ConsumerStatefulWidget {
   const _DistributionPage({required this.state});
 
@@ -13,11 +15,39 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
   List<DistributionArtifact> _artifacts = const [];
   String? _selectedArtifactPath;
   String? _scannedProjectPath;
+  String? _platformFilter;
+  DistributionArtifactType? _typeFilter;
+  final TextEditingController _searchController = TextEditingController();
+  _ArtifactSort _sort = _ArtifactSort.newest;
   bool _loading = false;
 
   DistributionArtifact? get _selectedArtifact => _artifacts
       .where((artifact) => artifact.path == _selectedArtifactPath)
       .firstOrNull;
+
+  List<DistributionArtifact> get _filteredArtifacts {
+    final query = _searchController.text.trim().toLowerCase();
+    final filtered = _artifacts
+        .where(
+          (artifact) =>
+              (_platformFilter == null ||
+                  artifact.platformLabel == _platformFilter) &&
+              (_typeFilter == null || artifact.type == _typeFilter) &&
+              (query.isEmpty || artifact.name.toLowerCase().contains(query)),
+        )
+        .toList();
+    switch (_sort) {
+      case _ArtifactSort.newest:
+        filtered.sort((a, b) => b.modified.compareTo(a.modified));
+      case _ArtifactSort.largest:
+        filtered.sort((a, b) => b.size.compareTo(a.size));
+      case _ArtifactSort.name:
+        filtered.sort(
+          (a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+        );
+    }
+    return filtered;
+  }
 
   @override
   void initState() {
@@ -34,6 +64,12 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
     }
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _scan() async {
     if (!mounted) return;
     final projectPath = widget.state.selectedManagedProjectPath;
@@ -42,12 +78,21 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
         _artifacts = const [];
         _selectedArtifactPath = null;
         _scannedProjectPath = null;
+        _platformFilter = null;
+        _typeFilter = null;
       });
       return;
     }
     setState(() {
+      final projectChanged = _scannedProjectPath != projectPath;
       _loading = true;
       _scannedProjectPath = projectPath;
+      if (projectChanged) {
+        _platformFilter = null;
+        _typeFilter = null;
+        _sort = _ArtifactSort.newest;
+        _searchController.clear();
+      }
     });
     try {
       final artifacts = await ref
@@ -58,10 +103,12 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
       }
       setState(() {
         _artifacts = artifacts;
-        _selectedArtifactPath = artifacts
-            .where((item) => item.path == _selectedArtifactPath)
-            .firstOrNull
-            ?.path;
+        _selectedArtifactPath =
+            artifacts
+                .where((item) => item.path == _selectedArtifactPath)
+                .firstOrNull
+                ?.path ??
+            artifacts.firstOrNull?.path;
       });
     } catch (error) {
       ref.read(fvmControllerProvider.notifier).showError(error);
@@ -69,6 +116,52 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
       if (mounted && _scannedProjectPath == projectPath) {
         setState(() => _loading = false);
       }
+    }
+  }
+
+  void _setPlatformFilter(String? platform) {
+    setState(() {
+      _platformFilter = platform;
+      _selectFirstVisibleArtifact();
+    });
+  }
+
+  void _setTypeFilter(DistributionArtifactType? type) {
+    setState(() {
+      _typeFilter = type;
+      _selectFirstVisibleArtifact();
+    });
+  }
+
+  void _setSort(_ArtifactSort sort) {
+    setState(() {
+      _sort = sort;
+      _selectFirstVisibleArtifact();
+    });
+  }
+
+  void _setSearch(String _) {
+    setState(_selectFirstVisibleArtifact);
+  }
+
+  void _selectFirstVisibleArtifact() {
+    final visible = _filteredArtifacts;
+    if (!visible.any((item) => item.path == _selectedArtifactPath)) {
+      _selectedArtifactPath = visible.firstOrNull?.path;
+    }
+  }
+
+  Future<void> _copyArtifactPath(DistributionArtifact artifact) async {
+    await Clipboard.setData(ClipboardData(text: artifact.path));
+    if (!mounted) return;
+    ref.read(fvmControllerProvider.notifier).showStatus('已复制产物路径');
+  }
+
+  Future<void> _revealArtifact(String path) async {
+    try {
+      await ref.read(localProjectServiceProvider).revealFile(path);
+    } catch (error) {
+      ref.read(fvmControllerProvider.notifier).showError(error);
     }
   }
 
@@ -111,21 +204,21 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      '分发平台',
+                      '构建产物中心',
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.w800,
                       ),
                     ),
                     SizedBox(height: 4),
-                    Text('扫描项目构建产物，选择安装包后上传或打开对应平台。'),
+                    Text('集中查看、筛选和分发项目的最终安装包。'),
                   ],
                 ),
               ),
               OutlinedButton.icon(
                 onPressed: _loading ? null : _chooseArtifact,
                 icon: const Icon(Icons.file_open_outlined),
-                label: const Text('选择本地安装包'),
+                label: const Text('添加本地产物'),
               ),
               const SizedBox(width: 8),
               IconButton.filledTonal(
@@ -136,56 +229,64 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
             ],
           ),
           const SizedBox(height: 18),
-          DropdownButtonFormField<String>(
-            isExpanded: true,
-            initialValue:
-                projects.any(
-                  (project) => project.path == state.selectedManagedProjectPath,
-                )
-                ? state.selectedManagedProjectPath
-                : null,
-            decoration: const InputDecoration(
-              labelText: '选择项目',
-              border: OutlineInputBorder(),
-              prefixIcon: Icon(Icons.workspaces_outline),
-            ),
-            items: projects
-                .map(
-                  (project) => DropdownMenuItem(
-                    value: project.path,
-                    child: Text(project.displayName),
-                  ),
-                )
-                .toList(),
-            onChanged: (path) {
-              if (path != null) {
-                unawaited(
-                  ref
-                      .read(fvmControllerProvider.notifier)
-                      .selectManagedProject(path),
-                );
-              }
+          _ArtifactToolbar(
+            projects: projects.toList(growable: false),
+            selectedProjectPath: state.selectedManagedProjectPath,
+            artifacts: _artifacts,
+            visibleCount: _filteredArtifacts.length,
+            loading: _loading,
+            searchController: _searchController,
+            platform: _platformFilter,
+            type: _typeFilter,
+            sort: _sort,
+            onProjectChanged: (path) {
+              if (path == null) return;
+              unawaited(
+                ref
+                    .read(fvmControllerProvider.notifier)
+                    .selectManagedProject(path),
+              );
             },
+            onSearchChanged: _setSearch,
+            onPlatformChanged: _setPlatformFilter,
+            onTypeChanged: _setTypeFilter,
+            onSortChanged: _setSort,
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final isNarrow = constraints.maxWidth < 900;
                 final artifacts = _ArtifactsPanel(
-                  artifacts: _artifacts,
+                  artifacts: _filteredArtifacts,
                   selectedPath: _selectedArtifactPath,
                   loading: _loading,
                   hasProject: state.selectedManagedProjectPath != null,
+                  filteredEmpty:
+                      _artifacts.isNotEmpty && _filteredArtifacts.isEmpty,
                   onSelected: (path) =>
                       setState(() => _selectedArtifactPath = path),
-                  onReveal: (path) =>
-                      ref.read(localProjectServiceProvider).revealFile(path),
+                  onReveal: (path) => unawaited(_revealArtifact(path)),
                   compact: isNarrow,
                 );
                 final platforms = _DistributionPlatforms(
                   artifact: _selectedArtifact,
                   compact: isNarrow,
+                  embedded: true,
+                );
+                final details = _SelectedArtifactCard(
+                  artifact: _selectedArtifact,
+                  onCopyPath: _selectedArtifact == null
+                      ? null
+                      : () => _copyArtifactPath(_selectedArtifact!),
+                  onReveal: _selectedArtifact == null
+                      ? null
+                      : () => _revealArtifact(_selectedArtifact!.path),
+                  embedded: true,
+                );
+                final inspector = _ArtifactInspector(
+                  details: details,
+                  distribution: platforms,
                 );
                 if (isNarrow) {
                   return SingleChildScrollView(
@@ -193,11 +294,11 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         SizedBox(
-                          height: _artifacts.isEmpty ? 120 : 200,
+                          height: _filteredArtifacts.isEmpty ? 120 : 220,
                           child: artifacts,
                         ),
                         const SizedBox(height: 12),
-                        platforms,
+                        SizedBox(height: 460, child: inspector),
                       ],
                     ),
                   );
@@ -208,10 +309,7 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
                   children: [
                     Expanded(child: artifacts),
                     const SizedBox(width: 16),
-                    SizedBox(
-                      width: 330,
-                      child: platforms,
-                    ),
+                    SizedBox(width: 380, child: inspector),
                   ],
                 );
               },
@@ -223,12 +321,425 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
   }
 }
 
+class _ArtifactToolbar extends StatelessWidget {
+  const _ArtifactToolbar({
+    required this.projects,
+    required this.selectedProjectPath,
+    required this.artifacts,
+    required this.visibleCount,
+    required this.loading,
+    required this.searchController,
+    required this.platform,
+    required this.type,
+    required this.sort,
+    required this.onProjectChanged,
+    required this.onSearchChanged,
+    required this.onPlatformChanged,
+    required this.onTypeChanged,
+    required this.onSortChanged,
+  });
+
+  final List<FlutterProject> projects;
+  final String? selectedProjectPath;
+  final List<DistributionArtifact> artifacts;
+  final int visibleCount;
+  final bool loading;
+  final TextEditingController searchController;
+  final String? platform;
+  final DistributionArtifactType? type;
+  final _ArtifactSort sort;
+  final ValueChanged<String?> onProjectChanged;
+  final ValueChanged<String> onSearchChanged;
+  final ValueChanged<String?> onPlatformChanged;
+  final ValueChanged<DistributionArtifactType?> onTypeChanged;
+  final ValueChanged<_ArtifactSort> onSortChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final platforms =
+        artifacts.map((artifact) => artifact.platformLabel).toSet().toList()
+          ..sort();
+    final types = artifacts.map((artifact) => artifact.type).toSet().toList()
+      ..sort((a, b) => a.name.compareTo(b.name));
+    final totalSize = artifacts.fold<int>(
+      0,
+      (sum, artifact) => sum + artifact.size,
+    );
+    return Card(
+      margin: EdgeInsets.zero,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final narrow = constraints.maxWidth < 760;
+            final projectField = DropdownButtonFormField<String>(
+              isExpanded: true,
+              initialValue:
+                  projects.any((project) => project.path == selectedProjectPath)
+                  ? selectedProjectPath
+                  : null,
+              decoration: const InputDecoration(
+                labelText: '项目',
+                border: OutlineInputBorder(),
+                prefixIcon: Icon(Icons.workspaces_outline),
+                isDense: true,
+              ),
+              items: projects
+                  .map(
+                    (project) => DropdownMenuItem(
+                      value: project.path,
+                      child: Text(
+                        project.displayName,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  )
+                  .toList(),
+              onChanged: onProjectChanged,
+            );
+            final searchField = TextField(
+              controller: searchController,
+              onChanged: onSearchChanged,
+              decoration: InputDecoration(
+                labelText: '搜索产物',
+                hintText: '输入文件名',
+                border: const OutlineInputBorder(),
+                prefixIcon: const Icon(Icons.search),
+                isDense: true,
+                suffixIcon: searchController.text.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: '清空搜索',
+                        onPressed: () {
+                          searchController.clear();
+                          onSearchChanged('');
+                        },
+                        icon: const Icon(Icons.close, size: 18),
+                      ),
+              ),
+            );
+            final sortField = DropdownButtonFormField<_ArtifactSort>(
+              initialValue: sort,
+              decoration: const InputDecoration(
+                labelText: '排序',
+                border: OutlineInputBorder(),
+                isDense: true,
+              ),
+              items: const [
+                DropdownMenuItem(
+                  value: _ArtifactSort.newest,
+                  child: Text('最新优先'),
+                ),
+                DropdownMenuItem(
+                  value: _ArtifactSort.largest,
+                  child: Text('体积最大'),
+                ),
+                DropdownMenuItem(value: _ArtifactSort.name, child: Text('文件名')),
+              ],
+              onChanged: (value) {
+                if (value != null) onSortChanged(value);
+              },
+            );
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (narrow) ...[
+                  projectField,
+                  const SizedBox(height: 10),
+                  searchField,
+                  const SizedBox(height: 10),
+                  sortField,
+                ] else
+                  Row(
+                    children: [
+                      Expanded(flex: 4, child: projectField),
+                      const SizedBox(width: 10),
+                      Expanded(flex: 3, child: searchField),
+                      const SizedBox(width: 10),
+                      SizedBox(width: 150, child: sortField),
+                    ],
+                  ),
+                if (artifacts.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      _CompactFilterChip(
+                        label: '全部平台',
+                        selected: platform == null,
+                        onSelected: () => onPlatformChanged(null),
+                      ),
+                      for (final item in platforms)
+                        _CompactFilterChip(
+                          label: item,
+                          selected: platform == item,
+                          onSelected: () => onPlatformChanged(item),
+                        ),
+                      const SizedBox(width: 4),
+                      _CompactFilterChip(
+                        label: '全部格式',
+                        selected: type == null,
+                        onSelected: () => onTypeChanged(null),
+                      ),
+                      for (final item in types)
+                        _CompactFilterChip(
+                          label: item.name.toUpperCase(),
+                          selected: type == item,
+                          onSelected: () => onTypeChanged(item),
+                        ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 10),
+                Wrap(
+                  spacing: 14,
+                  runSpacing: 6,
+                  children: [
+                    _ArtifactSummary(
+                      icon: loading ? Icons.sync : Icons.inventory_2_outlined,
+                      text: loading
+                          ? '正在扫描'
+                          : '显示 $visibleCount / ${artifacts.length} 个产物',
+                    ),
+                    _ArtifactSummary(
+                      icon: Icons.storage_outlined,
+                      text: '总大小 ${_formatArtifactSize(totalSize)}',
+                    ),
+                    if (artifacts.firstOrNull case final latest?)
+                      _ArtifactSummary(
+                        icon: Icons.schedule_outlined,
+                        text: '最近 ${_formatArtifactTime(latest.modified)}',
+                      ),
+                  ],
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _CompactFilterChip extends StatelessWidget {
+  const _CompactFilterChip({
+    required this.label,
+    required this.selected,
+    required this.onSelected,
+  });
+
+  final String label;
+  final bool selected;
+  final VoidCallback onSelected;
+
+  @override
+  Widget build(BuildContext context) => FilterChip(
+    label: Text(label, style: const TextStyle(fontSize: 11)),
+    selected: selected,
+    onSelected: (_) => onSelected(),
+    visualDensity: VisualDensity.compact,
+    materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+  );
+}
+
+class _ArtifactSummary extends StatelessWidget {
+  const _ArtifactSummary({required this.icon, required this.text});
+
+  final IconData icon;
+  final String text;
+
+  @override
+  Widget build(BuildContext context) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(icon, size: 15, color: Colors.black45),
+      const SizedBox(width: 5),
+      Text(text, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+    ],
+  );
+}
+
+class _SelectedArtifactCard extends StatelessWidget {
+  const _SelectedArtifactCard({
+    required this.artifact,
+    required this.onCopyPath,
+    required this.onReveal,
+    this.embedded = false,
+  });
+
+  final DistributionArtifact? artifact;
+  final VoidCallback? onCopyPath;
+  final VoidCallback? onReveal;
+  final bool embedded;
+
+  @override
+  Widget build(BuildContext context) {
+    final artifact = this.artifact;
+    final content = Padding(
+      padding: const EdgeInsets.all(18),
+      child: SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (artifact == null)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 30),
+                child: Center(
+                  child: Text(
+                    '请从左侧选择一个产物',
+                    style: TextStyle(color: Colors.black54),
+                  ),
+                ),
+              )
+            else ...[
+              _ArtifactTypeBadge(artifact: artifact),
+              const SizedBox(height: 12),
+              Text(
+                artifact.name,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 14),
+              _ArtifactInfoRow(label: '平台', value: artifact.platformLabel),
+              _ArtifactInfoRow(label: '格式', value: artifact.typeLabel),
+              _ArtifactInfoRow(
+                label: '大小',
+                value: _formatArtifactSize(artifact.size),
+              ),
+              _ArtifactInfoRow(
+                label: '时间',
+                value: _formatArtifactTime(artifact.modified),
+              ),
+              const Divider(height: 24),
+              const Text(
+                '文件路径',
+                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 6),
+              SelectableText(
+                artifact.path,
+                style: const TextStyle(fontSize: 12, color: Colors.black54),
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: onCopyPath,
+                    icon: const Icon(Icons.copy_outlined, size: 17),
+                    label: const Text('复制路径'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: onReveal,
+                    icon: const Icon(Icons.folder_open_outlined, size: 17),
+                    label: const Text('文件位置'),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+    if (embedded) return content;
+    return Card(margin: EdgeInsets.zero, child: content);
+  }
+}
+
+class _ArtifactInfoRow extends StatelessWidget {
+  const _ArtifactInfoRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(bottom: 7),
+    child: Row(
+      children: [
+        SizedBox(
+          width: 54,
+          child: Text(
+            label,
+            style: const TextStyle(fontSize: 12, color: Colors.black54),
+          ),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(fontWeight: FontWeight.w600),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _ArtifactTypeBadge extends StatelessWidget {
+  const _ArtifactTypeBadge({required this.artifact});
+
+  final DistributionArtifact artifact;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 5),
+    decoration: BoxDecoration(
+      color: _artifactColor(artifact.type).withValues(alpha: 0.12),
+      borderRadius: BorderRadius.circular(7),
+    ),
+    child: Text(
+      '${artifact.platformLabel}  ${artifact.typeLabel}',
+      style: TextStyle(
+        color: _artifactColor(artifact.type),
+        fontSize: 11,
+        fontWeight: FontWeight.w700,
+      ),
+    ),
+  );
+}
+
+class _ArtifactInspector extends StatelessWidget {
+  const _ArtifactInspector({required this.details, required this.distribution});
+
+  final Widget details;
+  final Widget distribution;
+
+  @override
+  Widget build(BuildContext context) => DefaultTabController(
+    length: 2,
+    child: Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        children: [
+          const TabBar(
+            tabs: [
+              Tab(icon: Icon(Icons.info_outline, size: 18), text: '产物详情'),
+              Tab(
+                icon: Icon(Icons.cloud_upload_outlined, size: 18),
+                text: '分发上传',
+              ),
+            ],
+          ),
+          const Divider(height: 1),
+          Expanded(child: TabBarView(children: [details, distribution])),
+        ],
+      ),
+    ),
+  );
+}
+
 class _ArtifactsPanel extends StatelessWidget {
   const _ArtifactsPanel({
     required this.artifacts,
     required this.selectedPath,
     required this.loading,
     required this.hasProject,
+    required this.filteredEmpty,
     required this.onSelected,
     required this.onReveal,
     this.compact = false,
@@ -238,6 +749,7 @@ class _ArtifactsPanel extends StatelessWidget {
   final String? selectedPath;
   final bool loading;
   final bool hasProject;
+  final bool filteredEmpty;
   final ValueChanged<String> onSelected;
   final ValueChanged<String> onReveal;
   final bool compact;
@@ -249,11 +761,16 @@ class _ArtifactsPanel extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: EdgeInsets.fromLTRB(18, compact ? 12 : 16, 18, compact ? 8 : 12),
+          padding: EdgeInsets.fromLTRB(
+            18,
+            compact ? 12 : 16,
+            18,
+            compact ? 8 : 12,
+          ),
           child: Row(
             children: [
               Text(
-                '已打包文件',
+                '构建产物',
                 style: TextStyle(
                   fontSize: compact ? 15 : 17,
                   fontWeight: FontWeight.w700,
@@ -279,7 +796,11 @@ class _ArtifactsPanel extends StatelessWidget {
               : artifacts.isEmpty
               ? Center(
                   child: Text(
-                    hasProject ? '未找到可分发的构建产物' : '请先选择项目',
+                    filteredEmpty
+                        ? '没有符合当前搜索或筛选条件的产物'
+                        : hasProject
+                        ? '尚未找到最终安装包'
+                        : '请先选择项目',
                     style: const TextStyle(color: Colors.black54),
                   ),
                 )
@@ -295,12 +816,9 @@ class _ArtifactsPanel extends StatelessWidget {
                         dense: true,
                         selected: selected,
                         selectedTileColor: const Color(0xffeef8ff),
-                        leading: Icon(
-                          selected
-                              ? Icons.radio_button_checked
-                              : Icons.radio_button_off,
-                          color: selected ? const Color(0xff087ea4) : null,
-                          size: 20,
+                        leading: _ArtifactFileIcon(
+                          artifact: artifact,
+                          compact: true,
                         ),
                         title: Text(
                           artifact.name,
@@ -312,31 +830,39 @@ class _ArtifactsPanel extends StatelessWidget {
                           '${artifact.platformLabel} · ${_formatArtifactSize(artifact.size)}',
                           style: const TextStyle(fontSize: 11),
                         ),
-                        trailing: IconButton(
-                          tooltip: '在文件管理器中显示',
-                          onPressed: () => onReveal(artifact.path),
-                          icon: const Icon(Icons.folder_open, size: 17),
-                          iconSize: 17,
-                          padding: EdgeInsets.zero,
-                          constraints: const BoxConstraints(
-                            minWidth: 32,
-                            minHeight: 32,
-                          ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (selected)
+                              const Icon(
+                                Icons.check_circle,
+                                color: Color(0xff087ea4),
+                                size: 18,
+                              ),
+                            IconButton(
+                              tooltip: '在文件管理器中显示',
+                              onPressed: () => onReveal(artifact.path),
+                              icon: const Icon(Icons.folder_open, size: 17),
+                              iconSize: 17,
+                              padding: EdgeInsets.zero,
+                              constraints: const BoxConstraints(
+                                minWidth: 32,
+                                minHeight: 32,
+                              ),
+                            ),
+                          ],
                         ),
                         onTap: () => onSelected(artifact.path),
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                        ),
                         visualDensity: VisualDensity.compact,
                       );
                     }
                     return ListTile(
                       selected: selected,
                       selectedTileColor: const Color(0xffeef8ff),
-                      leading: Icon(
-                        selected
-                            ? Icons.radio_button_checked
-                            : Icons.radio_button_off,
-                        color: selected ? const Color(0xff087ea4) : null,
-                      ),
+                      leading: _ArtifactFileIcon(artifact: artifact),
                       title: Text(
                         artifact.name,
                         maxLines: 1,
@@ -347,10 +873,21 @@ class _ArtifactsPanel extends StatelessWidget {
                         '${_formatArtifactSize(artifact.size)} · '
                         '${_formatArtifactTime(artifact.modified)}',
                       ),
-                      trailing: IconButton(
-                        tooltip: '在文件管理器中显示',
-                        onPressed: () => onReveal(artifact.path),
-                        icon: const Icon(Icons.folder_open, size: 19),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          if (selected)
+                            const Icon(
+                              Icons.check_circle,
+                              color: Color(0xff087ea4),
+                              size: 20,
+                            ),
+                          IconButton(
+                            tooltip: '在文件管理器中显示',
+                            onPressed: () => onReveal(artifact.path),
+                            icon: const Icon(Icons.folder_open, size: 19),
+                          ),
+                        ],
                       ),
                       onTap: () => onSelected(artifact.path),
                     );
@@ -362,11 +899,43 @@ class _ArtifactsPanel extends StatelessWidget {
   );
 }
 
+class _ArtifactFileIcon extends StatelessWidget {
+  const _ArtifactFileIcon({required this.artifact, this.compact = false});
+
+  final DistributionArtifact artifact;
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = _artifactColor(artifact.type);
+    final size = compact ? 34.0 : 42.0;
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.11),
+        borderRadius: BorderRadius.circular(compact ? 8 : 10),
+      ),
+      child: Icon(
+        _artifactIcon(artifact.type),
+        color: color,
+        size: compact ? 18 : 22,
+      ),
+    );
+  }
+}
+
 class _DistributionPlatforms extends ConsumerWidget {
-  const _DistributionPlatforms({required this.artifact, this.compact = false});
+  const _DistributionPlatforms({
+    required this.artifact,
+    this.compact = false,
+    this.embedded = false,
+  });
 
   final DistributionArtifact? artifact;
   final bool compact;
+  final bool embedded;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -386,80 +955,78 @@ class _DistributionPlatforms extends ConsumerWidget {
       }
     }
 
-    return Card(
-      margin: EdgeInsets.zero,
-      child: SingleChildScrollView(
-        child: Padding(
-          padding: EdgeInsets.all(compact ? 12 : 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '分发渠道',
-                style: TextStyle(
-                  fontSize: compact ? 15 : 17,
-                  fontWeight: FontWeight.w700,
-                ),
+    final content = SingleChildScrollView(
+      child: Padding(
+        padding: EdgeInsets.all(compact ? 12 : 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (artifact == null) ...[
+              const Text(
+                '请先选择一个产物，再选择分发渠道。',
+                style: TextStyle(color: Colors.black54),
               ),
               SizedBox(height: compact ? 8 : 12),
-              _PgyerTile(
-                artifact: artifact,
-                project: project,
-                state: state,
-                compact: compact,
-              ),
-              _FirTile(
-                artifact: artifact,
-                project: project,
-                state: state,
-                compact: compact,
-              ),
-              const SizedBox(height: 4),
-              Text(
-                '打开平台',
-                style: TextStyle(
-                  fontSize: compact ? 12 : 13,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black54,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  _PlatformActionChip(
-                    icon: Icons.apple,
-                    label: 'App Store',
-                    onPressed: () =>
-                        run(service.openAppStoreConnect, '已打开 App Store Connect'),
-                  ),
-                  _PlatformActionChip(
-                    icon: Icons.local_shipping_outlined,
-                    label: 'Transporter',
-                    onPressed: Platform.isMacOS
-                        ? () => run(
-                            () => service.openTransporter(artifact),
-                            '已打开 Transporter',
-                          )
-                        : null,
-                  ),
-                  _PlatformActionChip(
-                    icon: Icons.android,
-                    label: 'Google Play',
-                    onPressed: () => run(
-                      service.openGooglePlayConsole,
-                      '已打开 Google Play Console',
-                    ),
-                  ),
-                ],
-              ),
             ],
-          ),
+            _PgyerTile(
+              artifact: artifact,
+              project: project,
+              state: state,
+              compact: compact,
+            ),
+            _FirTile(
+              artifact: artifact,
+              project: project,
+              state: state,
+              compact: compact,
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '打开平台',
+              style: TextStyle(
+                fontSize: compact ? 12 : 13,
+                fontWeight: FontWeight.w600,
+                color: Colors.black54,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _PlatformActionChip(
+                  icon: Icons.apple,
+                  label: 'App Store',
+                  onPressed: () =>
+                      run(service.openAppStoreConnect, '已打开 App Store Connect'),
+                ),
+                _PlatformActionChip(
+                  icon: Icons.local_shipping_outlined,
+                  label: 'Transporter',
+                  onPressed: Platform.isMacOS
+                      ? () => run(
+                          () => service.openTransporter(artifact),
+                          '已打开 Transporter',
+                        )
+                      : null,
+                ),
+                _PlatformActionChip(
+                  icon: Icons.android,
+                  label: 'Google Play',
+                  onPressed: () => run(
+                    service.openGooglePlayConsole,
+                    '已打开 Google Play Console',
+                  ),
+                ),
+              ],
+            ),
+          ],
         ),
       ),
     );
+    if (embedded) return content;
+    return Card(margin: EdgeInsets.zero, child: content);
   }
 }
 
@@ -1136,6 +1703,29 @@ String _formatArtifactTime(DateTime value) =>
     '${value.day.toString().padLeft(2, '0')} '
     '${value.hour.toString().padLeft(2, '0')}:'
     '${value.minute.toString().padLeft(2, '0')}';
+
+IconData _artifactIcon(DistributionArtifactType type) => switch (type) {
+  DistributionArtifactType.apk || DistributionArtifactType.aab => Icons.android,
+  DistributionArtifactType.ipa => Icons.apple,
+  DistributionArtifactType.hap => Icons.phone_android_outlined,
+  DistributionArtifactType.dmg ||
+  DistributionArtifactType.pkg => Icons.laptop_mac_outlined,
+  DistributionArtifactType.msix ||
+  DistributionArtifactType.exe => Icons.window_outlined,
+  DistributionArtifactType.zip => Icons.archive_outlined,
+};
+
+Color _artifactColor(DistributionArtifactType type) => switch (type) {
+  DistributionArtifactType.apk ||
+  DistributionArtifactType.aab => const Color(0xff2e7d32),
+  DistributionArtifactType.ipa => const Color(0xff455a64),
+  DistributionArtifactType.hap => const Color(0xffc62828),
+  DistributionArtifactType.dmg ||
+  DistributionArtifactType.pkg => const Color(0xff5e35b1),
+  DistributionArtifactType.msix ||
+  DistributionArtifactType.exe => const Color(0xff1565c0),
+  DistributionArtifactType.zip => const Color(0xffef6c00),
+};
 
 Future<void> _showPgyerApiKeyHelp(BuildContext context, WidgetRef ref) =>
     _showDistributionCredentialHelp(

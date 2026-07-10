@@ -13,6 +13,7 @@ import '../data/flutter_release_service.dart';
 import '../data/fvm_service.dart';
 import '../data/flutter_command_service.dart';
 import '../data/flutter_device_monitor.dart';
+import '../data/environment_diagnostics_service.dart';
 import '../data/distribution_service.dart';
 import '../data/pgyer_service.dart';
 import '../data/fir_service.dart';
@@ -54,6 +55,13 @@ final localProjectServiceProvider = Provider<LocalProjectService>(
 final distributionServiceProvider = Provider<DistributionService>(
   (ref) => DistributionService(),
 );
+
+final environmentDiagnosticsServiceProvider =
+    Provider<EnvironmentDiagnosticsService>(
+      (ref) => EnvironmentDiagnosticsService(
+        ref.watch(pubEnvironmentServiceProvider),
+      ),
+    );
 
 final pgyerServiceProvider = Provider<PgyerService>(
   (ref) => PgyerService(ref.watch(dioProvider)),
@@ -365,6 +373,7 @@ class FvmController extends Notifier<FvmState> {
   }
 
   Future<void> download(FlutterRelease release) async {
+    if (!_ensureFvmReady('安装 Flutter ${release.version}')) return;
     state = state.copyWith(
       activeVersion: release.version,
       downloadProgress: 0,
@@ -402,6 +411,43 @@ class FvmController extends Notifier<FvmState> {
   }
 
   void cancelDownload() => ref.read(releaseServiceProvider).cancel();
+
+  Future<void> installRequiredFlutterVersion([String? requestedVersion]) async {
+    if (!_ensureFvmReady('安装 Flutter SDK') || state.activeVersion != null) {
+      return;
+    }
+    final version = requestedVersion?.trim().isNotEmpty == true
+        ? requestedVersion!.trim()
+        : state.latestFlutterVersion;
+    final stableReleases =
+        state.releases
+            .where((release) => release.channel == ReleaseChannel.stable)
+            .toList()
+          ..sort((a, b) => b.releaseDate.compareTo(a.releaseDate));
+    final release = version == null
+        ? stableReleases.firstOrNull
+        : state.releases.where((item) => item.version == version).firstOrNull;
+    if (release == null) {
+      state = state.copyWith(
+        errorMessage: version == null
+            ? '暂时无法获取推荐 Flutter 版本，请检查网络后重新诊断。'
+            : '版本列表中未找到 Flutter $version，请刷新版本信息后重试。',
+      );
+      return;
+    }
+
+    await download(release);
+    final installed = state.installed
+        .where(
+          (sdk) =>
+              sdk.name == release.version ||
+              sdk.flutterVersion == release.version,
+        )
+        .firstOrNull;
+    if (installed != null && state.globalVersion == null) {
+      await setGlobal(installed.name);
+    }
+  }
 
   Future<void> addManagedProject() async {
     try {
@@ -799,6 +845,7 @@ class FvmController extends Notifier<FvmState> {
       _runProjectCommand(const ['pub', 'get'], label: 'Pub Get');
 
   Future<void> openProjectDevTools() async {
+    if (!_ensureFlutterReady('打开 DevTools')) return;
     final path = state.selectedManagedProjectPath;
     if (path == null || _selectedManagedProject?.pathExists != true) return;
     const label = 'DevTools';
@@ -948,6 +995,7 @@ class FvmController extends Notifier<FvmState> {
   }
 
   Future<void> runCustomBuildWorkflow() async {
+    if (!_ensureFlutterReady('运行自定义构建工作流')) return;
     final project = _selectedManagedProject;
     if (project == null ||
         !project.pathExists ||
@@ -1043,6 +1091,7 @@ class FvmController extends Notifier<FvmState> {
     String taskKind = 'operation',
     Future<void> Function(int index)? afterEach,
   }) async {
+    if (!_ensureFlutterReady(label)) return;
     final path = state.selectedManagedProjectPath;
     if (path == null || _selectedManagedProject?.pathExists != true) {
       return;
@@ -1088,6 +1137,38 @@ class FvmController extends Notifier<FvmState> {
     } finally {
       _finishCommandTask(taskId);
     }
+  }
+
+  bool _ensureFvmReady(String action) {
+    if (state.fvmInstalled) return true;
+    state = state.copyWith(
+      errorMessage: '未检测到 FVM，$action 需要先安装或选择本地 FVM。请点击“环境诊断”完成配置。',
+    );
+    return false;
+  }
+
+  bool _ensureFlutterReady(String action) {
+    if (!_ensureFvmReady(action)) return false;
+    if (state.installed.isEmpty) {
+      state = state.copyWith(
+        errorMessage: '尚未安装 Flutter SDK，$action 无法执行。请点击“环境诊断”安装推荐版本。',
+      );
+      return false;
+    }
+    final requiredVersion = _selectedManagedProject?.fvmVersion?.trim();
+    if (requiredVersion != null &&
+        requiredVersion.isNotEmpty &&
+        !state.installed.any(
+          (sdk) =>
+              sdk.name == requiredVersion ||
+              sdk.flutterVersion == requiredVersion,
+        )) {
+      state = state.copyWith(
+        errorMessage: '当前项目需要 Flutter $requiredVersion，但该版本尚未安装。请点击“环境诊断”完成安装。',
+      );
+      return false;
+    }
+    return true;
   }
 
   void _appendCommandLog(String projectPath, String output) {
@@ -2324,6 +2405,52 @@ class FvmController extends Notifier<FvmState> {
       final results = Map<String, int>.from(state.mirrorTestResults);
       results[mirror.id] = ms;
       state = state.copyWith(mirrorTestResults: results);
+    }
+  }
+
+  Future<bool> switchToFastestAvailableMirror() async {
+    if (state.loading) return false;
+    state = state.copyWith(
+      loading: true,
+      errorMessage: null,
+      mirrorTestResults: {},
+      statusMessage: '正在测试全部下载源…',
+    );
+    try {
+      final environment = ref.read(pubEnvironmentServiceProvider);
+      final latencies = await Future.wait(
+        PubEnvironmentService.mirrors.map(
+          (mirror) async =>
+              MapEntry(mirror.id, await environment.testMirror(mirror.id)),
+        ),
+      );
+      final results = Map<String, int>.fromEntries(latencies);
+      state = state.copyWith(mirrorTestResults: results);
+      final available = latencies.where((entry) => entry.value >= 0).toList()
+        ..sort((a, b) => a.value.compareTo(b.value));
+      if (available.isEmpty) {
+        state = state.copyWith(
+          errorMessage: '所有 Pub 下载源都无法访问，请检查系统时间、代理、TLS 证书或防火墙。',
+        );
+        return false;
+      }
+
+      final fastest = available.first;
+      await environment.setMirror(fastest.key);
+      final option = PubEnvironmentService.mirrors
+          .where((mirror) => mirror.id == fastest.key)
+          .first;
+      state = state.copyWith(
+        mirrorId: fastest.key,
+        useDomesticMirror: fastest.key != 'official',
+        statusMessage: '已切换到 ${option.name}（${fastest.value}ms）',
+      );
+      return true;
+    } catch (error) {
+      state = state.copyWith(errorMessage: _message(error));
+      return false;
+    } finally {
+      state = state.copyWith(loading: false);
     }
   }
 

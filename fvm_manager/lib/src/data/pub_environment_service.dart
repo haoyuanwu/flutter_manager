@@ -139,9 +139,11 @@ class PubEnvironmentService {
 
     if (home != null) {
       if (Platform.isWindows) {
+        add('$home\\fvm\\bin');
         add('$home\\fvm\\default\\bin');
         add('$home\\.fvm\\default\\bin');
       } else {
+        add('$home/fvm/bin');
         add('$home/fvm/default/bin');
         add('$home/.fvm/default/bin');
       }

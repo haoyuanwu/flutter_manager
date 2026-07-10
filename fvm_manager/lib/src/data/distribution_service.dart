@@ -114,13 +114,23 @@ class DistributionService {
   ) {
     final normalized = path.replaceAll('\\', '/').toLowerCase();
     return switch (type) {
+      DistributionArtifactType.apk =>
+        normalized.contains('/app/outputs/flutter-apk/') ||
+            normalized.contains('/app/outputs/apk/'),
+      DistributionArtifactType.aab =>
+        normalized.contains('/app/outputs/flutter-aab/') ||
+            normalized.contains('/app/outputs/bundle/'),
+      DistributionArtifactType.ipa => normalized.contains('/ios/ipa/'),
       DistributionArtifactType.exe =>
         normalized.contains('/runner/release/') ||
             normalized.contains('/outputs/release/'),
       DistributionArtifactType.zip =>
         File(path).parent.path == buildPath ||
             normalized.contains('/outputs/release/'),
-      _ => true,
+      DistributionArtifactType.hap ||
+      DistributionArtifactType.dmg ||
+      DistributionArtifactType.pkg ||
+      DistributionArtifactType.msix => true,
     };
   }
 

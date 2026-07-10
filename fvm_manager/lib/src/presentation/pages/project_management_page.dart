@@ -1157,7 +1157,7 @@ class _ProjectDetail extends ConsumerWidget {
                         ],
                         const SizedBox(width: 8),
                         Tooltip(
-                          message: '分发上传',
+                          message: '打开构建产物中心',
                           child: IconButton.outlined(
                             onPressed: () => onOpenDistribution(project.path),
                             icon: const Icon(
@@ -1409,10 +1409,7 @@ Future<String?> _showInnoCompilerPickerDialog(BuildContext context) {
           onPressed: () async {
             final selected = await openFile(
               acceptedTypeGroups: const [
-                XTypeGroup(
-                  label: 'Inno Setup 编译器',
-                  extensions: ['exe'],
-                ),
+                XTypeGroup(label: 'Inno Setup 编译器', extensions: ['exe']),
               ],
               confirmButtonText: '选择 ISCC.exe',
             );

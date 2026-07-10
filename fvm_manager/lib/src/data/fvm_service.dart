@@ -26,7 +26,7 @@ class FvmService {
 
     // 2. 全量扫描所有候选路径
     for (final candidate in _candidates()) {
-      // macos 
+      // macos
       if (Platform.isMacOS) {
         try {
           final result = await Process.run(
@@ -44,7 +44,7 @@ class FvmService {
         } on TimeoutException {
           // Try the next well-known location.
         }
-      } else if (Platform.isWindows){
+      } else if (Platform.isWindows) {
         final version = await _tryExecutable(candidate);
         if (version != null) {
           _executable = candidate;
@@ -189,23 +189,96 @@ class FvmService {
     required void Function(String) onOutput,
   }) async {
     final dartExecutable = _findExecutable('dart');
-    if (dartExecutable == null) {
-      throw Exception('未检测到 Dart，无法通过 Dart Pub 安装 FVM');
+    if (dartExecutable != null) {
+      await _runInstaller(
+        dartExecutable,
+        const ['pub', 'global', 'activate', 'fvm'],
+        onOutput: onOutput,
+        failureMessage: 'FVM$operation失败',
+      );
+    } else if (Platform.isMacOS || Platform.isLinux) {
+      await _installStandalone(onOutput);
+    } else if (Platform.isWindows) {
+      final chocolatey = _findExecutable('choco');
+      if (chocolatey == null) {
+        throw Exception(
+          '未检测到 Dart 或 Chocolatey，无法自动安装 FVM。'
+          '请先安装 Chocolatey，或选择已安装的本地 FVM 目录。',
+        );
+      }
+      await _runInstaller(
+        chocolatey,
+        const ['install', 'fvm', '-y'],
+        onOutput: onOutput,
+        failureMessage: 'Chocolatey 安装 FVM 失败',
+      );
+    } else {
+      throw Exception('当前系统暂不支持自动安装 FVM');
     }
+
+    _executable = null;
+    await _environment.setCachedFvmExecutable(null);
+    if (await detect() == null) {
+      throw Exception('FVM 已完成$operation，但当前应用仍无法找到它。请选择 FVM 安装目录。');
+    }
+  }
+
+  Future<void> _installStandalone(void Function(String) onOutput) async {
+    final curl = _findExecutable('curl');
+    final bash = _findExecutable('bash');
+    if (curl == null || bash == null) {
+      throw Exception('自动安装 FVM 需要 curl 和 bash，但当前系统未检测齐全');
+    }
+
+    final temporaryDirectory = await Directory.systemTemp.createTemp(
+      'flutter-manager-fvm-',
+    );
+    final script = File(
+      '${temporaryDirectory.path}${Platform.pathSeparator}install.sh',
+    );
+    try {
+      onOutput('正在下载 FVM 官方安装程序…');
+      await _runInstaller(
+        curl,
+        ['-fsSL', 'https://fvm.app/install.sh', '-o', script.path],
+        onOutput: onOutput,
+        failureMessage: '下载 FVM 安装程序失败',
+      );
+      onOutput('正在安装 FVM…');
+      await _runInstaller(
+        bash,
+        [script.path],
+        onOutput: onOutput,
+        failureMessage: 'FVM 安装失败',
+      );
+    } finally {
+      if (await temporaryDirectory.exists()) {
+        await temporaryDirectory.delete(recursive: true);
+      }
+    }
+  }
+
+  Future<void> _runInstaller(
+    String executable,
+    List<String> arguments, {
+    required void Function(String) onOutput,
+    required String failureMessage,
+  }) async {
     final process = await Process.start(
-      dartExecutable,
-      const ['pub', 'global', 'activate', 'fvm'],
+      executable,
+      arguments,
       runInShell: Platform.isWindows,
       environment: _environment.processEnvironment,
       includeParentEnvironment: false,
     );
-    process.stdout.transform(utf8.decoder).listen(onOutput);
-    process.stderr.transform(utf8.decoder).listen(onOutput);
+    process.stdout
+        .transform(const Utf8Decoder(allowMalformed: true))
+        .listen(onOutput);
+    process.stderr
+        .transform(const Utf8Decoder(allowMalformed: true))
+        .listen(onOutput);
     final code = await process.exitCode;
-    if (code != 0) throw Exception('FVM$operation失败（退出码 $code）');
-    if (await detect() == null) {
-      throw Exception('FVM 已完成$operation，但当前应用找不到它。请按环境配置说明添加 PATH。');
-    }
+    if (code != 0) throw Exception('$failureMessage（退出码 $code）');
   }
 
   Future<List<InstalledSdk>> listInstalled() async {
@@ -493,22 +566,28 @@ class FvmService {
       final localAppData = Platform.environment['LOCALAPPDATA'];
       // Pub Cache bin（dart pub global activate fvm 的默认安装位置）
       // 优先级: PUB_CACHE > LOCALAPPDATA\Pub\Cache > USERPROFILE\AppData\Local\Pub\Cache
-      final pubCache = Platform.environment['PUB_CACHE'] ??
+      final pubCache =
+          Platform.environment['PUB_CACHE'] ??
           (localAppData != null ? '$localAppData\\Pub\\Cache' : null) ??
           (home != null ? '$home\\AppData\\Local\\Pub\\Cache' : null);
       if (pubCache != null) paths.add('$pubCache${separator}bin');
       // FVM 全局 Flutter 符号链接目录
       if (home != null) {
+        paths.add('$home\\fvm\\bin');
         paths.add('$home\\fvm\\default\\bin');
         paths.add('$home\\.fvm\\default\\bin');
       }
+      final programData = Platform.environment['ProgramData'];
+      if (programData != null) paths.add('$programData\\chocolatey\\bin');
     } else {
       // macOS / Linux
       final home = Platform.environment['HOME'];
-      final pubCache = Platform.environment['PUB_CACHE'] ??
+      final pubCache =
+          Platform.environment['PUB_CACHE'] ??
           (home != null ? '$home/.pub-cache' : null);
       if (pubCache != null) paths.add('$pubCache${separator}bin');
       if (home != null) {
+        paths.add('$home/fvm/bin');
         paths.add('$home/fvm/default/bin');
         paths.add('$home/.fvm/default/bin');
       }
@@ -522,10 +601,14 @@ class FvmService {
   }
 
   String? _findExecutable(String name) {
-    final executableName = Platform.isWindows ? '$name.bat' : name;
+    final executableNames = Platform.isWindows
+        ? ['$name.exe', '$name.bat', '$name.cmd', name]
+        : [name];
     for (final directory in _environment.executableSearchPaths) {
-      final candidate = '$directory${Platform.pathSeparator}$executableName';
-      if (File(candidate).existsSync()) return candidate;
+      for (final executableName in executableNames) {
+        final candidate = '$directory${Platform.pathSeparator}$executableName';
+        if (File(candidate).existsSync()) return candidate;
+      }
     }
     return null;
   }

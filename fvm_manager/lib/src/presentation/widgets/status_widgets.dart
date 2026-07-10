@@ -68,9 +68,15 @@ class _DownloadStatusBar extends StatelessWidget {
 }
 
 class _MessageBar extends ConsumerStatefulWidget {
-  const _MessageBar({super.key, required this.message, this.error = false});
+  const _MessageBar({
+    super.key,
+    required this.message,
+    this.error = false,
+    this.onDiagnosticsTap,
+  });
   final String message;
   final bool error;
+  final VoidCallback? onDiagnosticsTap;
 
   @override
   ConsumerState<_MessageBar> createState() => _MessageBarState();
@@ -131,6 +137,8 @@ class _MessageBarState extends ConsumerState<_MessageBar> {
     final foreground = widget.error
         ? Colors.red.shade800
         : const Color(0xff075985);
+    final showDiagnosticsAction =
+        widget.error && widget.onDiagnosticsTap != null;
     return TweenAnimationBuilder<double>(
       duration: const Duration(milliseconds: 180),
       tween: Tween(begin: 0, end: 1),
@@ -173,6 +181,21 @@ class _MessageBarState extends ConsumerState<_MessageBar> {
                   style: TextStyle(color: foreground, height: 1.35),
                 ),
               ),
+              if (showDiagnosticsAction) ...[
+                const SizedBox(width: 8),
+                TextButton.icon(
+                  onPressed: () {
+                    widget.onDiagnosticsTap?.call();
+                    _dismiss();
+                  },
+                  icon: const Icon(Icons.health_and_safety_outlined, size: 16),
+                  label: const Text('环境诊断'),
+                  style: TextButton.styleFrom(
+                    foregroundColor: foreground,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                ),
+              ],
               const SizedBox(width: 8),
               InkWell(
                 onTap: _dismiss,
