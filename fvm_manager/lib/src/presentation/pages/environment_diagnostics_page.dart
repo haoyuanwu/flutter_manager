@@ -164,17 +164,31 @@ class _EnvironmentDiagnosticsPageState
 
   Future<void> _run() async {
     if (_running) return;
-    setState(() => _running = true);
+    setState(() {
+      _running = true;
+      _report = EnvironmentDiagnosticReport(
+        startedAt: DateTime.now(),
+        finishedAt: DateTime.now(),
+        items: [],
+      );
+    });
     try {
-      final selectedProject = widget.state.managedProjects
-          .where(
-            (project) =>
-                project.path == widget.state.selectedManagedProjectPath,
-          )
-          .firstOrNull;
       final report = await ref
           .read(environmentDiagnosticsServiceProvider)
-          .run(state: widget.state, selectedProject: selectedProject);
+          .run(
+            state: widget.state,
+            onItemAdded: (items) {
+              if (mounted) {
+                setState(() {
+                  _report = EnvironmentDiagnosticReport(
+                    startedAt: _report?.startedAt ?? DateTime.now(),
+                    finishedAt: DateTime.now(),
+                    items: List.from(items),
+                  );
+                });
+              }
+            },
+          );
       widget.onReportChanged(report);
       if (mounted) setState(() => _report = report);
     } catch (error) {
