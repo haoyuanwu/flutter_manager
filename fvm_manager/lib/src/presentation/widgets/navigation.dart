@@ -88,7 +88,12 @@ class _SidebarState extends State<_Sidebar> {
     child: Material(
       color: AppColors.sidebarBackground,
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.xxl, AppSpacing.lg, AppSpacing.lg),
+        padding: const EdgeInsets.fromLTRB(
+          AppSpacing.lg,
+          AppSpacing.xxl,
+          AppSpacing.lg,
+          AppSpacing.lg,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -116,7 +121,10 @@ class _SidebarState extends State<_Sidebar> {
                     ),
                 ],
               ),
-              title: const Text('Flutter Manager', style: AppTextStyles.sidebarTitle),
+              title: const Text(
+                'Flutter Manager',
+                style: AppTextStyles.sidebarTitle,
+              ),
             ),
             const SizedBox(height: AppSpacing.xxl),
             Expanded(
@@ -160,13 +168,6 @@ class _SidebarState extends State<_Sidebar> {
                       selected: widget.selected == 3,
                       onTap: () => widget.onSelected(3),
                     ),
-                    _NavItem(
-                      icon: Icons.folder_copy_outlined,
-                      label: '项目 FVM',
-                      shortcut: '⌘5',
-                      selected: widget.selected == 4,
-                      onTap: () => widget.onSelected(4),
-                    ),
                   ],
                   const SizedBox(height: AppSpacing.sm),
                   _NavGroupHeader(
@@ -180,23 +181,23 @@ class _SidebarState extends State<_Sidebar> {
                     _NavItem(
                       icon: Icons.inventory_2_outlined,
                       label: '产物中心',
+                      shortcut: '⌘5',
+                      selected: widget.selected == 4,
+                      onTap: () => widget.onSelected(4),
+                    ),
+                    _NavItem(
+                      icon: Icons.app_shortcut_outlined,
+                      label: 'APK 签名',
                       shortcut: '⌘6',
                       selected: widget.selected == 5,
                       onTap: () => widget.onSelected(5),
                     ),
                     _NavItem(
-                      icon: Icons.app_shortcut_outlined,
-                      label: 'APK 签名',
+                      icon: Icons.article_outlined,
+                      label: '日志',
                       shortcut: '⌘7',
                       selected: widget.selected == 6,
                       onTap: () => widget.onSelected(6),
-                    ),
-                    _NavItem(
-                      icon: Icons.article_outlined,
-                      label: '日志',
-                      shortcut: '⌘8',
-                      selected: widget.selected == 7,
-                      onTap: () => widget.onSelected(7),
                     ),
                   ],
                   const SizedBox(height: AppSpacing.sm),
@@ -211,21 +212,22 @@ class _SidebarState extends State<_Sidebar> {
                     _NavItem(
                       icon: Icons.terminal,
                       label: '环境配置',
+                      shortcut: '⌘8',
+                      selected: widget.selected == 7,
+                      onTap: () => widget.onSelected(7),
+                    ),
+                    _NavItem(
+                      icon: Icons.smart_toy_outlined,
+                      label: 'MCP 服务',
                       shortcut: '⌘9',
                       selected: widget.selected == 8,
                       onTap: () => widget.onSelected(8),
                     ),
                     _NavItem(
-                      icon: Icons.smart_toy_outlined,
-                      label: 'MCP 服务',
-                      selected: widget.selected == 9,
-                      onTap: () => widget.onSelected(9),
-                    ),
-                    _NavItem(
                       icon: Icons.settings_outlined,
                       label: '设置',
-                      selected: widget.selected == 10,
-                      onTap: () => widget.onSelected(10),
+                      selected: widget.selected == 9,
+                      onTap: () => widget.onSelected(9),
                     ),
                   ],
                 ],
@@ -262,14 +264,15 @@ class _NavGroupHeader extends StatelessWidget {
       borderRadius: AppRadius.smAll,
       onTap: onTap,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: AppSpacing.md, vertical: AppSpacing.sm),
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppSpacing.md,
+          vertical: AppSpacing.sm,
+        ),
         child: Row(
           children: [
             Icon(icon, size: 16, color: AppColors.sidebarGroupTitle),
             const SizedBox(width: AppSpacing.sm),
-            Expanded(
-              child: Text(title, style: AppTextStyles.sidebarGroup),
-            ),
+            Expanded(child: Text(title, style: AppTextStyles.sidebarGroup)),
             Icon(
               expanded ? Icons.expand_less : Icons.expand_more,
               size: 18,
@@ -318,7 +321,9 @@ class _NavItem extends StatelessWidget {
             child: Text(
               label,
               style: AppTextStyles.sidebarItem.copyWith(
-                color: selected ? AppColors.sidebarTextSelected : AppColors.sidebarText,
+                color: selected
+                    ? AppColors.sidebarTextSelected
+                    : AppColors.sidebarText,
               ),
             ),
           ),

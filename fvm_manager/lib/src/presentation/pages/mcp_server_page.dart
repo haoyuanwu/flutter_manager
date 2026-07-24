@@ -11,6 +11,8 @@ class _McpServerPage extends ConsumerStatefulWidget {
 
 class _McpServerPageState extends ConsumerState<_McpServerPage> {
   late final TextEditingController _portController;
+  String _installedMcpServerPath = '';
+  bool _downloadingMcpServer = false;
 
   @override
   void initState() {
@@ -18,6 +20,9 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
     _portController = TextEditingController(
       text: widget.state.mcpServerPort.toString(),
     );
+    _installedMcpServerPath = ref
+        .read(pubEnvironmentServiceProvider)
+        .mcpServerExecutablePath;
   }
 
   @override
@@ -39,11 +44,18 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
   Widget build(BuildContext context) {
     final controller = ref.read(fvmControllerProvider.notifier);
     final endpoint = 'http://127.0.0.1:${widget.state.mcpServerPort}';
-    final mcpServerPath =
+    final sourceMcpServerPath =
         '${Directory.current.path}${Platform.pathSeparator}mcp_server'
         '${Platform.pathSeparator}dist${Platform.pathSeparator}index.js';
+    final mcpServerPath = _installedMcpServerPath.isNotEmpty
+        ? _installedMcpServerPath
+        : sourceMcpServerPath;
+    final installedMcpServerExists =
+        _installedMcpServerPath.isNotEmpty &&
+        File(_installedMcpServerPath).existsSync();
     const relativeSkillPath = 'codex_skills/flutter-manager-mcp';
     final codexConfig = _codexConfig(mcpServerPath);
+    final openCodeConfig = _openCodeConfig(mcpServerPath);
     final crushConfigValue = _crushConfig(mcpServerPath);
     final installCommands = _installCommands(relativeSkillPath);
     return SingleChildScrollView(
@@ -141,8 +153,115 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
                   ),
                   const SizedBox(height: 4),
                   const Text(
-                    '项目内已内置 Codex Skill。以后新增 MCP 工具时，更新项目里的 Skill，再从这里导出安装包。',
+                    '先将 App 内置的 MCP Server 下载到指定目录，再把自动生成的配置复制到 AI 工具。',
                   ),
+                  const SizedBox(height: 12),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: installedMcpServerExists
+                          ? Colors.green.shade50
+                          : Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: installedMcpServerExists
+                            ? Colors.green.shade200
+                            : Colors.grey.shade300,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          installedMcpServerExists
+                              ? Icons.check_circle_outline
+                              : Icons.download_outlined,
+                          color: installedMcpServerExists
+                              ? Colors.green.shade700
+                              : Colors.grey.shade700,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                installedMcpServerExists
+                                    ? 'MCP Server 已下载'
+                                    : '尚未下载 MCP Server',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                _installedMcpServerPath.isEmpty
+                                    ? '请选择一个长期保留的目录'
+                                    : _installedMcpServerPath,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.black54,
+                                  fontFamily: 'monospace',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      FilledButton.icon(
+                        onPressed: _downloadingMcpServer
+                            ? null
+                            : _downloadMcpServer,
+                        icon: _downloadingMcpServer
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.download_outlined),
+                        label: Text(
+                          installedMcpServerExists
+                              ? '重新下载到指定目录'
+                              : '下载 MCP Server',
+                        ),
+                      ),
+                      if (installedMcpServerExists)
+                        OutlinedButton.icon(
+                          onPressed: () => ref
+                              .read(localProjectServiceProvider)
+                              .revealFile(_installedMcpServerPath),
+                          icon: const Icon(Icons.folder_open_outlined),
+                          label: const Text('打开所在目录'),
+                        ),
+                      if (_installedMcpServerPath.isNotEmpty)
+                        OutlinedButton.icon(
+                          onPressed: () => _copy(
+                            _installedMcpServerPath,
+                            'MCP Server 路径已复制',
+                          ),
+                          icon: const Icon(Icons.copy_outlined),
+                          label: const Text('复制路径'),
+                        ),
+                    ],
+                  ),
+                  const Divider(height: 32),
+                  const Text(
+                    'Codex Skill',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text('以后新增 MCP 工具时，更新项目里的 Skill，再从这里导出安装包。'),
                   const SizedBox(height: 12),
                   _CodeBlock(
                     title: '本项目 Skill 路径',
@@ -185,14 +304,28 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   const Text(
-                    'opencode / codex 配置',
+                    'AI 工具配置',
                     style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
                   ),
                   const SizedBox(height: 4),
                   const Text('将 MCP 服务配置到 AI 工具中，即可使用 Flutter Manager 的工具。'),
                   const SizedBox(height: 16),
                   _CodeBlock(
-                    title: 'opencode (Crush) 配置文件路径',
+                    title: 'OpenCode 配置文件路径',
+                    text: Platform.isMacOS
+                        ? '~/.config/opencode/opencode.json'
+                        : r'%USERPROFILE%\.config\opencode\opencode.json',
+                    onCopy: _copy,
+                  ),
+                  const SizedBox(height: 12),
+                  _CodeBlock(
+                    title: 'OpenCode 配置内容',
+                    text: openCodeConfig,
+                    onCopy: _copy,
+                  ),
+                  const SizedBox(height: 16),
+                  _CodeBlock(
+                    title: 'Crush 配置文件路径',
                     text: Platform.isMacOS
                         ? '~/.config/crush/crush.json'
                         : r'%APPDATA%\crush\crush.json',
@@ -200,7 +333,7 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
                   ),
                   const SizedBox(height: 12),
                   _CodeBlock(
-                    title: 'opencode (Crush) 配置内容',
+                    title: 'Crush 配置内容',
                     text: crushConfigValue,
                     onCopy: _copy,
                   ),
@@ -232,7 +365,11 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
                       children: [
                         Row(
                           children: [
-                            Icon(Icons.tips_and_updates_outlined, size: 16, color: Colors.blue.shade700),
+                            Icon(
+                              Icons.tips_and_updates_outlined,
+                              size: 16,
+                              color: Colors.blue.shade700,
+                            ),
                             const SizedBox(width: 8),
                             Text(
                               '提示',
@@ -245,8 +382,9 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          '• 配置完成后需要重启 opencode (Crush) 或 codex\n'
+                          '• 配置完成后需要重启 OpenCode、Crush 或 Codex\n'
                           '• 确保上方的 MCP 控制接口已启用\n'
+                          '• 请先在上方下载 MCP Server，目标电脑需安装 Node.js 18+\n'
                           '• Token 用于验证请求，请勿泄露',
                           style: TextStyle(
                             fontSize: 13,
@@ -278,15 +416,38 @@ FLUTTER_MANAGER_TOKEN = "${widget.state.mcpServerToken}"
 '''
           .trim();
 
-  String _crushConfig(String mcpServerPath) =>
-      '''
+  String _openCodeConfig(String mcpServerPath) {
+    final jsonServerPath = _jsonString(mcpServerPath);
+    return '''
+{
+  "\$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "flutter_manager": {
+      "type": "local",
+      "command": ["node", "$jsonServerPath"],
+      "enabled": true,
+      "timeout": 30000,
+      "environment": {
+        "FLUTTER_MANAGER_PORT": "${widget.state.mcpServerPort}",
+        "FLUTTER_MANAGER_TOKEN": "${widget.state.mcpServerToken}"
+      }
+    }
+  }
+}
+'''
+        .trim();
+  }
+
+  String _crushConfig(String mcpServerPath) {
+    final jsonServerPath = _jsonString(mcpServerPath);
+    return '''
 {
   "\$schema": "https://charm.land/crush.json",
   "mcp": {
     "flutter_manager": {
       "type": "stdio",
       "command": "node",
-      "args": ["$mcpServerPath"],
+      "args": ["$jsonServerPath"],
       "env": {
         "FLUTTER_MANAGER_PORT": "${widget.state.mcpServerPort}",
         "FLUTTER_MANAGER_TOKEN": "${widget.state.mcpServerToken}"
@@ -295,7 +456,11 @@ FLUTTER_MANAGER_TOKEN = "${widget.state.mcpServerToken}"
   }
 }
 '''
-          .trim();
+        .trim();
+  }
+
+  String _jsonString(String value) =>
+      value.replaceAll(r'\', r'\\').replaceAll('"', r'\"');
 
   String _installCommands(String relativeSkillPath) =>
       '''
@@ -303,6 +468,35 @@ mkdir -p ~/.codex/skills
 cp -R "$relativeSkillPath" ~/.codex/skills/
 '''
           .trim();
+
+  Future<void> _downloadMcpServer() async {
+    final directory = await getDirectoryPath(confirmButtonText: '下载到此目录');
+    if (directory == null || directory.isEmpty || !mounted) return;
+
+    setState(() => _downloadingMcpServer = true);
+    try {
+      final data = await rootBundle.load(
+        'mcp_server/dist/flutter-manager-mcp.mjs',
+      );
+      final outputPath =
+          '$directory${Platform.pathSeparator}flutter-manager-mcp.mjs';
+      final bytes = data.buffer.asUint8List(
+        data.offsetInBytes,
+        data.lengthInBytes,
+      );
+      await File(outputPath).writeAsBytes(bytes, flush: true);
+      await ref
+          .read(pubEnvironmentServiceProvider)
+          .setMcpServerExecutablePath(outputPath);
+      if (!mounted) return;
+      setState(() => _installedMcpServerPath = outputPath);
+      _snack('MCP Server 已下载，AI 工具配置已更新');
+    } on Object catch (error) {
+      if (mounted) _snack('下载 MCP Server 失败：$error');
+    } finally {
+      if (mounted) setState(() => _downloadingMcpServer = false);
+    }
+  }
 
   Future<void> _copy(String text, [String message = '已复制']) async {
     await Clipboard.setData(ClipboardData(text: text));

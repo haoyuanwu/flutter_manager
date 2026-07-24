@@ -24,7 +24,6 @@ part 'pages/environment_guide_page.dart';
 part 'pages/environment_diagnostics_page.dart';
 part 'pages/distribution_page.dart';
 part 'pages/overview_page.dart';
-part 'pages/project_configuration_page.dart';
 part 'pages/project_management_page.dart';
 part 'pages/apk_signing_page.dart';
 part 'pages/log_page.dart';
@@ -192,15 +191,11 @@ class _HomePageState extends ConsumerState<HomePage> {
                                   state: state,
                                   onOpenDistribution: _openDistribution,
                                 ),
-                                4 => _ProjectConfiguration(
-                                  state: state,
-                                  onAddProject: _openProjectManagerAndAdd,
-                                ),
-                                5 => _DistributionPage(state: state),
-                                6 => const _ApkSigningPage(),
-                                7 => const _LogPage(),
-                                8 => _EnvironmentGuide(state: state),
-                                9 => _McpServerPage(state: state),
+                                4 => _DistributionPage(state: state),
+                                5 => const _ApkSigningPage(),
+                                6 => const _LogPage(),
+                                7 => _EnvironmentGuide(state: state),
+                                8 => _McpServerPage(state: state),
                                 _ => _SettingsPage(state: state),
                               },
                             ),
@@ -241,7 +236,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         projectPath) {
       unawaited(controller.selectManagedProject(projectPath));
     }
-    setState(() => _page = 5);
+    setState(() => _page = 4);
   }
 
   void _openDiagnostics() {
@@ -329,14 +324,5 @@ class _HomePageState extends ConsumerState<HomePage> {
         ],
       ),
     );
-  }
-
-  void _openProjectManagerAndAdd() {
-    setState(() => _page = 3);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) {
-        ref.read(fvmControllerProvider.notifier).addManagedProject();
-      }
-    });
   }
 }

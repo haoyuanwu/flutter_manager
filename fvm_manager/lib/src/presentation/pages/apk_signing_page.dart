@@ -10,6 +10,10 @@ class _ApkSigningPage extends ConsumerStatefulWidget {
 class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _keyAliasController = TextEditingController();
+  final TextEditingController _outputNamePrefixController =
+      TextEditingController();
+  final TextEditingController _outputNameSuffixController =
+      TextEditingController();
   ApkSigningConfig _config = const ApkSigningConfig();
   bool _loading = true;
   final Set<String> _selectedApkPaths = {};
@@ -31,6 +35,8 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
         _config = config;
         _passwordController.text = config.password;
         _keyAliasController.text = config.keyAlias;
+        _outputNamePrefixController.text = config.outputNamePrefix;
+        _outputNameSuffixController.text = config.outputNameSuffix;
         _loading = false;
       });
     }
@@ -40,6 +46,8 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
   void dispose() {
     _passwordController.dispose();
     _keyAliasController.dispose();
+    _outputNamePrefixController.dispose();
+    _outputNameSuffixController.dispose();
     super.dispose();
   }
 
@@ -166,6 +174,8 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
             ],
             const SizedBox(height: 8),
             _buildOutputDirectoryField(),
+            const SizedBox(height: 8),
+            _buildOutputNameFields(),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -330,6 +340,66 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildOutputNameFields() {
+    return Row(
+      children: [
+        const SizedBox(
+          width: 76,
+          child: Text(
+            '签名文件名',
+            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+          ),
+        ),
+        Expanded(
+          child: TextField(
+            controller: _outputNamePrefixController,
+            decoration: const InputDecoration(
+              labelText: '统一前缀（可选）',
+              hintText: '例如 release_',
+              border: OutlineInputBorder(),
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 10,
+              ),
+            ),
+            style: const TextStyle(fontSize: 13),
+            onChanged: (_) => _saveConfig(),
+          ),
+        ),
+        const Padding(
+          padding: EdgeInsets.symmetric(horizontal: 7),
+          child: Text(
+            '原文件名',
+            style: TextStyle(fontSize: 12, color: Colors.black54),
+          ),
+        ),
+        Expanded(
+          child: TextField(
+            controller: _outputNameSuffixController,
+            decoration: const InputDecoration(
+              labelText: '统一后缀（可选）',
+              hintText: '例如 _signed',
+              border: OutlineInputBorder(),
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(
+                horizontal: 10,
+                vertical: 10,
+              ),
+            ),
+            style: const TextStyle(fontSize: 13),
+            onChanged: (_) => _saveConfig(),
+          ),
+        ),
+        const SizedBox(width: 8),
+        const Tooltip(
+          message: '本次选中的所有 APK 都使用这组前缀和后缀',
+          child: Icon(Icons.info_outline, size: 18, color: Colors.black45),
+        ),
+      ],
     );
   }
 
@@ -904,6 +974,8 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
     final config = _config.copyWith(
       password: password,
       keyAlias: keyAlias,
+      outputNamePrefix: _outputNamePrefixController.text,
+      outputNameSuffix: _outputNameSuffixController.text,
       keyAliasHistory: keyAliasHistory,
       passwordHistory: passwordHistory,
     );
@@ -964,6 +1036,8 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
       password: _passwordController.text,
       keyAlias: _keyAliasController.text,
       outputDir: _config.outputDirectory,
+      outputNamePrefix: _outputNamePrefixController.text,
+      outputNameSuffix: _outputNameSuffixController.text,
       selectedPaths: _selectedApkPaths.toList(),
     );
     setState(() => _selectedApkPaths.clear());
@@ -1038,8 +1112,9 @@ class _OutputNameFieldState extends State<_OutputNameField> {
     return SizedBox(
       height: 28,
       child: TextField(
+        controller: _controller,
         decoration: InputDecoration(
-          hintText: '签名后文件名（可选）',
+          hintText: '替换原文件名（可选）',
           hintStyle: TextStyle(fontSize: 11, color: Colors.grey.shade400),
           border: const OutlineInputBorder(),
           isDense: true,
@@ -1049,7 +1124,6 @@ class _OutputNameFieldState extends State<_OutputNameField> {
           ),
         ),
         style: const TextStyle(fontSize: 12),
-        controller: _controller,
         onChanged: (value) => widget.onChanged(widget.path, value),
       ),
     );

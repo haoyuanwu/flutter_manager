@@ -321,7 +321,6 @@ class _ProjectListState extends ConsumerState<_ProjectList> {
 
   @override
   Widget build(BuildContext context) {
-    final controller = ref.read(fvmControllerProvider.notifier);
     final allTags = _allTags;
     return Card(
       child: Column(
@@ -338,16 +337,16 @@ class _ProjectListState extends ConsumerState<_ProjectList> {
                         _TagFilterChip(
                           label: '全部',
                           selected: _selectedTag == null,
-                          onSelected: () =>
-                              setState(() => _selectedTag = null),
+                          onSelected: () => setState(() => _selectedTag = null),
                         ),
                         ...allTags.map(
                           (tag) => _TagFilterChip(
                             label: tag,
                             selected: _selectedTag == tag,
                             onSelected: () => setState(
-                              () => _selectedTag =
-                                  _selectedTag == tag ? null : tag,
+                              () => _selectedTag = _selectedTag == tag
+                                  ? null
+                                  : tag,
                             ),
                           ),
                         ),
@@ -375,19 +374,9 @@ class _ProjectListState extends ConsumerState<_ProjectList> {
                       ),
                     ),
                   )
-                : ReorderableListView.builder(
+                : ListView.builder(
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     itemCount: _filteredProjects.length,
-                    onReorderItem: (oldIndex, newIndex) {
-                      if (oldIndex < newIndex) newIndex -= 1;
-                      final project = _filteredProjects[oldIndex];
-                      final realOldIndex = widget.state.managedProjects
-                          .indexOf(project);
-                      final targetProject = _filteredProjects[newIndex];
-                      final realNewIndex = widget.state.managedProjects
-                          .indexOf(targetProject);
-                      controller.reorderProjects(realOldIndex, realNewIndex);
-                    },
                     itemBuilder: (context, index) {
                       final project = _filteredProjects[index];
                       final selected =
@@ -395,18 +384,16 @@ class _ProjectListState extends ConsumerState<_ProjectList> {
                           widget.state.selectedManagedProjectPath;
                       return GestureDetector(
                         key: ValueKey(project.path),
-                        onSecondaryTapUp: (details) =>
-                            _showProjectContextMenu(
-                              context,
-                              project,
-                              details.globalPosition,
-                            ),
+                        onSecondaryTapUp: (details) => _showProjectContextMenu(
+                          context,
+                          project,
+                          details.globalPosition,
+                        ),
                         child: ListTile(
                           selected: selected,
-                          selectedTileColor: Theme.of(context)
-                              .colorScheme
-                              .primaryContainer
-                              .withValues(alpha: .45),
+                          selectedTileColor: Theme.of(
+                            context,
+                          ).colorScheme.primaryContainer.withValues(alpha: .45),
                           leading: Icon(
                             project.pathExists
                                 ? Icons.folder_outlined
@@ -424,41 +411,42 @@ class _ProjectListState extends ConsumerState<_ProjectList> {
                               ),
                               if (project.tags.isNotEmpty) ...[
                                 const SizedBox(width: 4),
-                                ...project.tags.take(2).map(
-                                  (tag) => Padding(
-                                    padding: const EdgeInsets.only(left: 2),
-                                    child: Container(
-                                      padding: const EdgeInsets.symmetric(
-                                        horizontal: 6,
-                                        vertical: 1,
-                                      ),
-                                      decoration: BoxDecoration(
-                                        color: Theme.of(context)
-                                            .colorScheme
-                                            .primaryContainer,
-                                        borderRadius: BorderRadius.circular(
-                                          4,
-                                        ),
-                                      ),
-                                      child: Text(
-                                        tag,
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          color: Theme.of(context)
-                                              .colorScheme
-                                              .onPrimaryContainer,
+                                ...project.tags
+                                    .take(2)
+                                    .map(
+                                      (tag) => Padding(
+                                        padding: const EdgeInsets.only(left: 2),
+                                        child: Container(
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 6,
+                                            vertical: 1,
+                                          ),
+                                          decoration: BoxDecoration(
+                                            color: Theme.of(
+                                              context,
+                                            ).colorScheme.primaryContainer,
+                                            borderRadius: BorderRadius.circular(
+                                              4,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            tag,
+                                            style: TextStyle(
+                                              fontSize: 10,
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.onPrimaryContainer,
+                                            ),
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                ),
                               ],
                             ],
                           ),
                           subtitle: Text(
                             [
-                              if (project.alias.trim().isNotEmpty)
-                                project.name,
+                              if (project.alias.trim().isNotEmpty) project.name,
                               if (!project.pathExists)
                                 '目录不存在'
                               else if (project.fvmVersion == null)
@@ -839,15 +827,7 @@ class _TagManagementDialogState extends State<_TagManagementDialog> {
   late List<String> _tags;
   final _tagController = TextEditingController();
 
-  static const _presetTags = [
-    '工作',
-    '个人',
-    '实验',
-    '生产',
-    '测试',
-    '重要',
-    '待维护',
-  ];
+  static const _presetTags = ['工作', '个人', '实验', '生产', '测试', '重要', '待维护'];
 
   @override
   void initState() {
@@ -1147,11 +1127,13 @@ class _ProjectDetail extends ConsumerWidget {
                       if (project.hasWindows)
                         const Chip(label: Text('Windows')),
                       if (project.hasMacos) const Chip(label: Text('macOS')),
-                      Chip(
-                        avatar: const Icon(Icons.flutter_dash, size: 18),
-                        label: Text(project.fvmVersion ?? '系统 Flutter'),
-                      ),
                     ],
+                  ),
+                  const SizedBox(height: 14),
+                  _ProjectFvmSelector(
+                    project: project,
+                    state: state,
+                    controller: controller,
                   ),
                 ],
               ),
@@ -1862,6 +1844,241 @@ Future<String?> _showInnoCompilerPickerDialog(BuildContext context) {
       ],
     ),
   );
+}
+
+class _ProjectFvmSelector extends StatelessWidget {
+  const _ProjectFvmSelector({
+    required this.project,
+    required this.state,
+    required this.controller,
+  });
+
+  final FlutterProject project;
+  final FvmState state;
+  final FvmController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final configuredVersion = project.fvmVersion?.trim();
+    final matchingSdk = state.installed
+        .where(
+          (sdk) =>
+              sdk.name == configuredVersion ||
+              sdk.flutterVersion == configuredVersion,
+        )
+        .firstOrNull;
+    final selectedValue = configuredVersion == null || configuredVersion.isEmpty
+        ? ''
+        : matchingSdk?.name ?? configuredVersion;
+    final installedNames = state.installed.map((sdk) => sdk.name).toSet();
+    final missingConfiguredVersion =
+        selectedValue.isNotEmpty && !installedNames.contains(selectedValue);
+    final disabled =
+        !state.fvmInstalled || state.loading || state.commandRunning;
+
+    final statusText = !state.fvmInstalled
+        ? '未检测到 FVM，请先完成环境配置'
+        : state.installed.isEmpty
+        ? '尚无已安装的 Flutter SDK'
+        : missingConfiguredVersion
+        ? '已配置 Flutter $configuredVersion，但本机未安装'
+        : matchingSdk == null
+        ? '未配置 .fvmrc，当前使用全局 Flutter'
+        : 'Flutter ${matchingSdk.flutterVersion}  ·  Dart ${matchingSdk.dartVersion}';
+    final warning =
+        !state.fvmInstalled ||
+        state.installed.isEmpty ||
+        missingConfiguredVersion;
+
+    final selector = Container(
+      height: 40,
+      padding: const EdgeInsets.only(left: 10, right: 6),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: warning
+              ? Colors.orange.withValues(alpha: .65)
+              : const Color(0xffd8dee4),
+        ),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            Icons.flutter_dash,
+            size: 18,
+            color: disabled ? Colors.black38 : const Color(0xff087ea4),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: DropdownButtonHideUnderline(
+              child: DropdownButton<String>(
+                value: selectedValue,
+                isExpanded: true,
+                isDense: true,
+                menuMaxHeight: 300,
+                borderRadius: BorderRadius.circular(10),
+                iconSize: 20,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: disabled ? Colors.black38 : Colors.black87,
+                ),
+                items: [
+                  const DropdownMenuItem(
+                    value: '',
+                    child: Text('使用全局 Flutter'),
+                  ),
+                  if (missingConfiguredVersion)
+                    DropdownMenuItem(
+                      value: selectedValue,
+                      enabled: false,
+                      child: Text('Flutter $configuredVersion（未安装）'),
+                    ),
+                  ...state.installed.map(
+                    (sdk) => DropdownMenuItem(
+                      value: sdk.name,
+                      child: Text(
+                        '${sdk.name}  ·  Flutter ${sdk.flutterVersion}',
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                ],
+                onChanged: disabled
+                    ? null
+                    : (version) async {
+                        if (version == null || version == selectedValue) return;
+                        final confirmed = await _confirmProjectFvmChange(
+                          context,
+                          project: project,
+                          currentVersion: configuredVersion,
+                          targetVersion: version,
+                          installed: state.installed,
+                        );
+                        if (!confirmed || !context.mounted) return;
+                        await controller.setManagedProjectFvmVersion(
+                          project.path,
+                          version,
+                        );
+                      },
+              ),
+            ),
+          ),
+          if (state.loading) ...[
+            const SizedBox(width: 6),
+            const SizedBox.square(
+              dimension: 15,
+              child: CircularProgressIndicator(strokeWidth: 2),
+            ),
+          ],
+        ],
+      ),
+    );
+
+    final description = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '项目 Flutter',
+          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          statusText,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            fontSize: 11,
+            color: warning ? Colors.orange.shade800 : Colors.black54,
+          ),
+        ),
+      ],
+    );
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: const Color(0xfff7f9fb),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: const Color(0xffe4e8ec)),
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          if (constraints.maxWidth < 660) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [description, const SizedBox(height: 8), selector],
+            );
+          }
+          return Row(
+            children: [
+              Expanded(child: description),
+              const SizedBox(width: 16),
+              SizedBox(width: 340, child: selector),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}
+
+Future<bool> _confirmProjectFvmChange(
+  BuildContext context, {
+  required FlutterProject project,
+  required String? currentVersion,
+  required String targetVersion,
+  required List<InstalledSdk> installed,
+}) async {
+  String displayVersion(String? version) {
+    if (version == null || version.isEmpty) return '未配置（使用全局 Flutter）';
+    final sdk = installed
+        .where((item) => item.name == version || item.flutterVersion == version)
+        .firstOrNull;
+    return sdk == null
+        ? 'Flutter $version'
+        : '${sdk.name} · Flutter ${sdk.flutterVersion}';
+  }
+
+  final confirmed = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      icon: const Icon(Icons.swap_horiz_rounded, color: Colors.orange),
+      title: Text(
+        targetVersion.isEmpty ? '确认移除项目 FVM 配置？' : '确认切换 Flutter 版本？',
+      ),
+      content: SizedBox(
+        width: 460,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('项目：${project.displayName}'),
+            const SizedBox(height: 12),
+            Text('当前：${displayVersion(currentVersion)}'),
+            const SizedBox(height: 6),
+            Text('切换为：${displayVersion(targetVersion)}'),
+            const SizedBox(height: 14),
+            const Text(
+              '确认后将修改项目的 .fvmrc；不会自动执行 Pub Get、Clean 或构建。',
+              style: TextStyle(color: Colors.black54, height: 1.45),
+            ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(dialogContext, false),
+          child: const Text('取消'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.pop(dialogContext, true),
+          child: Text(targetVersion.isEmpty ? '确认移除' : '确认切换'),
+        ),
+      ],
+    ),
+  );
+  return confirmed == true;
 }
 
 class _ProjectVersionSettings extends ConsumerStatefulWidget {

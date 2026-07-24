@@ -12,6 +12,18 @@ mcp_server
 Flutter Manager App
 ```
 
+## 打包后的 App
+
+安装 Flutter Manager 后，不需要复制项目源码：
+
+1. 打开「MCP 服务」。
+2. 点击「下载 MCP Server」。
+3. 选择一个长期保留的目录。
+4. App 会把内置的 `flutter-manager-mcp.mjs` 写入该目录并保存路径。
+5. 从页面复制 OpenCode、Crush 或 Codex 配置。
+
+目标电脑仍需安装 Node.js 18 或更高版本。
+
 ## 1. 在 App 里开启 MCP 服务
 
 打开 Flutter Manager：
@@ -24,12 +36,12 @@ Flutter Manager App
 
 App 只监听 `127.0.0.1`，不会开放到局域网。
 
-## 2. 安装和编译 MCP Server
+## 2. 开发项目中安装和编译 MCP Server
 
 进入本目录：
 
 ```bash
-cd /Users/why/Documents/flutter_manager/fvm_manager/mcp_server
+cd <Flutter Manager 项目目录>/mcp_server
 npm install
 npm run build
 ```
@@ -37,12 +49,56 @@ npm run build
 编译后入口文件是：
 
 ```text
-/Users/why/Documents/flutter_manager/fvm_manager/mcp_server/dist/index.js
+<Flutter Manager 项目目录>/mcp_server/dist/index.js
 ```
+
+打包 Flutter Manager 前需要刷新内置的单文件 MCP Server：
+
+```bash
+cd <Flutter Manager 项目目录>/mcp_server
+npm install
+npm run bundle
+```
+
+生成的 `dist/flutter-manager-mcp.mjs` 会作为 Flutter asset 一起进入安装包。
 
 ## 3. 配置 AI 软件
 
 在支持 MCP 的 AI 软件里添加一个 MCP Server。
+
+### OpenCode
+
+全局配置文件：
+
+- macOS/Linux：`~/.config/opencode/opencode.json`
+- Windows：`%USERPROFILE%\.config\opencode\opencode.json`
+
+将 `mcp.flutter_manager` 合并到已有配置，不要覆盖其他 OpenCode 设置：
+
+```json
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "flutter_manager": {
+      "type": "local",
+      "command": [
+        "node",
+        "<Flutter Manager 项目目录>/mcp_server/dist/index.js"
+      ],
+      "enabled": true,
+      "timeout": 30000,
+      "environment": {
+        "FLUTTER_MANAGER_PORT": "17891",
+        "FLUTTER_MANAGER_TOKEN": "把 App 页面里的 Token 粘贴到这里"
+      }
+    }
+  }
+}
+```
+
+配置后重启 OpenCode，可执行 `opencode mcp list` 检查连接状态。
+
+### 其他支持 `mcpServers` 的 AI 工具
 
 示例配置：
 
@@ -52,7 +108,7 @@ npm run build
     "flutter-manager": {
       "command": "node",
       "args": [
-        "/Users/why/Documents/flutter_manager/fvm_manager/mcp_server/dist/index.js"
+        "<Flutter Manager 项目目录>/mcp_server/dist/index.js"
       ],
       "env": {
         "FLUTTER_MANAGER_PORT": "17891",

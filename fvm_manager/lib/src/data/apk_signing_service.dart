@@ -68,6 +68,8 @@ class ApkSigningConfig {
     this.password = '',
     this.keyAlias = '',
     this.outputDirectory = '',
+    this.outputNamePrefix = '',
+    this.outputNameSuffix = '_signed',
     this.keyAliasHistory = const [],
     this.passwordHistory = const [],
   });
@@ -76,6 +78,8 @@ class ApkSigningConfig {
   final String password;
   final String keyAlias;
   final String outputDirectory;
+  final String outputNamePrefix;
+  final String outputNameSuffix;
   final List<String> keyAliasHistory;
   final List<String> passwordHistory;
 
@@ -84,6 +88,8 @@ class ApkSigningConfig {
     String? password,
     String? keyAlias,
     String? outputDirectory,
+    String? outputNamePrefix,
+    String? outputNameSuffix,
     List<String>? keyAliasHistory,
     List<String>? passwordHistory,
   }) => ApkSigningConfig(
@@ -91,6 +97,8 @@ class ApkSigningConfig {
     password: password ?? this.password,
     keyAlias: keyAlias ?? this.keyAlias,
     outputDirectory: outputDirectory ?? this.outputDirectory,
+    outputNamePrefix: outputNamePrefix ?? this.outputNamePrefix,
+    outputNameSuffix: outputNameSuffix ?? this.outputNameSuffix,
     keyAliasHistory: keyAliasHistory ?? this.keyAliasHistory,
     passwordHistory: passwordHistory ?? this.passwordHistory,
   );
@@ -101,6 +109,8 @@ class ApkSigningConfig {
         password: map['password'] as String? ?? '',
         keyAlias: map['keyAlias'] as String? ?? '',
         outputDirectory: map['outputDirectory'] as String? ?? '',
+        outputNamePrefix: map['outputNamePrefix'] as String? ?? '',
+        outputNameSuffix: map['outputNameSuffix'] as String? ?? '_signed',
         keyAliasHistory:
             (map['keyAliasHistory'] as List<dynamic>?)
                 ?.map((e) => e.toString())
@@ -118,6 +128,8 @@ class ApkSigningConfig {
     'password': password,
     'keyAlias': keyAlias,
     'outputDirectory': outputDirectory,
+    'outputNamePrefix': outputNamePrefix,
+    'outputNameSuffix': outputNameSuffix,
     'keyAliasHistory': keyAliasHistory,
     'passwordHistory': passwordHistory,
   };
@@ -363,7 +375,9 @@ class ApkSigningService {
     required String password,
     required String keyAlias,
     required String outputDir,
-    String? customOutputName,
+    String? customBaseName,
+    String outputNamePrefix = '',
+    String outputNameSuffix = '_signed',
   }) async {
     final apksigner = await findApkSigner();
     if (apksigner == null) {
@@ -379,7 +393,12 @@ class ApkSigningService {
     final name = _fileName(apkPath);
     final dotIdx = name.lastIndexOf('.');
     final baseName = dotIdx > 0 ? name.substring(0, dotIdx) : name;
-    final outputName = _signedOutputName(baseName, customOutputName);
+    final outputName = _signedOutputName(
+      baseName,
+      customBaseName: customBaseName,
+      prefix: outputNamePrefix,
+      suffix: outputNameSuffix,
+    );
     final outputPath = '$outputDir${Platform.pathSeparator}$outputName';
 
     // Copy APK to output path first, then sign in-place.
@@ -487,16 +506,22 @@ class ApkSigningService {
   String _fileName(String path) =>
       path.split(RegExp(r'[\\/]')).where((s) => s.isNotEmpty).last;
 
-  String _signedOutputName(String baseName, String? customOutputName) {
-    final raw = customOutputName?.trim();
-    if (raw == null || raw.isEmpty) return '${baseName}_signed.apk';
-    final withoutExtension = raw.replaceFirst(
+  String _signedOutputName(
+    String baseName, {
+    String? customBaseName,
+    required String prefix,
+    required String suffix,
+  }) {
+    final overrideName = customBaseName?.trim().replaceFirst(
       RegExp(r'\.apk$', caseSensitive: false),
       '',
     );
-    final safeName = withoutExtension
-        .replaceAll(RegExp(r'[\\/:*?"<>|]+'), '_')
-        .trim();
+    final effectiveBaseName = overrideName == null || overrideName.isEmpty
+        ? baseName
+        : overrideName;
+    final rawName = '${prefix.trim()}$effectiveBaseName${suffix.trim()}'
+        .replaceFirst(RegExp(r'\.apk$', caseSensitive: false), '');
+    final safeName = rawName.replaceAll(RegExp(r'[\\/:*?"<>|]+'), '_').trim();
     return '${safeName.isEmpty ? '${baseName}_signed' : safeName}.apk';
   }
 }

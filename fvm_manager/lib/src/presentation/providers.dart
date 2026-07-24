@@ -120,9 +120,8 @@ class ApkSigningController extends Notifier<ApkSigningState> {
 
   void updateApkOutputName(String path, String outputName) {
     state = state.copyWith(
-      unsignedApks: state.unsignedApks.map((a) {
-        if (a.path == path) return a.copyWith(outputName: outputName);
-        return a;
+      unsignedApks: state.unsignedApks.map((apk) {
+        return apk.path == path ? apk.copyWith(outputName: outputName) : apk;
       }).toList(),
     );
   }
@@ -146,6 +145,8 @@ class ApkSigningController extends Notifier<ApkSigningState> {
     required String password,
     required String keyAlias,
     String? outputDir,
+    String outputNamePrefix = '',
+    String outputNameSuffix = '_signed',
     required List<String> selectedPaths,
   }) async {
     if (selectedPaths.isEmpty) return;
@@ -181,7 +182,9 @@ class ApkSigningController extends Notifier<ApkSigningState> {
         password: password,
         keyAlias: keyAlias,
         outputDir: signingOutputDir,
-        customOutputName: apk.outputName.isNotEmpty ? apk.outputName : null,
+        customBaseName: apk.outputName.isEmpty ? null : apk.outputName,
+        outputNamePrefix: outputNamePrefix,
+        outputNameSuffix: outputNameSuffix,
       );
       results.add(result);
     }
@@ -2183,24 +2186,6 @@ class FvmController extends Notifier<FvmState> {
     _publishStatusMenu();
   }
 
-  Future<void> reorderProjects(int oldIndex, int newIndex) async {
-    final projects = [...state.managedProjects];
-    if (oldIndex < 0 ||
-        oldIndex >= projects.length ||
-        newIndex < 0 ||
-        newIndex >= projects.length) {
-      return;
-    }
-    final project = projects.removeAt(oldIndex);
-    projects.insert(newIndex, project);
-    final updatedProjects = projects.asMap().entries.map((entry) {
-      return entry.value.copyWith(sortOrder: entry.key);
-    }).toList();
-    state = state.copyWith(managedProjects: updatedProjects);
-    await ref.read(projectRepositoryProvider).save(updatedProjects);
-    _publishStatusMenu();
-  }
-
   Future<void> updateProjectTags(String path, List<String> tags) async {
     final project = state.managedProjects
         .where((item) => item.path == path)
@@ -2210,10 +2195,7 @@ class FvmController extends Notifier<FvmState> {
     final projects = await ref
         .read(projectRepositoryProvider)
         .upsert(state.managedProjects, updated);
-    state = state.copyWith(
-      managedProjects: projects,
-      statusMessage: '项目标签已更新',
-    );
+    state = state.copyWith(managedProjects: projects, statusMessage: '项目标签已更新');
     _publishStatusMenu();
   }
 
@@ -2302,6 +2284,16 @@ class FvmController extends Notifier<FvmState> {
     String projectPath,
     String version,
   ) async {
+    if (!_ensureFvmReady('切换项目 Flutter 版本')) return;
+    if (_hasActiveTasks(projectPath)) {
+      state = state.copyWith(errorMessage: '项目存在正在运行的命令，请先结束后再切换 Flutter 版本。');
+      return;
+    }
+    if (version.isNotEmpty &&
+        !state.installed.any((sdk) => sdk.name == version)) {
+      state = state.copyWith(errorMessage: 'Flutter $version 尚未安装，无法切换。');
+      return;
+    }
     state = state.copyWith(
       loading: true,
       errorMessage: null,
@@ -2322,6 +2314,7 @@ class FvmController extends Notifier<FvmState> {
         if (p.path != projectPath) return p;
         return p.copyWith(fvmVersion: version.isEmpty ? null : version);
       }).toList();
+      await ref.read(projectRepositoryProvider).save(projects);
       state = state.copyWith(
         managedProjects: projects,
         statusMessage: version.isEmpty
@@ -2446,70 +2439,6 @@ class FvmController extends Notifier<FvmState> {
       return ProjectBuildTarget.windows;
     }
     return ProjectBuildTarget.apk;
-  }
-
-  /// 从已添加项目列表中选择项目路径
-  Future<void> chooseProjectPath(String path) async {
-    state = state.copyWith(errorMessage: null);
-    try {
-      state = state.copyWith(
-        loading: true,
-        projectPath: path,
-        projectVersion: null,
-        projectTargetVersion: null,
-        statusMessage: '正在读取项目当前的 FVM 版本…',
-      );
-      final project = ref.read(localProjectServiceProvider);
-      final version = await project.currentVersion(path);
-      String? matchingInstalledVersion;
-      if (version != null) {
-        for (final sdk in state.installed) {
-          if (sdk.name == version || sdk.flutterVersion == version) {
-            matchingInstalledVersion = sdk.name;
-            break;
-          }
-        }
-      }
-      state = state.copyWith(
-        projectVersion: version,
-        projectTargetVersion: matchingInstalledVersion,
-        statusMessage: version == null
-            ? '已选择项目，尚未配置 FVM 版本'
-            : '项目当前使用 Flutter $version',
-      );
-    } catch (error) {
-      state = state.copyWith(errorMessage: _message(error));
-    } finally {
-      state = state.copyWith(loading: false);
-    }
-  }
-
-  void selectProjectVersion(String? version) {
-    state = state.copyWith(projectTargetVersion: version);
-  }
-
-  Future<void> applyProjectVersion() async {
-    final path = state.projectPath;
-    final version = state.projectTargetVersion;
-    if (path == null || version == null) return;
-    state = state.copyWith(
-      loading: true,
-      errorMessage: null,
-      statusMessage: '正在为项目配置 Flutter $version…',
-    );
-    try {
-      await ref
-          .read(fvmServiceProvider)
-          .setProjectVersion(projectPath: path, version: version);
-      state = state.copyWith(
-        projectVersion: version,
-        statusMessage: '项目 FVM 版本已设置为 Flutter $version',
-      );
-    } catch (error) {
-      state = state.copyWith(errorMessage: _message(error));
-    } finally {
-      state = state.copyWith(loading: false);
-    }
   }
 
   Future<void> setGlobal(String version) async {

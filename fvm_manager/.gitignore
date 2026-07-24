@@ -37,6 +37,8 @@ migrate_working_dir/
 # MCP server generated files
 /mcp_server/node_modules/
 /mcp_server/dist/
+!/mcp_server/dist/
+!/mcp_server/dist/flutter-manager-mcp.mjs
 
 # Symbolication related
 app.*.symbols
