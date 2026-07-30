@@ -255,6 +255,7 @@ class FvmController extends Notifier<FvmState> {
       {};
   final Set<String> _stoppingCommandTasks = {};
   final Map<String, String> _consoleModes = {};
+  final Map<String, int> _mcpRuntimeCursors = {};
   final McpControlServer _mcpControlServer = McpControlServer();
   String? _mainBuildConsoleProjectPath;
 
@@ -1434,6 +1435,7 @@ class FvmController extends Notifier<FvmState> {
 
   void _appendCommandLog(String projectPath, String output) {
     final log = _commandLogs.append(projectPath, output);
+    _bumpMcpRuntimeCursor(projectPath);
     if (state.selectedManagedProjectPath == projectPath) {
       state = state.copyWith(commandLog: log);
     }
@@ -1709,6 +1711,10 @@ class FvmController extends Notifier<FvmState> {
         _openMcpConsole(arguments);
         unawaited(rerunManagedProject());
         return _mcpCommandStarted('rerun');
+      case 'hot_reload':
+        return _mcpSendRuntimeCommand(arguments, reload: true);
+      case 'hot_restart':
+        return _mcpSendRuntimeCommand(arguments, reload: false);
       case 'pub_get':
         await _selectMcpProject(arguments);
         unawaited(projectPubGet());
@@ -1743,12 +1749,138 @@ class FvmController extends Notifier<FvmState> {
         final projectPath = await _mcpProjectPath(arguments);
         return {
           'projectPath': projectPath,
-          'log': _commandLogs.logFor(projectPath),
           'tasks': _serializedTasks(projectPath),
+          ..._mcpConsoleSnapshot(projectPath, arguments),
         };
+      case 'list_running_projects':
+        final projectPaths = _activeCommandTasks.values
+            .map((task) => task.projectPath)
+            .toSet();
+        return {
+          'projects': projectPaths
+              .map((path) => _mcpRuntimeSnapshot(path, const {'tailChars': 0}))
+              .toList(growable: false),
+        };
+      case 'get_runtime_status':
+        final projectPath = await _mcpProjectPath(arguments);
+        return _mcpRuntimeSnapshot(projectPath, arguments);
+      case 'wait_for_runtime_change':
+        return _mcpWaitForRuntimeChange(arguments);
       default:
         throw Exception('未知 MCP 工具：$tool');
     }
+  }
+
+  Future<Map<String, dynamic>> _mcpSendRuntimeCommand(
+    Map<String, dynamic> arguments, {
+    required bool reload,
+  }) async {
+    await _selectMcpProject(arguments);
+    final projectPath = state.selectedManagedProjectPath!;
+    final taskId = _taskId('run', projectPath);
+    if (!_activeCommandTasks.containsKey(taskId)) {
+      throw Exception('当前项目没有正在运行的 Flutter Run');
+    }
+    final service = ref.read(flutterCommandServiceProvider);
+    reload ? await service.hotReload(taskId) : await service.hotRestart(taskId);
+    final action = reload ? 'hot_reload' : 'hot_restart';
+    final label = reload ? '热重载' : '热重启';
+    _appendCommandLog(projectPath, '\n[$label 已由 MCP 触发]\n');
+    return {
+      'action': action,
+      'sent': true,
+      'projectPath': projectPath,
+      'taskId': taskId,
+      'cursor': _mcpRuntimeCursor(projectPath),
+    };
+  }
+
+  Map<String, dynamic> _mcpRuntimeSnapshot(
+    String projectPath,
+    Map<String, dynamic> arguments,
+  ) {
+    final project = state.managedProjects
+        .where((item) => item.path == projectPath)
+        .firstOrNull;
+    final runTaskId = _taskId('run', projectPath);
+    return {
+      'projectPath': projectPath,
+      'project': project == null ? null : _mcpProjectJson(project),
+      'running': _hasActiveTasks(projectPath),
+      'flutterRunActive': _activeCommandTasks.containsKey(runTaskId),
+      'tasks': _serializedTasks(projectPath),
+      'vmServiceUri': state.vmServiceUris?[projectPath],
+      'cursor': _mcpRuntimeCursor(projectPath),
+      ..._mcpConsoleSnapshot(projectPath, arguments, defaultTailChars: 4000),
+    };
+  }
+
+  Map<String, dynamic> _mcpConsoleSnapshot(
+    String projectPath,
+    Map<String, dynamic> arguments, {
+    int? defaultTailChars,
+  }) {
+    final log = _commandLogs.logFor(projectPath);
+    final requestedAfter = arguments['afterLogLength'] as int?;
+    final requestedTail = arguments['tailChars'] as int? ?? defaultTailChars;
+    var start = 0;
+    var truncated = false;
+    if (requestedAfter != null) {
+      if (requestedAfter <= log.length) {
+        start = requestedAfter;
+      } else {
+        truncated = true;
+      }
+    } else if (requestedTail != null) {
+      final tailChars = requestedTail.clamp(0, 20000);
+      start = (log.length - tailChars).clamp(0, log.length);
+    }
+    if (log.length - start > 20000) {
+      start = log.length - 20000;
+      truncated = true;
+    }
+    return {
+      'log': log.substring(start),
+      'logStart': start,
+      'logLength': log.length,
+      'logTruncated': truncated,
+    };
+  }
+
+  Future<Map<String, dynamic>> _mcpWaitForRuntimeChange(
+    Map<String, dynamic> arguments,
+  ) async {
+    final projectPath = await _mcpProjectPath(arguments);
+    final initialCursor = _mcpRuntimeCursor(projectPath);
+    final afterCursor = arguments['afterCursor'] as int? ?? initialCursor;
+    final initialLogLength = _commandLogs.logFor(projectPath).length;
+    final afterLogLength =
+        arguments['afterLogLength'] as int? ?? initialLogLength;
+    final timeoutMs = (arguments['timeoutMs'] as int? ?? 15000).clamp(
+      1000,
+      30000,
+    );
+    final deadline = DateTime.now().add(Duration(milliseconds: timeoutMs));
+    while (_mcpRuntimeCursor(projectPath) == afterCursor &&
+        DateTime.now().isBefore(deadline)) {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+    }
+    final cursor = _mcpRuntimeCursor(projectPath);
+    return {
+      'changed': cursor != afterCursor,
+      'timedOut': cursor == afterCursor,
+      ..._mcpRuntimeSnapshot(projectPath, {
+        ...arguments,
+        'afterLogLength': afterLogLength,
+      }),
+    };
+  }
+
+  int _mcpRuntimeCursor(String projectPath) =>
+      _mcpRuntimeCursors[projectPath] ?? 0;
+
+  void _bumpMcpRuntimeCursor(String projectPath) {
+    _mcpRuntimeCursors[projectPath] = _mcpRuntimeCursor(projectPath) + 1;
   }
 
   Map<String, dynamic> _mcpCommandStarted(String action) {
@@ -1880,6 +2012,7 @@ class FvmController extends Notifier<FvmState> {
     final task = _activeCommandTasks[taskId];
     if (task == null) return;
     _activeCommandTasks[taskId] = (projectPath: task.projectPath, label: label);
+    _bumpMcpRuntimeCursor(task.projectPath);
     _syncSelectedCommandState();
     _syncConsoleWindow(task.projectPath);
   }
@@ -1889,6 +2022,7 @@ class FvmController extends Notifier<FvmState> {
     _stoppingCommandTasks.remove(taskId);
     _syncSelectedCommandState();
     if (task != null) {
+      _bumpMcpRuntimeCursor(task.projectPath);
       _syncConsoleWindow(task.projectPath);
       if (!_hasActiveTasks(task.projectPath)) {
         unawaited(ConsoleWindowService.instance.close(task.projectPath));
@@ -1969,6 +2103,7 @@ class FvmController extends Notifier<FvmState> {
 
   void _clearCommandLogFor(String path) {
     _commandLogs.clear(path);
+    _bumpMcpRuntimeCursor(path);
     if (state.selectedManagedProjectPath == path) {
       state = state.copyWith(commandLog: '');
     }

@@ -21,8 +21,13 @@ Use this skill to control the local Flutter Manager app instead of manually runn
 - List devices: `flutter_manager_list_devices`
 - Run: `flutter_manager_run`
 - Rerun: `flutter_manager_rerun`
+- Hot reload: `flutter_manager_hot_reload`
+- Hot restart: `flutter_manager_hot_restart`
 - Stop: `flutter_manager_stop`
 - Read console: `flutter_manager_read_console`
+- Running projects: `flutter_manager_list_running_projects`
+- Runtime status: `flutter_manager_get_runtime_status`
+- Wait for changes: `flutter_manager_wait_for_runtime_change`
 - Maintenance/build: `flutter_manager_pub_get`, `flutter_manager_clean`, `flutter_manager_build`, `flutter_manager_devtools`
 
 When running a project:
@@ -31,7 +36,26 @@ When running a project:
 - Prefer the user's named alias/display name when choosing projects.
 - For Android real devices, use the device id from `list_devices`.
 - For flavored Android projects, pass a flavor if the MCP schema supports it; otherwise use the HTTP script fallback.
-- For the user's “念糖” project, the known managed path is `/Users/why/Documents/Project/waqu-shell`, Android device id recently used was `cd90370e`, and debug flavor that worked was `android`. Reconfirm devices before using this stale device id.
+
+## Efficient runtime monitoring
+
+Do not repeatedly request the full console.
+
+1. Call `flutter_manager_get_runtime_status` after `run` or `rerun`.
+2. Save its `cursor` and `logLength`.
+3. Call `flutter_manager_wait_for_runtime_change` with `afterCursor` and `afterLogLength`.
+4. Inspect only the returned incremental `log`.
+5. Repeat while `running` is true and the requested outcome is not yet known.
+
+Use a 10–15 second `timeoutMs` for normal monitoring. A timed-out wait is not a failure; call it again when continued monitoring is needed. Use `flutter_manager_list_running_projects` when the user has not identified which project is running.
+
+After editing Dart code:
+
+- Prefer `flutter_manager_hot_reload` for ordinary UI and logic changes.
+- Use `flutter_manager_hot_restart` when state initialization requires a restart.
+- Use `flutter_manager_rerun` only when the process must be stopped and launched again.
+
+Open `flutter_manager_devtools` only after `get_runtime_status` reports an active Flutter run and a `vmServiceUri`.
 
 ## HTTP bridge fallback
 

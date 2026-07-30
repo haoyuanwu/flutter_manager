@@ -66,6 +66,7 @@ class PubEnvironmentService {
   int _mcpServerPort = 17891;
   String _mcpServerToken = '';
   String _mcpServerExecutablePath = '';
+  String _mcpSkillPath = '';
   String _globalPgyerApiKey = '';
   String _globalFirApiToken = '';
   String _innoCompilerPath = '';
@@ -86,6 +87,7 @@ class PubEnvironmentService {
   int get mcpServerPort => _mcpServerPort;
   String get mcpServerToken => _mcpServerToken;
   String get mcpServerExecutablePath => _mcpServerExecutablePath;
+  String get mcpSkillPath => _mcpSkillPath;
   String get globalPgyerApiKey => _globalPgyerApiKey;
   String get globalFirApiToken => _globalFirApiToken;
   String get innoCompilerPath => _innoCompilerPath;
@@ -196,6 +198,7 @@ class PubEnvironmentService {
       _mcpServerToken = settings['mcpServerToken'] as String? ?? '';
       _mcpServerExecutablePath =
           settings['mcpServerExecutablePath'] as String? ?? '';
+      _mcpSkillPath = settings['mcpSkillPath'] as String? ?? '';
       _globalPgyerApiKey = settings['globalPgyerApiKey'] as String? ?? '';
       _globalFirApiToken = settings['globalFirApiToken'] as String? ?? '';
       _innoCompilerPath = settings['innoCompilerPath'] as String? ?? '';
@@ -303,6 +306,11 @@ class PubEnvironmentService {
     await _persist();
   }
 
+  Future<void> setMcpSkillPath(String path) async {
+    _mcpSkillPath = path.trim();
+    await _persist();
+  }
+
   Future<void> setGlobalPgyerApiKey(String apiKey) async {
     _globalPgyerApiKey = apiKey;
     await _persist();
@@ -363,6 +371,7 @@ class PubEnvironmentService {
         'mcpServerPort': _mcpServerPort,
         'mcpServerToken': _mcpServerToken,
         'mcpServerExecutablePath': _mcpServerExecutablePath,
+        'mcpSkillPath': _mcpSkillPath,
         'globalPgyerApiKey': _globalPgyerApiKey,
         'globalFirApiToken': _globalFirApiToken,
         'innoCompilerPath': _innoCompilerPath,

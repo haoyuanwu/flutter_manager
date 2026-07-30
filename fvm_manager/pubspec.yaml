@@ -72,6 +72,9 @@ flutter:
   assets:
     - assets/images/app_logo.png
     - mcp_server/dist/flutter-manager-mcp.mjs
+    - codex_skills/flutter-manager-mcp/SKILL.md
+    - codex_skills/flutter-manager-mcp/agents/openai.yaml
+    - codex_skills/flutter-manager-mcp/scripts/call_flutter_manager.py
 
   # To add assets to your application, add an assets section, like this:
   # assets:

@@ -20,6 +20,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--task-id", help="Task id for stop")
     parser.add_argument("--open-console", action=argparse.BooleanOptionalAction, default=None)
     parser.add_argument("--tail", type=int, default=0, help="Print only the last N chars of log")
+    parser.add_argument("--after-cursor", type=int, help="Runtime cursor for wait_for_runtime_change")
+    parser.add_argument("--after-log-length", type=int, help="Previous console log length")
+    parser.add_argument("--timeout-ms", type=int, help="Long-poll timeout in milliseconds")
     parser.add_argument("--host", default=os.environ.get("FLUTTER_MANAGER_HOST", "127.0.0.1"))
     parser.add_argument("--port", default=os.environ.get("FLUTTER_MANAGER_PORT", "17891"))
     parser.add_argument("--token", default=os.environ.get("FLUTTER_MANAGER_TOKEN", ""))
@@ -39,6 +42,14 @@ def main() -> int:
         payload["taskId"] = args.task_id
     if args.open_console is not None:
         payload["openConsole"] = args.open_console
+    if args.tail:
+        payload["tailChars"] = args.tail
+    if args.after_cursor is not None:
+        payload["afterCursor"] = args.after_cursor
+    if args.after_log_length is not None:
+        payload["afterLogLength"] = args.after_log_length
+    if args.timeout_ms is not None:
+        payload["timeoutMs"] = args.timeout_ms
 
     url = f"http://{args.host}:{args.port}/tools/{args.tool}"
     headers = {"Content-Type": "application/json"}

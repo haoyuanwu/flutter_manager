@@ -5,11 +5,7 @@ var __getOwnPropNames = Object.getOwnPropertyNames;
 var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __commonJS = (cb, mod) => function __require() {
-  try {
-    return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
-  } catch (e) {
-    throw mod = 0, e;
-  }
+  return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports;
 };
 var __export = (target, all) => {
   for (var name in all)
@@ -6942,6 +6938,7 @@ function $constructor(name, initializer3, params) {
   Object.defineProperty(_, "name", { value: name });
   return _;
 }
+var $brand = Symbol("zod_brand");
 var $ZodAsyncError = class extends Error {
   constructor() {
     super(`Encountered Promise during synchronous parse. Use .parseAsync() instead.`);
@@ -9890,6 +9887,8 @@ function en_default() {
 
 // node_modules/zod/v4/core/registries.js
 var _a2;
+var $output = Symbol("ZodOutput");
+var $input = Symbol("ZodInput");
 var $ZodRegistry = class {
   constructor() {
     this._map = /* @__PURE__ */ new WeakMap();
@@ -13682,6 +13681,9 @@ function isTerminal(status) {
   return status === "completed" || status === "failed" || status === "cancelled";
 }
 
+// node_modules/zod-to-json-schema/dist/esm/Options.js
+var ignoreOverride = Symbol("Let zodToJsonSchema decide on which parser to use");
+
 // node_modules/zod-to-json-schema/dist/esm/parsers/string.js
 var ALPHA_NUMERIC = new Set("ABCDEFGHIJKLMNOPQRSTUVXYZabcdefghijklmnopqrstuvxyz0123456789");
 
@@ -15469,6 +15471,12 @@ var openConsoleProperty = {
   type: "boolean",
   description: "Whether Flutter Manager should open the console window. Defaults to true for run/rerun."
 };
+var tailCharsProperty = {
+  type: "integer",
+  minimum: 0,
+  maximum: 2e4,
+  description: "Maximum console characters to return. Defaults to 4000 for runtime status."
+};
 var tools = [
   {
     name: "flutter_manager_list_projects",
@@ -15530,6 +15538,22 @@ var tools = [
     }
   },
   {
+    name: "flutter_manager_hot_reload",
+    description: "Send Flutter hot reload (r) to the running project.",
+    inputSchema: {
+      type: "object",
+      properties: { projectPath: projectPathProperty }
+    }
+  },
+  {
+    name: "flutter_manager_hot_restart",
+    description: "Send Flutter hot restart (R) to the running project.",
+    inputSchema: {
+      type: "object",
+      properties: { projectPath: projectPathProperty }
+    }
+  },
+  {
     name: "flutter_manager_stop",
     description: "Stop a running task. Provide taskId, or projectPath to stop the first task for that project.",
     inputSchema: {
@@ -15548,7 +15572,61 @@ var tools = [
     description: "Read the command console output and running tasks.",
     inputSchema: {
       type: "object",
-      properties: { projectPath: projectPathProperty }
+      properties: {
+        projectPath: projectPathProperty,
+        afterLogLength: {
+          type: "integer",
+          minimum: 0,
+          description: "Return console output after this previous log length."
+        },
+        tailChars: tailCharsProperty
+      }
+    }
+  },
+  {
+    name: "flutter_manager_list_running_projects",
+    description: "List projects that currently have running commands.",
+    inputSchema: {
+      type: "object",
+      properties: {}
+    }
+  },
+  {
+    name: "flutter_manager_get_runtime_status",
+    description: "Get concise runtime state, tasks, VM service URL, cursor, and console tail for a project.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        projectPath: projectPathProperty,
+        tailChars: tailCharsProperty
+      }
+    }
+  },
+  {
+    name: "flutter_manager_wait_for_runtime_change",
+    description: "Wait until project logs or running tasks change, then return an incremental runtime snapshot.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        projectPath: projectPathProperty,
+        afterCursor: {
+          type: "integer",
+          minimum: 0,
+          description: "Cursor returned by get_runtime_status or a previous wait call."
+        },
+        afterLogLength: {
+          type: "integer",
+          minimum: 0,
+          description: "Previous logLength used to return only new console output."
+        },
+        timeoutMs: {
+          type: "integer",
+          minimum: 1e3,
+          maximum: 3e4,
+          description: "Long-poll timeout in milliseconds. Defaults to 15000."
+        },
+        tailChars: tailCharsProperty
+      }
     }
   },
   {
@@ -15591,8 +15669,13 @@ var toolMap = {
   flutter_manager_list_devices: "list_devices",
   flutter_manager_run: "run",
   flutter_manager_rerun: "rerun",
+  flutter_manager_hot_reload: "hot_reload",
+  flutter_manager_hot_restart: "hot_restart",
   flutter_manager_stop: "stop",
   flutter_manager_read_console: "read_console",
+  flutter_manager_list_running_projects: "list_running_projects",
+  flutter_manager_get_runtime_status: "get_runtime_status",
+  flutter_manager_wait_for_runtime_change: "wait_for_runtime_change",
   flutter_manager_pub_get: "pub_get",
   flutter_manager_clean: "clean",
   flutter_manager_build: "build",

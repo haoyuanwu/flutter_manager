@@ -24,6 +24,41 @@ Flutter Manager App
 
 目标电脑仍需安装 Node.js 18 或更高版本。
 
+### 下载 Skill
+
+Skill 用于告诉 AI 什么时候以及如何调用 Flutter Manager，不能代替 MCP Server 配置。
+
+在 App 的「MCP 服务 → AI 工具安装 → AI Skill」中可以直接点击：
+
+- 「安装到 Codex」：自动写入 Codex 全局 Skills 目录。
+- 「安装到 OpenCode」：自动写入 OpenCode 全局 Skills 目录。
+- 「选择其他目录」：用于项目级或自定义安装位置。
+
+默认目录：
+
+- Codex（macOS/Linux）：`~/.codex/skills`
+- Codex（Windows）：`%USERPROFILE%\.codex\skills`
+- OpenCode（macOS/Linux）：`~/.config/opencode/skills`
+- OpenCode（Windows）：`%USERPROFILE%\.config\opencode\skills`
+
+App 会自动创建：
+
+```text
+flutter-manager-mcp/
+├── SKILL.md
+├── agents/
+│   └── openai.yaml
+└── scripts/
+    └── call_flutter_manager.py
+```
+
+安装完成后重启 Codex 或 OpenCode。完整使用需要同时完成：
+
+1. 下载 MCP Server。
+2. 开启 App 的 MCP 控制接口。
+3. 配置 AI 工具的 MCP Server。
+4. 下载 Skill 到 AI 工具的 Skills 根目录。
+
 ## 1. 在 App 里开启 MCP 服务
 
 打开 Flutter Manager：
@@ -131,8 +166,13 @@ npm run bundle
 - `flutter_manager_list_devices`
 - `flutter_manager_run`
 - `flutter_manager_rerun`
+- `flutter_manager_hot_reload`
+- `flutter_manager_hot_restart`
 - `flutter_manager_stop`
 - `flutter_manager_read_console`
+- `flutter_manager_list_running_projects`
+- `flutter_manager_get_runtime_status`
+- `flutter_manager_wait_for_runtime_change`
 - `flutter_manager_pub_get`
 - `flutter_manager_clean`
 - `flutter_manager_build`

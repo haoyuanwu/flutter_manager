@@ -12,7 +12,9 @@ class _McpServerPage extends ConsumerStatefulWidget {
 class _McpServerPageState extends ConsumerState<_McpServerPage> {
   late final TextEditingController _portController;
   String _installedMcpServerPath = '';
+  String _installedMcpSkillPath = '';
   bool _downloadingMcpServer = false;
+  bool _downloadingMcpSkill = false;
 
   @override
   void initState() {
@@ -23,6 +25,9 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
     _installedMcpServerPath = ref
         .read(pubEnvironmentServiceProvider)
         .mcpServerExecutablePath;
+    _installedMcpSkillPath = ref
+        .read(pubEnvironmentServiceProvider)
+        .mcpSkillPath;
   }
 
   @override
@@ -53,11 +58,14 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
     final installedMcpServerExists =
         _installedMcpServerPath.isNotEmpty &&
         File(_installedMcpServerPath).existsSync();
-    const relativeSkillPath = 'codex_skills/flutter-manager-mcp';
+    final installedMcpSkillExists =
+        _installedMcpSkillPath.isNotEmpty &&
+        File(
+          '$_installedMcpSkillPath${Platform.pathSeparator}SKILL.md',
+        ).existsSync();
     final codexConfig = _codexConfig(mcpServerPath);
     final openCodeConfig = _openCodeConfig(mcpServerPath);
     final crushConfigValue = _crushConfig(mcpServerPath);
-    final installCommands = _installCommands(relativeSkillPath);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -257,22 +265,69 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
                   ),
                   const Divider(height: 32),
                   const Text(
-                    'Codex Skill',
+                    'AI Skill',
                     style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 4),
-                  const Text('以后新增 MCP 工具时，更新项目里的 Skill，再从这里导出安装包。'),
-                  const SizedBox(height: 12),
-                  _CodeBlock(
-                    title: '本项目 Skill 路径',
-                    text: relativeSkillPath,
-                    onCopy: _copy,
+                  const Text(
+                    'Skill 为 AI 提供 Flutter Manager 的操作说明；它不能代替下方的 MCP 连接配置。',
                   ),
                   const SizedBox(height: 12),
-                  _CodeBlock(
-                    title: '安装到 Codex Skills',
-                    text: installCommands,
-                    onCopy: _copy,
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: installedMcpSkillExists
+                          ? Colors.green.shade50
+                          : Colors.grey.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(
+                        color: installedMcpSkillExists
+                            ? Colors.green.shade200
+                            : Colors.grey.shade300,
+                      ),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          installedMcpSkillExists
+                              ? Icons.check_circle_outline
+                              : Icons.extension_outlined,
+                          color: installedMcpSkillExists
+                              ? Colors.green.shade700
+                              : Colors.grey.shade700,
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                installedMcpSkillExists
+                                    ? 'Skill 已下载'
+                                    : '尚未下载 Skill',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              const SizedBox(height: 3),
+                              Text(
+                                _installedMcpSkillPath.isEmpty
+                                    ? '请选择 AI 工具的 Skills 根目录'
+                                    : _installedMcpSkillPath,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Colors.black54,
+                                  fontFamily: 'monospace',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Wrap(
@@ -280,17 +335,82 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
                     runSpacing: 12,
                     children: [
                       FilledButton.icon(
-                        onPressed: controller.exportMcpSkill,
-                        icon: const Icon(Icons.ios_share_outlined),
-                        label: const Text('导出 Skill'),
+                        onPressed: _downloadingMcpSkill
+                            ? null
+                            : () => _downloadMcpSkill(
+                                rootDirectory: _defaultSkillRoot(
+                                  openCode: false,
+                                ),
+                              ),
+                        icon: _downloadingMcpSkill
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.download_outlined),
+                        label: const Text('安装到 Codex'),
+                      ),
+                      FilledButton.tonalIcon(
+                        onPressed: _downloadingMcpSkill
+                            ? null
+                            : () => _downloadMcpSkill(
+                                rootDirectory: _defaultSkillRoot(
+                                  openCode: true,
+                                ),
+                              ),
+                        icon: const Icon(Icons.download_outlined),
+                        label: const Text('安装到 OpenCode'),
                       ),
                       OutlinedButton.icon(
-                        onPressed: () =>
-                            _copy(relativeSkillPath, 'Skill 路径已复制'),
-                        icon: const Icon(Icons.copy_outlined),
-                        label: const Text('复制 Skill 路径'),
+                        onPressed: _downloadingMcpSkill
+                            ? null
+                            : () => _downloadMcpSkill(),
+                        icon: const Icon(Icons.folder_outlined),
+                        label: const Text('选择其他目录'),
                       ),
+                      if (installedMcpSkillExists)
+                        OutlinedButton.icon(
+                          onPressed: () => ref
+                              .read(localProjectServiceProvider)
+                              .revealFile(
+                                '$_installedMcpSkillPath'
+                                '${Platform.pathSeparator}SKILL.md',
+                              ),
+                          icon: const Icon(Icons.folder_open_outlined),
+                          label: const Text('打开 Skill 目录'),
+                        ),
+                      if (_installedMcpSkillPath.isNotEmpty)
+                        OutlinedButton.icon(
+                          onPressed: () =>
+                              _copy(_installedMcpSkillPath, 'Skill 路径已复制'),
+                          icon: const Icon(Icons.copy_outlined),
+                          label: const Text('复制 Skill 路径'),
+                        ),
                     ],
+                  ),
+                  const SizedBox(height: 16),
+                  _CodeBlock(
+                    title: 'Codex：选择此 Skills 根目录',
+                    text: Platform.isWindows
+                        ? r'%USERPROFILE%\.codex\skills'
+                        : '~/.codex/skills',
+                    onCopy: _copy,
+                  ),
+                  const SizedBox(height: 12),
+                  _CodeBlock(
+                    title: 'OpenCode：选择此 Skills 根目录',
+                    text: Platform.isWindows
+                        ? r'%USERPROFILE%\.config\opencode\skills'
+                        : '~/.config/opencode/skills',
+                    onCopy: _copy,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    '选择根目录后，App 会自动创建 flutter-manager-mcp 文件夹。安装完成后重启 AI 工具。',
+                    style: TextStyle(fontSize: 12, color: Colors.black54),
                   ),
                 ],
               ),
@@ -462,12 +582,77 @@ FLUTTER_MANAGER_TOKEN = "${widget.state.mcpServerToken}"
   String _jsonString(String value) =>
       value.replaceAll(r'\', r'\\').replaceAll('"', r'\"');
 
-  String _installCommands(String relativeSkillPath) =>
-      '''
-mkdir -p ~/.codex/skills
-cp -R "$relativeSkillPath" ~/.codex/skills/
-'''
-          .trim();
+  String _defaultSkillRoot({required bool openCode}) {
+    final home =
+        Platform.environment[Platform.isWindows ? 'USERPROFILE' : 'HOME'] ??
+        Directory.current.path;
+    final relativePath = openCode
+        ? ['.config', 'opencode', 'skills']
+        : ['.codex', 'skills'];
+    return [home, ...relativePath].join(Platform.pathSeparator);
+  }
+
+  Future<void> _downloadMcpSkill({String? rootDirectory}) async {
+    final directory =
+        rootDirectory ?? await getDirectoryPath(confirmButtonText: '安装到此目录');
+    if (directory == null || directory.isEmpty || !mounted) return;
+
+    setState(() => _downloadingMcpSkill = true);
+    try {
+      final selectedDirectory = Directory(directory);
+      final selectedName = selectedDirectory.path
+          .split(RegExp(r'[\\/]'))
+          .where((part) => part.isNotEmpty)
+          .lastOrNull;
+      final skillDirectory = selectedName == 'flutter-manager-mcp'
+          ? selectedDirectory
+          : Directory('$directory${Platform.pathSeparator}flutter-manager-mcp');
+      final agentsDirectory = Directory(
+        '${skillDirectory.path}${Platform.pathSeparator}agents',
+      );
+      final scriptsDirectory = Directory(
+        '${skillDirectory.path}${Platform.pathSeparator}scripts',
+      );
+      await agentsDirectory.create(recursive: true);
+      await scriptsDirectory.create(recursive: true);
+
+      final skillContent = await rootBundle.loadString(
+        'codex_skills/flutter-manager-mcp/SKILL.md',
+      );
+      final agentContent = await rootBundle.loadString(
+        'codex_skills/flutter-manager-mcp/agents/openai.yaml',
+      );
+      final scriptData = await rootBundle.load(
+        'codex_skills/flutter-manager-mcp/scripts/call_flutter_manager.py',
+      );
+      await File(
+        '${skillDirectory.path}${Platform.pathSeparator}SKILL.md',
+      ).writeAsString(skillContent, flush: true);
+      await File(
+        '${agentsDirectory.path}${Platform.pathSeparator}openai.yaml',
+      ).writeAsString(agentContent, flush: true);
+      await File(
+        '${scriptsDirectory.path}${Platform.pathSeparator}'
+        'call_flutter_manager.py',
+      ).writeAsBytes(
+        scriptData.buffer.asUint8List(
+          scriptData.offsetInBytes,
+          scriptData.lengthInBytes,
+        ),
+        flush: true,
+      );
+      await ref
+          .read(pubEnvironmentServiceProvider)
+          .setMcpSkillPath(skillDirectory.path);
+      if (!mounted) return;
+      setState(() => _installedMcpSkillPath = skillDirectory.path);
+      _snack('Skill 已下载，重启 AI 工具后生效');
+    } on Object catch (error) {
+      if (mounted) _snack('下载 Skill 失败：$error');
+    } finally {
+      if (mounted) setState(() => _downloadingMcpSkill = false);
+    }
+  }
 
   Future<void> _downloadMcpServer() async {
     final directory = await getDirectoryPath(confirmButtonText: '下载到此目录');

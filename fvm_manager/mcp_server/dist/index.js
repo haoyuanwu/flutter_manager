@@ -21,6 +21,12 @@ const openConsoleProperty = {
     type: "boolean",
     description: "Whether Flutter Manager should open the console window. Defaults to true for run/rerun.",
 };
+const tailCharsProperty = {
+    type: "integer",
+    minimum: 0,
+    maximum: 20000,
+    description: "Maximum console characters to return. Defaults to 4000 for runtime status.",
+};
 const tools = [
     {
         name: "flutter_manager_list_projects",
@@ -82,6 +88,22 @@ const tools = [
         },
     },
     {
+        name: "flutter_manager_hot_reload",
+        description: "Send Flutter hot reload (r) to the running project.",
+        inputSchema: {
+            type: "object",
+            properties: { projectPath: projectPathProperty },
+        },
+    },
+    {
+        name: "flutter_manager_hot_restart",
+        description: "Send Flutter hot restart (R) to the running project.",
+        inputSchema: {
+            type: "object",
+            properties: { projectPath: projectPathProperty },
+        },
+    },
+    {
         name: "flutter_manager_stop",
         description: "Stop a running task. Provide taskId, or projectPath to stop the first task for that project.",
         inputSchema: {
@@ -100,7 +122,61 @@ const tools = [
         description: "Read the command console output and running tasks.",
         inputSchema: {
             type: "object",
-            properties: { projectPath: projectPathProperty },
+            properties: {
+                projectPath: projectPathProperty,
+                afterLogLength: {
+                    type: "integer",
+                    minimum: 0,
+                    description: "Return console output after this previous log length.",
+                },
+                tailChars: tailCharsProperty,
+            },
+        },
+    },
+    {
+        name: "flutter_manager_list_running_projects",
+        description: "List projects that currently have running commands.",
+        inputSchema: {
+            type: "object",
+            properties: {},
+        },
+    },
+    {
+        name: "flutter_manager_get_runtime_status",
+        description: "Get concise runtime state, tasks, VM service URL, cursor, and console tail for a project.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                projectPath: projectPathProperty,
+                tailChars: tailCharsProperty,
+            },
+        },
+    },
+    {
+        name: "flutter_manager_wait_for_runtime_change",
+        description: "Wait until project logs or running tasks change, then return an incremental runtime snapshot.",
+        inputSchema: {
+            type: "object",
+            properties: {
+                projectPath: projectPathProperty,
+                afterCursor: {
+                    type: "integer",
+                    minimum: 0,
+                    description: "Cursor returned by get_runtime_status or a previous wait call.",
+                },
+                afterLogLength: {
+                    type: "integer",
+                    minimum: 0,
+                    description: "Previous logLength used to return only new console output.",
+                },
+                timeoutMs: {
+                    type: "integer",
+                    minimum: 1000,
+                    maximum: 30000,
+                    description: "Long-poll timeout in milliseconds. Defaults to 15000.",
+                },
+                tailChars: tailCharsProperty,
+            },
         },
     },
     {
@@ -143,8 +219,13 @@ const toolMap = {
     flutter_manager_list_devices: "list_devices",
     flutter_manager_run: "run",
     flutter_manager_rerun: "rerun",
+    flutter_manager_hot_reload: "hot_reload",
+    flutter_manager_hot_restart: "hot_restart",
     flutter_manager_stop: "stop",
     flutter_manager_read_console: "read_console",
+    flutter_manager_list_running_projects: "list_running_projects",
+    flutter_manager_get_runtime_status: "get_runtime_status",
+    flutter_manager_wait_for_runtime_change: "wait_for_runtime_change",
     flutter_manager_pub_get: "pub_get",
     flutter_manager_clean: "clean",
     flutter_manager_build: "build",
