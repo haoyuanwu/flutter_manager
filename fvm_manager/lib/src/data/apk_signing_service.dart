@@ -259,10 +259,21 @@ class ApkSigningService {
 
   /// Extracts channel and version info from [apkPath] using `aapt`.
   Future<ApkInfo> extractApkInfo(String apkPath) async {
-    final name = _fileName(apkPath);
+    final normalizedPath = _normalizePath(apkPath);
+    final name = _fileName(normalizedPath);
+
+    // Check if file exists
+    if (!File(normalizedPath).existsSync()) {
+      return ApkInfo(
+        path: normalizedPath,
+        name: name,
+        channel: '文件不存在',
+      );
+    }
+
     final aaptPath = await findAapt();
     if (aaptPath == null) {
-      return ApkInfo(path: apkPath, name: name);
+      return ApkInfo(path: normalizedPath, name: name);
     }
 
     String channel = '未知';
@@ -273,8 +284,8 @@ class ApkSigningService {
     try {
       final xmlResult = await _processRunner.run(
         executable: aaptPath,
-        arguments: ['dump', 'xmltree', apkPath, 'AndroidManifest.xml'],
-        taskId: 'apk-info:xml:$apkPath',
+        arguments: ['dump', 'xmltree', normalizedPath, 'AndroidManifest.xml'],
+        taskId: 'apk-info:xml:$normalizedPath',
         timeout: const Duration(seconds: 20),
       );
       if (xmlResult.exitCode == 0) {
@@ -289,8 +300,8 @@ class ApkSigningService {
     try {
       final badgingResult = await _processRunner.run(
         executable: aaptPath,
-        arguments: ['dump', 'badging', apkPath],
-        taskId: 'apk-info:badging:$apkPath',
+        arguments: ['dump', 'badging', normalizedPath],
+        taskId: 'apk-info:badging:$normalizedPath',
         timeout: const Duration(seconds: 20),
       );
       if (badgingResult.exitCode == 0) {
@@ -306,7 +317,7 @@ class ApkSigningService {
     }
 
     return ApkInfo(
-      path: apkPath,
+      path: normalizedPath,
       name: name,
       channel: channel,
       gdtChannel: gdtChannel,
@@ -348,7 +359,7 @@ class ApkSigningService {
       ],
       confirmButtonText: '选择密钥库',
     );
-    return result?.path;
+    return result != null ? _normalizePath(result.path) : null;
   }
 
   Future<List<String>> pickLocalApks() async {
@@ -358,7 +369,20 @@ class ApkSigningService {
       ],
       confirmButtonText: '选择 APK 文件',
     );
-    return result.map((f) => f.path).toList();
+    return result.map((f) => _normalizePath(f.path)).toList();
+  }
+
+  String _normalizePath(String path) {
+    // Handle file:// URIs
+    if (path.startsWith('file://')) {
+      final uri = Uri.parse(path);
+      path = uri.toFilePath();
+    }
+    // Normalize path separators for the current platform
+    if (Platform.isWindows) {
+      path = path.replaceAll('/', '\\');
+    }
+    return path;
   }
 
   Future<String?> pickOutputDirectory() async {
@@ -379,10 +403,23 @@ class ApkSigningService {
     String outputNamePrefix = '',
     String outputNameSuffix = '_signed',
   }) async {
+    final normalizedApkPath = _normalizePath(apkPath);
+
+    // Check if source APK exists
+    if (!File(normalizedApkPath).existsSync()) {
+      return SignedApkInfo(
+        originalPath: normalizedApkPath,
+        outputPath: '',
+        outputName: '',
+        success: false,
+        errorMessage: 'APK 文件不存在: $normalizedApkPath',
+      );
+    }
+
     final apksigner = await findApkSigner();
     if (apksigner == null) {
       return SignedApkInfo(
-        originalPath: apkPath,
+        originalPath: normalizedApkPath,
         outputPath: '',
         outputName: '',
         success: false,
@@ -390,7 +427,7 @@ class ApkSigningService {
       );
     }
 
-    final name = _fileName(apkPath);
+    final name = _fileName(normalizedApkPath);
     final dotIdx = name.lastIndexOf('.');
     final baseName = dotIdx > 0 ? name.substring(0, dotIdx) : name;
     final outputName = _signedOutputName(
@@ -404,10 +441,10 @@ class ApkSigningService {
     // Copy APK to output path first, then sign in-place.
     try {
       await Directory(outputDir).create(recursive: true);
-      await File(apkPath).copy(outputPath);
+      await File(normalizedApkPath).copy(outputPath);
     } on Object catch (e) {
       return SignedApkInfo(
-        originalPath: apkPath,
+        originalPath: normalizedApkPath,
         outputPath: '',
         outputName: outputName,
         success: false,
@@ -445,7 +482,7 @@ class ApkSigningService {
         final stderr = result.stderr;
         final stdout = result.stdout;
         return SignedApkInfo(
-          originalPath: apkPath,
+          originalPath: normalizedApkPath,
           outputPath: '',
           outputName: outputName,
           success: false,
@@ -467,7 +504,7 @@ class ApkSigningService {
           // ignore
         }
         return SignedApkInfo(
-          originalPath: apkPath,
+          originalPath: normalizedApkPath,
           outputPath: '',
           outputName: outputName,
           success: false,
@@ -481,7 +518,7 @@ class ApkSigningService {
         // ignore
       }
       return SignedApkInfo(
-        originalPath: apkPath,
+        originalPath: normalizedApkPath,
         outputPath: '',
         outputName: outputName,
         success: false,
@@ -492,7 +529,7 @@ class ApkSigningService {
     // Extract metadata from signed APK.
     final info = await extractApkInfo(outputPath);
     return SignedApkInfo(
-      originalPath: apkPath,
+      originalPath: normalizedApkPath,
       outputPath: outputPath,
       outputName: outputName,
       channel: info.channel,

@@ -10,6 +10,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
 import '../data/apk_signing_service.dart';
+import '../data/signing_info_service.dart';
 import '../domain/models.dart';
 import '../domain/project_models.dart';
 import '../data/log_service.dart';
@@ -26,6 +27,7 @@ part 'pages/distribution_page.dart';
 part 'pages/overview_page.dart';
 part 'pages/project_management_page.dart';
 part 'pages/apk_signing_page.dart';
+part 'pages/signing_info_page.dart';
 part 'pages/log_page.dart';
 part 'pages/mcp_server_page.dart';
 part 'pages/settings_page.dart';
@@ -193,9 +195,10 @@ class _HomePageState extends ConsumerState<HomePage> {
                                 ),
                                 4 => _DistributionPage(state: state),
                                 5 => const _ApkSigningPage(),
-                                6 => const _LogPage(),
-                                7 => _EnvironmentGuide(state: state),
-                                8 => _McpServerPage(state: state),
+                                6 => _SigningInfoPage(state: state),
+                                7 => const _LogPage(),
+                                8 => _EnvironmentGuide(state: state),
+                                9 => _McpServerPage(state: state),
                                 _ => _SettingsPage(state: state),
                               },
                             ),

@@ -31,6 +31,7 @@ import 'mcp_control_server.dart';
 import 'status_menu_service.dart';
 import '../data/apk_signing_service.dart';
 import '../data/build_directory_watcher.dart';
+import '../data/signing_info_service.dart';
 
 final dioProvider = Provider<Dio>(
   (ref) => Dio(
@@ -75,6 +76,10 @@ final buildDirectoryWatcherProvider = Provider<BuildDirectoryWatcher>((ref) {
 
 final apkSigningServiceProvider = Provider<ApkSigningService>(
   (ref) => ApkSigningService(ref.watch(processRunnerProvider)),
+);
+
+final signingInfoServiceProvider = Provider<SigningInfoService>(
+  (ref) => SigningInfoService(ref.watch(processRunnerProvider)),
 );
 
 final apkSigningControllerProvider =
