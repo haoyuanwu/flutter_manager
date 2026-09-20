@@ -87,7 +87,6 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
   late List<Map<String, String>> _tasks;
   late bool _showQuickCommands;
   late String _consoleMode;
-  late String _buildTarget;
   late String _actionChannelName;
   bool _showSearch = false;
   bool _stickToBottom = true;
@@ -101,7 +100,6 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
     _tasks = widget.initialTasks;
     _showQuickCommands = widget.initialShowQuickCommands;
     _consoleMode = widget.initialConsoleMode;
-    _buildTarget = widget.initialBuildTarget;
     _actionChannelName = widget.initialActionChannelName;
     _scrollController.addListener(_handleScroll);
     HardwareKeyboard.instance.addHandler(_handleKeyEvent);
@@ -129,7 +127,6 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
         _showQuickCommands =
             data['showQuickCommands'] as bool? ?? _showQuickCommands;
         _consoleMode = data['consoleMode'] as String? ?? _consoleMode;
-        _buildTarget = data['buildTarget'] as String? ?? _buildTarget;
         _actionChannelName =
             data['actionChannelName'] as String? ?? _actionChannelName;
       });
@@ -206,10 +203,7 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           _header(),
-          if (_consoleMode == 'build') ...[
-            const SizedBox(height: 12),
-            _buildActions(),
-          ] else if (_showQuickCommands) ...[
+          if (_showQuickCommands) ...[
             const SizedBox(height: 12),
             _quickCommands(),
           ],
@@ -245,43 +239,6 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
       ),
       _stopButton(),
     ],
-  );
-
-  Widget _buildActions() => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(14),
-      child: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(right: 8),
-            child: Text(
-              '构建操作 · ${_buildTarget.toUpperCase()}',
-              style: const TextStyle(fontWeight: FontWeight.w700),
-            ),
-          ),
-          FilledButton.tonalIcon(
-            onPressed: () => _runAction('openBuildOutput'),
-            icon: const Icon(Icons.folder_open),
-            label: const Text('打开构建目录'),
-          ),
-          if (_buildTarget == 'apk')
-            OutlinedButton.icon(
-              onPressed: () => _runAction('openApkOutput'),
-              icon: const Icon(Icons.android),
-              label: const Text('打开 APK 目录'),
-            ),
-          if (_buildTarget == 'windows')
-            OutlinedButton.icon(
-              onPressed: () => _runAction('packageWindowsInstaller'),
-              icon: const Icon(Icons.install_desktop_outlined),
-              label: const Text('生成安装包'),
-            ),
-        ],
-      ),
-    ),
   );
 
   Widget _quickCommands() {

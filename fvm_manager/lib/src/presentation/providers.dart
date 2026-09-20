@@ -1067,6 +1067,7 @@ class FvmController extends Notifier<FvmState> {
   Future<void> rerunManagedProject() async {
     final path = state.selectedManagedProjectPath;
     if (path == null) return;
+    _clearCommandLogFor(path);
     final taskId = _taskId('run', path);
     if (_activeCommandTasks.containsKey(taskId)) {
       _appendCommandLog(path, '\n[正在结束当前进程并重新运行]\n');
@@ -1090,6 +1091,7 @@ class FvmController extends Notifier<FvmState> {
     final taskId = _taskId('run', path);
     if (!_activeCommandTasks.containsKey(taskId)) return;
     try {
+      if (!reload) _clearCommandLogFor(path);
       final service = ref.read(flutterCommandServiceProvider);
       reload
           ? await service.hotReload(taskId)
@@ -1786,6 +1788,7 @@ class FvmController extends Notifier<FvmState> {
     if (!_activeCommandTasks.containsKey(taskId)) {
       throw Exception('当前项目没有正在运行的 Flutter Run');
     }
+    if (!reload) _clearCommandLogFor(projectPath);
     final service = ref.read(flutterCommandServiceProvider);
     reload ? await service.hotReload(taskId) : await service.hotRestart(taskId);
     final action = reload ? 'hot_reload' : 'hot_restart';
