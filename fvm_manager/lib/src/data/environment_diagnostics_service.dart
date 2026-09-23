@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import '../domain/models.dart';
+import 'fvm_service.dart';
 import 'pub_environment_service.dart';
 
 enum EnvironmentDiagnosticLevel { ok, warning, error, info }
@@ -42,9 +43,10 @@ class EnvironmentDiagnosticReport {
 }
 
 class EnvironmentDiagnosticsService {
-  const EnvironmentDiagnosticsService(this._environment);
+  const EnvironmentDiagnosticsService(this._environment, this._fvm);
 
   final PubEnvironmentService _environment;
+  final FvmService _fvm;
 
   Future<EnvironmentDiagnosticReport> run({
     required FvmState state,
@@ -76,6 +78,25 @@ class EnvironmentDiagnosticsService {
     List<DiagnosticItem> items,
     void Function(DiagnosticItem) addItem,
   ) async {
+    // 与主流程共用 FvmService 探测（含自定义路径 / 缓存 / 常见目录），
+    // 避免诊断页只跑裸命令 `fvm` 而忽略已选择的本地路径。
+    final version = await _fvm.detect();
+    if (version != null) {
+      final path = _fvm.executablePath;
+      addItem(
+        DiagnosticItem(
+          level: EnvironmentDiagnosticLevel.ok,
+          category: 'FVM',
+          title: 'FVM 可用',
+          detail: [
+            if (version.trim().isNotEmpty) version.trim(),
+            if (path != null && path.isNotEmpty) '路径：$path',
+          ].join('\n'),
+        ),
+      );
+      return;
+    }
+
     final result = await _runCommand('fvm', const ['--version']);
     if (result.exitCode == 0) {
       addItem(
@@ -94,8 +115,14 @@ class EnvironmentDiagnosticsService {
           level: EnvironmentDiagnosticLevel.error,
           category: 'FVM',
           title: '未检测到 FVM',
-          detail: result.output.trim().isEmpty ? result.error : result.output,
-          suggestion: '请在概览中安装 FVM，或选择本地 FVM 目录。',
+          detail: [
+            result.output.trim().isEmpty ? result.error : result.output.trim(),
+            '已搜索 fvm / fvm.exe / fvm.bat / fvm.cmd 及 Pub Cache、FVM 缓存等常见目录。',
+          ].where((line) => line.trim().isNotEmpty).join('\n'),
+          suggestion:
+              '请安装 FVM，或点击“选择本地 FVM”。可选：fvm.exe/fvm.bat 所在目录、'
+              '其上级目录（自动找 bin\\），或直接选中可执行文件。'
+              'Windows 示例：C:\\Users\\<用户名>\\AppData\\Local\\Pub\\Cache\\bin',
         ),
       );
     }

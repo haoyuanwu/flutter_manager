@@ -1,6 +1,6 @@
 ---
 name: flutter-manager-mcp
-description: Control the user's local Flutter Manager desktop app through its MCP server or localhost HTTP bridge. Use when the user asks Codex to operate managed Flutter projects from Flutter Manager, including listing projects/devices, selecting a project, running or rerunning Flutter on a device, stopping commands, reading the App console, opening DevTools, pub get, clean, or build through Flutter Manager MCP.
+description: Control the user's local Flutter Manager desktop app through its MCP server or localhost HTTP bridge. Use when the user asks Xiaomi MiMo, Codex, or another agent to operate managed Flutter projects from Flutter Manager, including listing projects/devices, selecting a project, running or rerunning Flutter on a device, stopping commands, reading the App console, opening DevTools, pub get, clean, or build through Flutter Manager MCP.
 ---
 
 # Flutter Manager MCP

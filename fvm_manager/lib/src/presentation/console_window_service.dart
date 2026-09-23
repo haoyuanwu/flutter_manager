@@ -35,6 +35,7 @@ class ConsoleWindowService {
   }
 
   Future<void> openOrFocus({
+    required String windowKey,
     required String projectPath,
     required String projectTitle,
     required String commandLog,
@@ -43,7 +44,7 @@ class ConsoleWindowService {
     required String consoleMode,
     required String buildTarget,
   }) async {
-    final actionChannelName = await _actionChannelNameFor(projectPath);
+    final actionChannelName = await _actionChannelNameFor(windowKey);
     final payload = _payload(
       projectPath: projectPath,
       projectTitle: projectTitle,
@@ -54,20 +55,20 @@ class ConsoleWindowService {
       buildTarget: buildTarget,
       actionChannelName: actionChannelName,
     );
-    _latestPayloads[projectPath] = payload;
-    final existing = _windows[projectPath];
+    _latestPayloads[windowKey] = payload;
+    final existing = _windows[windowKey];
     if (existing != null) {
       try {
         await existing.show();
         await existing.invokeMethod<void>('consoleSync', payload);
         return;
       } on Object {
-        _windows.remove(projectPath);
+        _windows.remove(windowKey);
       }
     }
 
     final ready = Completer<void>();
-    _readySignals[projectPath] = ready;
+    _readySignals[windowKey] = ready;
     try {
       final window = await WindowController.create(
         WindowConfiguration(
@@ -75,22 +76,23 @@ class ConsoleWindowService {
           hiddenAtLaunch: true,
         ),
       );
-      _windows[projectPath] = window;
+      _windows[windowKey] = window;
       try {
         await ready.future.timeout(const Duration(seconds: 5));
       } on TimeoutException {
         // Still show the window if a plugin delays the ready handshake.
       }
       await window.show();
-      await _syncWhenReady(projectPath, window);
+      await _syncWhenReady(windowKey, window);
     } finally {
-      if (identical(_readySignals[projectPath], ready)) {
-        _readySignals.remove(projectPath);
+      if (identical(_readySignals[windowKey], ready)) {
+        _readySignals.remove(windowKey);
       }
     }
   }
 
   Future<void> sync({
+    required String windowKey,
     required String projectPath,
     required String projectTitle,
     required String commandLog,
@@ -99,7 +101,7 @@ class ConsoleWindowService {
     required String consoleMode,
     required String buildTarget,
   }) async {
-    final actionChannelName = await _actionChannelNameFor(projectPath);
+    final actionChannelName = await _actionChannelNameFor(windowKey);
     final payload = _payload(
       projectPath: projectPath,
       projectTitle: projectTitle,
@@ -110,13 +112,13 @@ class ConsoleWindowService {
       buildTarget: buildTarget,
       actionChannelName: actionChannelName,
     );
-    _latestPayloads[projectPath] = payload;
-    _pendingSync[projectPath] = payload;
-    if (!_syncingProjects.add(projectPath)) return;
+    _latestPayloads[windowKey] = payload;
+    _pendingSync[windowKey] = payload;
+    if (!_syncingProjects.add(windowKey)) return;
     try {
-      while (_pendingSync.containsKey(projectPath)) {
-        final payload = _pendingSync.remove(projectPath)!;
-        final window = _windows[projectPath];
+      while (_pendingSync.containsKey(windowKey)) {
+        final payload = _pendingSync.remove(windowKey)!;
+        final window = _windows[windowKey];
         if (window == null) return;
         try {
           await window.invokeMethod<void>('consoleSync', payload);
@@ -125,17 +127,17 @@ class ConsoleWindowService {
         }
       }
     } finally {
-      _syncingProjects.remove(projectPath);
+      _syncingProjects.remove(windowKey);
     }
   }
 
   Future<void> _syncWhenReady(
-    String projectPath,
+    String windowKey,
     WindowController window,
   ) async {
     for (var attempt = 0; attempt < 12; attempt++) {
-      if (!identical(_windows[projectPath], window)) return;
-      final payload = _latestPayloads[projectPath];
+      if (!identical(_windows[windowKey], window)) return;
+      final payload = _latestPayloads[windowKey];
       if (payload == null) return;
       try {
         await window.invokeMethod<void>('consoleSync', payload);
@@ -144,8 +146,8 @@ class ConsoleWindowService {
         await Future<void>.delayed(const Duration(milliseconds: 100));
       }
     }
-    if (identical(_windows[projectPath], window)) {
-      _windows.remove(projectPath);
+    if (identical(_windows[windowKey], window)) {
+      _windows.remove(windowKey);
     }
   }
 
@@ -165,12 +167,12 @@ class ConsoleWindowService {
         channelName,
       ).invokeMethod<void>('clearCommandLog', {'projectPath': projectPath});
 
-  Future<void> close(String projectPath) async {
-    final window = _windows.remove(projectPath);
-    _latestPayloads.remove(projectPath);
-    _pendingSync.remove(projectPath);
-    _readySignals.remove(projectPath);
-    final actionChannelName = _actionChannelNames.remove(projectPath);
+  Future<void> close(String windowKey) async {
+    final window = _windows.remove(windowKey);
+    _latestPayloads.remove(windowKey);
+    _pendingSync.remove(windowKey);
+    _readySignals.remove(windowKey);
+    final actionChannelName = _actionChannelNames.remove(windowKey);
     if (actionChannelName != null) {
       final actionChannel = _actionChannels.remove(actionChannelName);
       unawaited(actionChannel?.setMethodCallHandler(null));
@@ -211,13 +213,13 @@ class ConsoleWindowService {
     if (signal != null && !signal.isCompleted) signal.complete();
   }
 
-  Future<String> _ensureActionChannel(String projectPath) async {
-    final existing = _actionChannelNames[projectPath];
+  Future<String> _ensureActionChannel(String windowKey) async {
+    final existing = _actionChannelNames[windowKey];
     if (existing != null) return existing;
     final handler = _mainHandler;
     final channelName =
         'fvm_manager/console_commands/${DateTime.now().microsecondsSinceEpoch}';
-    _actionChannelNames[projectPath] = channelName;
+    _actionChannelNames[windowKey] = channelName;
     if (handler != null) {
       final channel = _actionChannel(channelName);
       await channel.setMethodCallHandler(handler);
@@ -225,11 +227,11 @@ class ConsoleWindowService {
     return channelName;
   }
 
-  Future<String> _actionChannelNameFor(String projectPath) {
+  Future<String> _actionChannelNameFor(String windowKey) {
     if (!Platform.isWindows) {
       return Future.value('fvm_manager/console_commands');
     }
-    return _ensureActionChannel(projectPath);
+    return _ensureActionChannel(windowKey);
   }
 
   WindowMethodChannel _actionChannel(String channelName) =>

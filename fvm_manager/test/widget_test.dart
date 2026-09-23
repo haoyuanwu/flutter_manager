@@ -169,7 +169,7 @@ void main() {
     await tester.tap(find.text('取消'));
     await tester.pumpAndSettle();
     expect(find.text('项目管理'), findsOneWidget);
-    expect(find.text('项目 FVM'), findsOneWidget);
+    expect(find.text('Flutter 版本'), findsOneWidget);
     expect(find.byKey(const ValueKey('fvm-update-dot-top')), findsOneWidget);
     expect(
       find.byKey(const ValueKey('flutter-update-dot-nav')),
@@ -241,11 +241,11 @@ void main() {
     await tester.tap(find.text('构建与打包'));
     await tester.pump();
 
-    await tester.tap(find.text('项目 FVM'));
+    await tester.tap(find.text('Flutter 版本'));
     await tester.pump();
-    expect(find.text('项目 FVM 配置'), findsOneWidget);
-    expect(find.text('客户项目'), findsOneWidget);
-    expect(find.text('选择目录'), findsOneWidget);
+    expect(find.text('Flutter 版本'), findsWidgets);
+    expect(find.text('稳定版 Stable'), findsOneWidget);
+    expect(find.text('FVM 目录'), findsOneWidget);
 
     await tester.tap(find.text('日志'));
     await tester.pumpAndSettle();

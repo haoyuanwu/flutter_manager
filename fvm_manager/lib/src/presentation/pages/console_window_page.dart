@@ -373,20 +373,21 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
               Text(
                 _tasks.isEmpty ? '命令输出' : '正在执行 ${_tasks.length} 个任务',
                 style: const TextStyle(
-                  color: Colors.white,
+                  color: Color(0xfff0f6fc),
                   fontWeight: FontWeight.w700,
+                  fontSize: 14,
                 ),
               ),
               const Spacer(),
               IconButton(
                 tooltip: '搜索输出',
                 onPressed: () => setState(() => _showSearch = !_showSearch),
-                icon: const Icon(Icons.search, color: Colors.white70),
+                icon: const Icon(Icons.search, color: Color(0xff9fb0c2)),
               ),
               IconButton(
                 tooltip: '清空输出',
                 onPressed: _confirmClear,
-                icon: const Icon(Icons.delete_sweep, color: Colors.white70),
+                icon: const Icon(Icons.delete_sweep, color: Color(0xff9fb0c2)),
               ),
             ],
           ),
@@ -395,10 +396,10 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
               key: const ValueKey('command-console-search-field'),
               controller: _searchController,
               focusNode: _searchFocusNode,
-              style: const TextStyle(color: Colors.white),
+              style: const TextStyle(color: Color(0xfff0f6fc)),
               decoration: const InputDecoration(
                 hintText: '搜索输出内容…',
-                hintStyle: TextStyle(color: Colors.white54),
+                hintStyle: TextStyle(color: Color(0xff7f8fa3)),
                 border: OutlineInputBorder(),
               ),
               onChanged: (value) => setState(() => _searchQuery = value),

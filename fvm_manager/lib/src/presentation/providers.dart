@@ -207,6 +207,7 @@ final environmentDiagnosticsServiceProvider =
     Provider<EnvironmentDiagnosticsService>(
       (ref) => EnvironmentDiagnosticsService(
         ref.watch(pubEnvironmentServiceProvider),
+        ref.watch(fvmServiceProvider),
       ),
     );
 
@@ -309,8 +310,15 @@ class FvmController extends Notifier<FvmState> {
             if (taskId != null) await stopProjectCommand(taskId);
             return;
           case 'clearCommandLog':
-            final projectPath = arguments['projectPath'] as String?;
-            if (projectPath != null) _clearCommandLogFor(projectPath);
+            final tabId = arguments['tabId'] as String? ??
+                arguments['projectPath'] as String?;
+            if (tabId != null) {
+              _clearCommandLogFor(
+                state.consoleTabs.any((tab) => tab.id == tabId)
+                    ? tabId
+                    : _tabIdForProjectFallback(tabId),
+              );
+            }
             return;
           case 'runProjectAction':
             final projectPath = arguments['projectPath'] as String?;
@@ -489,15 +497,27 @@ class FvmController extends Notifier<FvmState> {
         errorMessage: null,
         statusMessage: '正在验证本地 FVM…',
       );
-      final version = await ref
-          .read(fvmServiceProvider)
-          .useLocalDirectory(directory);
+      final fvm = ref.read(fvmServiceProvider);
+      final version = await fvm.useLocalDirectory(directory);
+      // 同步可执行路径，保证本次会话立刻可用（不必重启）。
+      final confirmed = await fvm.detect();
+      final resolvedVersion = (confirmed?.trim().isNotEmpty ?? false)
+          ? confirmed!.trim()
+          : (version.trim().isEmpty ? '已配置' : version.trim());
       state = state.copyWith(
         fvmInstalled: true,
-        fvmVersion: version,
-        statusMessage: '已使用本地 FVM $version',
+        fvmVersion: resolvedVersion,
+        statusMessage: '已使用本地 FVM $resolvedVersion',
       );
-      await refreshInstalled();
+      try {
+        await refreshInstalled();
+      } on Object catch (error) {
+        // SDK 列表失败不影响“已识别 FVM”本身。
+        state = state.copyWith(
+          statusMessage: '已使用本地 FVM $resolvedVersion',
+          errorMessage: _message(error),
+        );
+      }
       _syncUpdateState();
     } catch (error) {
       state = state.copyWith(errorMessage: _message(error));
@@ -713,7 +733,14 @@ class FvmController extends Notifier<FvmState> {
         projectBuildMode: updated.lastBuildMode,
         cleanBeforeBuild: updated.cleanBeforeBuild,
         androidTargetPlatform: updated.androidTargetPlatform,
-        commandLog: _commandLogs.logFor(path),
+        selectedConsoleTabId: state.consoleTabs
+            .where((tab) => tab.projectPath == path)
+            .lastOrNull
+            ?.id,
+        commandLog: _commandLogs.logFor(
+          state.consoleTabs.where((tab) => tab.projectPath == path).lastOrNull?.id ??
+              '',
+        ),
         commandRunning: _hasActiveTasks(path),
         activeCommand: _activeLabels(path),
       );
@@ -1028,7 +1055,7 @@ class FvmController extends Notifier<FvmState> {
             taskId: taskId,
             projectPath: path,
             arguments: arguments,
-            onOutput: (output) => _appendCommandLog(path, output),
+            onOutput: (output) => _appendCommandLog(taskId, output),
           );
       if (code != 0 && !_stoppingCommandTasks.contains(taskId)) {
         throw Exception('$label 启动失败（退出码 $code）');
@@ -1044,7 +1071,7 @@ class FvmController extends Notifier<FvmState> {
   Future<void> runManagedProject() {
     final path = state.selectedManagedProjectPath;
     if (path != null) {
-      _clearCommandLogFor(path);
+      _clearCommandLogFor(_taskId('run', path));
       final uris = Map<String, String>.from(state.vmServiceUris ?? const {});
       uris.remove(path);
       state = state.copyWith(vmServiceUris: uris);
@@ -1067,10 +1094,10 @@ class FvmController extends Notifier<FvmState> {
   Future<void> rerunManagedProject() async {
     final path = state.selectedManagedProjectPath;
     if (path == null) return;
-    _clearCommandLogFor(path);
     final taskId = _taskId('run', path);
+    _clearCommandLogFor(taskId);
     if (_activeCommandTasks.containsKey(taskId)) {
-      _appendCommandLog(path, '\n[正在结束当前进程并重新运行]\n');
+      _appendCommandLog(taskId, '\n[正在结束当前进程并重新运行]\n');
       await ref.read(flutterCommandServiceProvider).stop(taskId);
       for (var attempt = 0; attempt < 50; attempt++) {
         if (!_activeCommandTasks.containsKey(taskId)) break;
@@ -1091,13 +1118,13 @@ class FvmController extends Notifier<FvmState> {
     final taskId = _taskId('run', path);
     if (!_activeCommandTasks.containsKey(taskId)) return;
     try {
-      if (!reload) _clearCommandLogFor(path);
+      if (!reload) _clearCommandLogFor(taskId);
       final service = ref.read(flutterCommandServiceProvider);
       reload
           ? await service.hotReload(taskId)
           : await service.hotRestart(taskId);
       final action = reload ? '热重载' : '项目热重启';
-      _appendCommandLog(path, '\n[$action 已触发]\n');
+      _appendCommandLog(taskId, '\n[$action 已触发]\n');
       state = state.copyWith(statusMessage: '$action 命令已发送');
     } catch (error) {
       state = state.copyWith(errorMessage: _message(error));
@@ -1206,7 +1233,7 @@ class FvmController extends Notifier<FvmState> {
                 taskId: taskId,
                 projectPath: project.path,
                 arguments: command.arguments,
-                onOutput: (output) => _appendCommandLog(project.path, output),
+                onOutput: (output) => _appendCommandLog(taskId, output),
               )
             : await service.runExternal(
                 taskId: taskId,
@@ -1214,7 +1241,7 @@ class FvmController extends Notifier<FvmState> {
                 workingDirectory: project.path,
                 arguments: command.arguments,
                 displayArguments: _maskSensitiveArguments(command.arguments),
-                onOutput: (output) => _appendCommandLog(project.path, output),
+                onOutput: (output) => _appendCommandLog(taskId, output),
               );
         if (_stoppingCommandTasks.contains(taskId)) {
           stoppedByUser = true;
@@ -1224,7 +1251,7 @@ class FvmController extends Notifier<FvmState> {
         if (code != 0 && !_stoppingCommandTasks.contains(taskId)) {
           throw Exception('${command.executable} 执行失败（退出码 $code）');
         }
-        _appendCommandLog(project.path, '\n${List.filled(72, '─').join()}\n\n');
+        _appendCommandLog(taskId, '\n${List.filled(72, '─').join()}\n\n');
       }
       if (!stoppedByUser) {
         state = state.copyWith(statusMessage: '自定义构建工作流完成');
@@ -1286,7 +1313,7 @@ class FvmController extends Notifier<FvmState> {
             .read(buildHistoryRepositoryProvider)
             .startSession(buildSession);
       } catch (error) {
-        _appendCommandLog(path, '\n[构建历史记录启动失败：${_message(error)}]\n');
+        _appendCommandLog(taskId, '\n[构建历史记录启动失败：${_message(error)}]\n');
       }
     }
     _startCommandTask(taskId, path, label);
@@ -1307,7 +1334,7 @@ class FvmController extends Notifier<FvmState> {
               taskId: taskId,
               projectPath: path,
               arguments: commands[index],
-              onOutput: (output) => _appendCommandLog(path, output),
+              onOutput: (output) => _appendCommandLog(taskId, output),
             );
         lastExitCode = code;
         if (_stoppingCommandTasks.contains(taskId)) {
@@ -1320,7 +1347,7 @@ class FvmController extends Notifier<FvmState> {
         }
         if (afterEach != null) await afterEach(index);
         if (index < commands.length - 1) {
-          _appendCommandLog(path, '\n${List.filled(72, '─').join()}\n\n');
+          _appendCommandLog(taskId, '\n${List.filled(72, '─').join()}\n\n');
         }
       }
       if (!stoppedByUser) {
@@ -1396,13 +1423,13 @@ class FvmController extends Notifier<FvmState> {
           );
       if (status == BuildSessionStatus.success) {
         _appendCommandLog(
-          session.projectPath,
+          session.taskId,
           '\n[已记录构建历史，关联 ${records.length} 个新产物]\n',
         );
       }
     } catch (error) {
       _appendCommandLog(
-        session.projectPath,
+        session.taskId,
         '\n[保存构建历史失败：${_message(error)}]\n',
       );
     }
@@ -1440,19 +1467,126 @@ class FvmController extends Notifier<FvmState> {
     return true;
   }
 
-  void _appendCommandLog(String projectPath, String output) {
-    final log = _commandLogs.append(projectPath, output);
-    _bumpMcpRuntimeCursor(projectPath);
-    if (state.selectedManagedProjectPath == projectPath) {
+  void _appendCommandLog(String tabId, String output) {
+    final log = _commandLogs.append(tabId, output);
+    final tab = _consoleTabById(tabId);
+    if (tab != null) _bumpMcpRuntimeCursor(tab.projectPath);
+    // 主窗口只显示选中标签的内容，其它标签只写缓冲/独立窗口。
+    if (state.selectedConsoleTabId == tabId) {
       state = state.copyWith(commandLog: log);
     }
     final tail = log.length > 2000 ? log.substring(log.length - 2000) : log;
-    _parseVmServiceUri(projectPath, tail);
-    _syncConsoleWindow(projectPath);
+    if (tab != null) _parseVmServiceUri(tab.projectPath, tail);
+    _syncConsoleWindow(tabId);
+  }
+
+  ConsoleTabInfo? _consoleTabById(String tabId) {
+    for (final tab in state.consoleTabs) {
+      if (tab.id == tabId) return tab;
+    }
+    return null;
+  }
+
+  String _tabIdForProjectFallback(String projectPath) {
+    final selected = state.selectedConsoleTabId;
+    final selectedTab = selected == null ? null : _consoleTabById(selected);
+    if (selectedTab != null && selectedTab.projectPath == projectPath) {
+      return selectedTab.id;
+    }
+    final tab = state.consoleTabs
+        .where((item) => item.projectPath == projectPath)
+        .lastOrNull;
+    return tab?.id ?? _taskId('run', projectPath);
+  }
+
+  void selectConsoleTab(String tabId) {
+    final tab = _consoleTabById(tabId);
+    if (tab == null) return;
+    state = state.copyWith(
+      selectedConsoleTabId: tabId,
+      commandLog: _commandLogs.logFor(tabId),
+    );
+  }
+
+  void closeConsoleTab(String tabId) {
+    final tabs = state.consoleTabs.where((item) => item.id != tabId).toList();
+    _commandLogs.remove(tabId);
+    unawaited(ConsoleWindowService.instance.close(tabId));
+    final selected = state.selectedConsoleTabId;
+    final nextSelected = selected == tabId
+        ? (tabs.lastOrNull?.id)
+        : selected;
+    state = state.copyWith(
+      consoleTabs: tabs,
+      selectedConsoleTabId: nextSelected,
+      commandLog: nextSelected == null ? '' : _commandLogs.logFor(nextSelected),
+    );
+  }
+
+  Future<void> openConsoleTabWindow(String tabId) async {
+    final tab = _consoleTabById(tabId);
+    if (tab == null) return;
+    try {
+      await ConsoleWindowService.instance.openOrFocus(
+        windowKey: tabId,
+        projectPath: tab.projectPath,
+        projectTitle: '${_projectTitle(tab.projectPath)} · ${tab.title}',
+        commandLog: _commandLogs.logFor(tabId),
+        tasks: _serializedTasks(tab.projectPath),
+        showQuickCommands: state.showConsoleQuickCommands,
+        consoleMode: _consoleMode(tab.projectPath),
+        buildTarget: _projectBuildTarget(tab.projectPath),
+      );
+    } catch (error) {
+      state = state.copyWith(errorMessage: _message(error));
+    }
+  }
+
+  void _ensureConsoleTab({
+    required String tabId,
+    required String projectPath,
+    required String title,
+    required String kind,
+  }) {
+    final existing = state.consoleTabs;
+    final index = existing.indexWhere((item) => item.id == tabId);
+    final tab = ConsoleTabInfo(
+      id: tabId,
+      projectPath: projectPath,
+      title: title,
+      kind: kind,
+      running: true,
+    );
+    final tabs = [...existing];
+    if (index >= 0) {
+      tabs[index] = tab;
+    } else {
+      tabs.add(tab);
+    }
+    state = state.copyWith(consoleTabs: tabs, selectedConsoleTabId: tabId);
+  }
+
+  void _setConsoleTabRunning(String tabId, bool running) {
+    final tabs = state.consoleTabs
+        .map(
+          (item) => item.id == tabId
+              ? ConsoleTabInfo(
+                  id: item.id,
+                  projectPath: item.projectPath,
+                  title: item.title,
+                  kind: item.kind,
+                  running: running,
+                )
+              : item,
+        )
+        .toList(growable: false);
+    state = state.copyWith(consoleTabs: tabs);
   }
 
   String _commandFailureMessage(String label, String projectPath, int code) {
-    final tail = _commandLogs.logFor(projectPath).toLowerCase();
+    final tail = _commandLogs
+        .logFor(_tabIdForProjectFallback(projectPath))
+        .toLowerCase();
     if (tail.contains('tls error') ||
         tail.contains('certificate') && tail.contains('pub.dev') ||
         tail.contains('failed to update packages') &&
@@ -1490,37 +1624,33 @@ class FvmController extends Notifier<FvmState> {
         ProjectBuildTarget.apk.name;
   }
 
-  void _syncConsoleWindow(String projectPath) {
+  void _syncConsoleWindow(String tabId) {
+    final tab = _consoleTabById(tabId);
+    if (tab == null) return;
     unawaited(
       ConsoleWindowService.instance.sync(
-        projectPath: projectPath,
-        projectTitle: _projectTitle(projectPath),
-        commandLog: _commandLogs.logFor(projectPath),
-        tasks: _serializedTasks(projectPath),
+        windowKey: tabId,
+        projectPath: tab.projectPath,
+        projectTitle: '${_projectTitle(tab.projectPath)} · ${tab.title}',
+        commandLog: _commandLogs.logFor(tabId),
+        tasks: _serializedTasks(tab.projectPath),
         showQuickCommands: state.showConsoleQuickCommands,
-        consoleMode: _consoleMode(projectPath),
-        buildTarget: _projectBuildTarget(projectPath),
+        consoleMode: _consoleMode(tab.projectPath),
+        buildTarget: _projectBuildTarget(tab.projectPath),
       ),
     );
   }
 
   Future<void> _openConsoleWindow(String projectPath) async {
-    try {
-      await ConsoleWindowService.instance.openOrFocus(
-        projectPath: projectPath,
-        projectTitle: _projectTitle(projectPath),
-        commandLog: _commandLogs.logFor(projectPath),
-        tasks: _serializedTasks(projectPath),
-        showQuickCommands: state.showConsoleQuickCommands,
-        consoleMode: _consoleMode(projectPath),
-        buildTarget: _projectBuildTarget(projectPath),
-      );
-    } catch (error) {
-      state = state.copyWith(errorMessage: _message(error));
-    }
+    await openConsoleTabWindow(_tabIdForProjectFallback(projectPath));
   }
 
   Future<void> openSelectedProjectConsole() async {
+    final tabId = state.selectedConsoleTabId;
+    if (tabId != null) {
+      await openConsoleTabWindow(tabId);
+      return;
+    }
     final path = state.selectedManagedProjectPath;
     if (path != null) await _openConsoleWindow(path);
   }
@@ -1788,12 +1918,12 @@ class FvmController extends Notifier<FvmState> {
     if (!_activeCommandTasks.containsKey(taskId)) {
       throw Exception('当前项目没有正在运行的 Flutter Run');
     }
-    if (!reload) _clearCommandLogFor(projectPath);
+    if (!reload) _clearCommandLogFor(taskId);
     final service = ref.read(flutterCommandServiceProvider);
     reload ? await service.hotReload(taskId) : await service.hotRestart(taskId);
     final action = reload ? 'hot_reload' : 'hot_restart';
     final label = reload ? '热重载' : '热重启';
-    _appendCommandLog(projectPath, '\n[$label 已由 MCP 触发]\n');
+    _appendCommandLog(taskId, '\n[$label 已由 MCP 触发]\n');
     return {
       'action': action,
       'sent': true,
@@ -1828,7 +1958,12 @@ class FvmController extends Notifier<FvmState> {
     Map<String, dynamic> arguments, {
     int? defaultTailChars,
   }) {
-    final log = _commandLogs.logFor(projectPath);
+    final log = _commandLogs.logForProject(
+      projectPath,
+      state.consoleTabs
+          .where((tab) => tab.projectPath == projectPath)
+          .map((tab) => tab.id),
+    );
     final requestedAfter = arguments['afterLogLength'] as int?;
     final requestedTail = arguments['tailChars'] as int? ?? defaultTailChars;
     var start = 0;
@@ -1861,7 +1996,14 @@ class FvmController extends Notifier<FvmState> {
     final projectPath = await _mcpProjectPath(arguments);
     final initialCursor = _mcpRuntimeCursor(projectPath);
     final afterCursor = arguments['afterCursor'] as int? ?? initialCursor;
-    final initialLogLength = _commandLogs.logFor(projectPath).length;
+    final initialLogLength = _commandLogs
+        .logForProject(
+          projectPath,
+          state.consoleTabs
+              .where((tab) => tab.projectPath == projectPath)
+              .map((tab) => tab.id),
+        )
+        .length;
     final afterLogLength =
         arguments['afterLogLength'] as int? ?? initialLogLength;
     final timeoutMs = (arguments['timeoutMs'] as int? ?? 15000).clamp(
@@ -1999,20 +2141,31 @@ class FvmController extends Notifier<FvmState> {
         taskId.startsWith('build::') || taskId.startsWith('workflow::');
     final isRunTask =
         taskId.startsWith('run::') || taskId.startsWith('devtools:');
+    final kind = isBuildTask
+        ? 'build'
+        : isRunTask
+        ? 'run'
+        : 'operation';
     _consoleModes[projectPath] = isBuildTask ? 'build' : 'run';
     _activeCommandTasks[taskId] = (projectPath: projectPath, label: label);
-    _appendCommandLog(projectPath, '\n▶ $label\n');
+    _ensureConsoleTab(
+      tabId: taskId,
+      projectPath: projectPath,
+      title: label,
+      kind: kind,
+    );
+    _appendCommandLog(taskId, '\n▶ $label\n');
     _syncSelectedCommandState();
     state = state.copyWith(errorMessage: null, statusMessage: '$label 已启动');
     if (isBuildTask) {
       if (state.buildOpensConsoleWindow) {
-        unawaited(_openConsoleWindow(projectPath));
+        unawaited(openConsoleTabWindow(taskId));
       } else if (state.selectedManagedProjectPath == projectPath) {
         _mainBuildConsoleProjectPath = projectPath;
         state = state.copyWith(buildConsoleVisible: true);
       }
     } else if (isRunTask && state.autoOpenConsoleWindow) {
-      unawaited(_openConsoleWindow(projectPath));
+      unawaited(openConsoleTabWindow(taskId));
     }
   }
 
@@ -2020,21 +2173,33 @@ class FvmController extends Notifier<FvmState> {
     final task = _activeCommandTasks[taskId];
     if (task == null) return;
     _activeCommandTasks[taskId] = (projectPath: task.projectPath, label: label);
+    final tabs = state.consoleTabs
+        .map(
+          (item) => item.id == taskId
+              ? ConsoleTabInfo(
+                  id: item.id,
+                  projectPath: item.projectPath,
+                  title: label,
+                  kind: item.kind,
+                  running: item.running,
+                )
+              : item,
+        )
+        .toList(growable: false);
+    state = state.copyWith(consoleTabs: tabs);
     _bumpMcpRuntimeCursor(task.projectPath);
-    _syncSelectedCommandState();
-    _syncConsoleWindow(task.projectPath);
+    _syncConsoleWindow(taskId);
   }
 
   void _finishCommandTask(String taskId) {
     final task = _activeCommandTasks.remove(taskId);
     _stoppingCommandTasks.remove(taskId);
+    _setConsoleTabRunning(taskId, false);
     _syncSelectedCommandState();
     if (task != null) {
       _bumpMcpRuntimeCursor(task.projectPath);
-      _syncConsoleWindow(task.projectPath);
-      if (!_hasActiveTasks(task.projectPath)) {
-        unawaited(ConsoleWindowService.instance.close(task.projectPath));
-      }
+      _syncConsoleWindow(taskId);
+      // 标签保留历史输出；独立窗口也保留，由用户手动关闭。
     }
   }
 
@@ -2104,18 +2269,24 @@ class FvmController extends Notifier<FvmState> {
   }
 
   void clearCommandLog() {
+    final tabId = state.selectedConsoleTabId;
+    if (tabId != null) {
+      _clearCommandLogFor(tabId);
+      return;
+    }
     final path = state.selectedManagedProjectPath;
     if (path == null) return;
-    _clearCommandLogFor(path);
+    _clearCommandLogFor(_tabIdForProjectFallback(path));
   }
 
-  void _clearCommandLogFor(String path) {
-    _commandLogs.clear(path);
-    _bumpMcpRuntimeCursor(path);
-    if (state.selectedManagedProjectPath == path) {
+  void _clearCommandLogFor(String tabId) {
+    _commandLogs.clear(tabId);
+    final tab = _consoleTabById(tabId);
+    if (tab != null) _bumpMcpRuntimeCursor(tab.projectPath);
+    if (state.selectedConsoleTabId == tabId) {
       state = state.copyWith(commandLog: '');
     }
-    _syncConsoleWindow(path);
+    _syncConsoleWindow(tabId);
   }
 
   void clearStatus() => state = state.copyWith(statusMessage: null);
@@ -2205,7 +2376,8 @@ class FvmController extends Notifier<FvmState> {
             projectPath: project.path,
             appNameHint: project.displayName,
             innoCompilerPath: compilerPath,
-            onOutput: (output) => _appendCommandLog(project.path, output),
+            onOutput: (output) =>
+                _appendCommandLog(_taskId('operation', project.path), output),
           );
       state = state.copyWith(statusMessage: 'Windows 安装包已生成：$installerPath');
       await ref.read(localProjectServiceProvider).revealFile(installerPath);
@@ -2527,7 +2699,7 @@ class FvmController extends Notifier<FvmState> {
     final displayArguments = [...arguments];
     displayArguments[displayArguments.indexOf('-appkey') + 1] = '********';
     final taskId = _taskId('build', project.path);
-    _appendCommandLog(project.path, '\n[开始上传 Bugly 符号：$flavor]\n');
+    _appendCommandLog(taskId, '\n[开始上传 Bugly 符号：$flavor]\n');
     final code = await ref
         .read(flutterCommandServiceProvider)
         .runExternal(
@@ -2536,10 +2708,10 @@ class FvmController extends Notifier<FvmState> {
           workingDirectory: project.path,
           arguments: arguments,
           displayArguments: displayArguments,
-          onOutput: (output) => _appendCommandLog(project.path, output),
+          onOutput: (output) => _appendCommandLog(taskId, output),
         );
     if (code != 0) throw Exception('Bugly 上传失败：$flavor（退出码 $code）');
-    _appendCommandLog(project.path, '\n✅ 上传完成: $flavor\n');
+    _appendCommandLog(taskId, '\n✅ 上传完成: $flavor\n');
   }
 
   FlutterProject? get _selectedManagedProject {

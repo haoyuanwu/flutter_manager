@@ -66,6 +66,7 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
     final codexConfig = _codexConfig(mcpServerPath);
     final openCodeConfig = _openCodeConfig(mcpServerPath);
     final crushConfigValue = _crushConfig(mcpServerPath);
+    final mimoConfig = _mimoConfig(mcpServerPath);
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -76,7 +77,7 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
             style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 4),
-          const Text('给 Claude、Cursor、Codex 等 AI 软件调用本工具的运行命令。'),
+          const Text('给 Xiaomi MiMo、Claude、Cursor、Codex 等 AI 软件调用本工具的运行命令。'),
           const SizedBox(height: 20),
           Card(
             child: Padding(
@@ -364,6 +365,24 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
                         icon: const Icon(Icons.download_outlined),
                         label: const Text('安装到 OpenCode'),
                       ),
+                      FilledButton.tonalIcon(
+                        onPressed: _downloadingMcpSkill
+                            ? null
+                            : () => _downloadMcpSkill(
+                                rootDirectory: _defaultSkillRoot(mimo: true),
+                                forMimo: true,
+                              ),
+                        icon: _downloadingMcpSkill
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.download_outlined),
+                        label: const Text('安装到 Xiaomi MiMo'),
+                      ),
                       OutlinedButton.icon(
                         onPressed: _downloadingMcpSkill
                             ? null
@@ -407,9 +426,19 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
                         : '~/.config/opencode/skills',
                     onCopy: _copy,
                   ),
+                  const SizedBox(height: 12),
+                  _CodeBlock(
+                    title: 'Xiaomi MiMo：全局 Skills 目录',
+                    text: Platform.isWindows
+                        ? r'%USERPROFILE%\.config\mimocode\skills'
+                        : '~/.config/mimocode/skills',
+                    onCopy: _copy,
+                  ),
                   const SizedBox(height: 8),
                   const Text(
-                    '选择根目录后，App 会自动创建 flutter-manager-mcp 文件夹。安装完成后重启 AI 工具。',
+                    '选择根目录后，App 会自动创建 flutter-manager-mcp 文件夹。'
+                    '安装到 Xiaomi MiMo 时会额外写入 locales 展示信息。'
+                    '安装完成后重启 AI 工具。',
                     style: TextStyle(fontSize: 12, color: Colors.black54),
                   ),
                 ],
@@ -471,6 +500,20 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
                     text: codexConfig,
                     onCopy: _copy,
                   ),
+                  const SizedBox(height: 16),
+                  _CodeBlock(
+                    title: 'Xiaomi MiMo 配置文件路径',
+                    text: Platform.isWindows
+                        ? r'%USERPROFILE%\.config\mimocode\mimocode.jsonc'
+                        : '~/.config/mimocode/mimocode.jsonc',
+                    onCopy: _copy,
+                  ),
+                  const SizedBox(height: 12),
+                  _CodeBlock(
+                    title: 'Xiaomi MiMo：合并到 mcp 配置段',
+                    text: mimoConfig,
+                    onCopy: _copy,
+                  ),
                   const SizedBox(height: 12),
                   Container(
                     width: double.infinity,
@@ -502,7 +545,7 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          '• 配置完成后需要重启 OpenCode、Crush 或 Codex\n'
+                          '• 配置完成后需要重启 Xiaomi MiMo、OpenCode、Crush 或 Codex\n'
                           '• 确保上方的 MCP 控制接口已启用\n'
                           '• 请先在上方下载 MCP Server，目标电脑需安装 Node.js 18+\n'
                           '• Token 用于验证请求，请勿泄露',
@@ -579,20 +622,45 @@ FLUTTER_MANAGER_TOKEN = "${widget.state.mcpServerToken}"
         .trim();
   }
 
+  String _mimoConfig(String mcpServerPath) {
+    final jsonServerPath = _jsonString(mcpServerPath);
+    return '''
+{
+  "mcp": {
+    "flutter_manager": {
+      "type": "local",
+      "command": ["node", "$jsonServerPath"],
+      "environment": {
+        "FLUTTER_MANAGER_PORT": "${widget.state.mcpServerPort}",
+        "FLUTTER_MANAGER_TOKEN": "${widget.state.mcpServerToken}"
+      },
+      "enabled": true
+    }
+  }
+}
+'''
+        .trim();
+  }
+
   String _jsonString(String value) =>
       value.replaceAll(r'\', r'\\').replaceAll('"', r'\"');
 
-  String _defaultSkillRoot({required bool openCode}) {
+  String _defaultSkillRoot({bool openCode = false, bool mimo = false}) {
     final home =
         Platform.environment[Platform.isWindows ? 'USERPROFILE' : 'HOME'] ??
         Directory.current.path;
-    final relativePath = openCode
-        ? ['.config', 'opencode', 'skills']
-        : ['.codex', 'skills'];
+    final relativePath = switch ((openCode, mimo)) {
+      (_, true) => ['.config', 'mimocode', 'skills'],
+      (true, false) => ['.config', 'opencode', 'skills'],
+      (false, false) => ['.codex', 'skills'],
+    };
     return [home, ...relativePath].join(Platform.pathSeparator);
   }
 
-  Future<void> _downloadMcpSkill({String? rootDirectory}) async {
+  Future<void> _downloadMcpSkill({
+    String? rootDirectory,
+    bool forMimo = false,
+  }) async {
     final directory =
         rootDirectory ?? await getDirectoryPath(confirmButtonText: '安装到此目录');
     if (directory == null || directory.isEmpty || !mounted) return;
@@ -641,6 +709,25 @@ FLUTTER_MANAGER_TOKEN = "${widget.state.mcpServerToken}"
         ),
         flush: true,
       );
+      if (forMimo) {
+        final localesDirectory = Directory(
+          '${skillDirectory.path}${Platform.pathSeparator}locales',
+        );
+        await localesDirectory.create(recursive: true);
+        const displayName = 'Flutter Manager MCP';
+        await File(
+          '${localesDirectory.path}${Platform.pathSeparator}zh-CN.json',
+        ).writeAsString(
+          '{"displayName":"$displayName","brief":"通过 MCP 控制本机 Flutter Manager 桌面应用"}',
+          flush: true,
+        );
+        await File(
+          '${localesDirectory.path}${Platform.pathSeparator}en-US.json',
+        ).writeAsString(
+          '{"displayName":"$displayName","brief":"Control the local Flutter Manager app via MCP"}',
+          flush: true,
+        );
+      }
       await ref
           .read(pubEnvironmentServiceProvider)
           .setMcpSkillPath(skillDirectory.path);

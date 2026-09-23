@@ -32,6 +32,7 @@ Skill 用于告诉 AI 什么时候以及如何调用 Flutter Manager，不能代
 
 - 「安装到 Codex」：自动写入 Codex 全局 Skills 目录。
 - 「安装到 OpenCode」：自动写入 OpenCode 全局 Skills 目录。
+- 「安装到 Xiaomi MiMo」：自动写入 MiMo 全局 Skills 目录，并生成 `locales/zh-CN.json`、`locales/en-US.json` 展示信息。
 - 「选择其他目录」：用于项目级或自定义安装位置。
 
 默认目录：
@@ -40,6 +41,8 @@ Skill 用于告诉 AI 什么时候以及如何调用 Flutter Manager，不能代
 - Codex（Windows）：`%USERPROFILE%\.codex\skills`
 - OpenCode（macOS/Linux）：`~/.config/opencode/skills`
 - OpenCode（Windows）：`%USERPROFILE%\.config\opencode\skills`
+- Xiaomi MiMo（macOS/Linux）：`~/.config/mimocode/skills`
+- Xiaomi MiMo（Windows）：`%USERPROFILE%\.config\mimocode\skills`
 
 App 会自动创建：
 
@@ -52,7 +55,7 @@ flutter-manager-mcp/
     └── call_flutter_manager.py
 ```
 
-安装完成后重启 Codex 或 OpenCode。完整使用需要同时完成：
+安装完成后重启对应 AI 工具（含 Xiaomi MiMo）。完整使用需要同时完成：
 
 1. 下载 MCP Server。
 2. 开启 App 的 MCP 控制接口。
@@ -132,6 +135,33 @@ npm run bundle
 ```
 
 配置后重启 OpenCode，可执行 `opencode mcp list` 检查连接状态。
+
+### Xiaomi MiMo
+
+配置文件：
+
+- macOS/Linux：`~/.config/mimocode/mimocode.jsonc`
+- Windows：`%USERPROFILE%\.config\mimocode\mimocode.jsonc`
+
+将下列条目合并进顶层 `mcp` 段（不要覆盖已有 MCP 服务）：
+
+```jsonc
+{
+  "mcp": {
+    "flutter_manager": {
+      "type": "local",
+      "command": ["node", "<MCP Server 路径>/flutter-manager-mcp.mjs"],
+      "environment": {
+        "FLUTTER_MANAGER_PORT": "17891",
+        "FLUTTER_MANAGER_TOKEN": "把 App 页面里的 Token 粘贴到这里"
+      },
+      "enabled": true
+    }
+  }
+}
+```
+
+配置后重启 Xiaomi MiMo 或新开会话生效。
 
 ### 其他支持 `mcpServers` 的 AI 工具
 

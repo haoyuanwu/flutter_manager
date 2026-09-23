@@ -4,24 +4,40 @@ import 'dart:io';
 import 'fvm_service.dart';
 import 'process_runner.dart';
 
+/// 按控制台标签（会话/任务 ID）隔离日志，避免不同命令互相干扰。
 class ProjectCommandLogBuffer {
   ProjectCommandLogBuffer({this.maxLength = 120000});
 
   final int maxLength;
   final Map<String, String> _logs = {};
 
-  String logFor(String projectPath) => _logs[projectPath] ?? '';
+  String logFor(String tabId) => _logs[tabId] ?? '';
 
-  String append(String projectPath, String output) {
-    var log = logFor(projectPath) + output;
+  String append(String tabId, String output) {
+    var log = logFor(tabId) + output;
     if (log.length > maxLength) log = log.substring(log.length - maxLength);
-    _logs[projectPath] = log;
+    _logs[tabId] = log;
     return log;
   }
 
-  void clear(String projectPath) => _logs[projectPath] = '';
+  void clear(String tabId) => _logs[tabId] = '';
 
-  void remove(String projectPath) => _logs.remove(projectPath);
+  void remove(String tabId) => _logs.remove(tabId);
+
+  /// 合并某项目下全部标签日志（MCP 兼容用）。
+  String logForProject(
+    String projectPath,
+    Iterable<String> tabIds,
+  ) {
+    final buffer = StringBuffer();
+    for (final id in tabIds) {
+      final log = logFor(id);
+      if (log.isEmpty) continue;
+      if (buffer.isNotEmpty) buffer.writeln('\n${'─' * 48}\n');
+      buffer.write(log);
+    }
+    return buffer.toString();
+  }
 }
 
 class FlutterCommandService {

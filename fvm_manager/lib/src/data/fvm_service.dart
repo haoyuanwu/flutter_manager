@@ -11,7 +11,31 @@ class FvmService {
   final PubEnvironmentService _environment;
   String? _executable;
 
+  /// 当前已解析到的 FVM 可执行文件完整路径（detect/useLocalDirectory 成功后可用）。
+  String? get executablePath => _executable;
+
+  String? _env(String name) {
+    if (!Platform.isWindows) return Platform.environment[name];
+    final lower = name.toLowerCase();
+    for (final entry in Platform.environment.entries) {
+      if (entry.key.toLowerCase() == lower) return entry.value;
+    }
+    return null;
+  }
+
   Future<String?> detect() async {
+    // 0. 用户手动指定的路径优先：重装后首次选择必须立刻生效，不能被
+    //    缓存探测失败清掉。
+    final custom = _environment.customFvmExecutable;
+    if (custom != null && await File(custom).exists()) {
+      final version = await _tryExecutable(custom);
+      if (version != null) {
+        _executable = custom;
+        await _environment.setCachedFvmExecutable(custom);
+        return version;
+      }
+    }
+
     // 1. 优先验证上一次检测到的路径（持久化缓存），命中则跳过全量扫描
     final cached = _environment.cachedFvmExecutable;
     if (cached != null) {
@@ -20,8 +44,10 @@ class FvmService {
         _executable = cached;
         return version;
       }
-      // 缓存失效（文件被移动/删除），清除并回退到全量扫描
-      await _environment.setCachedFvmExecutable(null);
+      // 仅当文件确实不存在时才丢缓存；能运行但版本解析失败时保留路径。
+      if (!await File(cached).exists()) {
+        await _environment.setCachedFvmExecutable(null);
+      }
     }
 
     // 2. 全量扫描所有候选路径
@@ -58,57 +84,118 @@ class FvmService {
     return null;
   }
 
+  /// Windows 上 FVM 可能以 .exe / .bat / .cmd 或无扩展名安装。
+  List<String> get _fvmExecutableNames => Platform.isWindows
+      ? const ['fvm.exe', 'fvm.bat', 'fvm.cmd', 'fvm']
+      : const ['fvm'];
+
   /// 尝试运行指定路径的 FVM，成功返回版本号，失败返回 null。
   Future<String?> _tryExecutable(String candidate) async {
-    try {
-      final result = await Process.run(
-        candidate,
-        const ['--version'],
-        environment: _environment.processEnvironment,
-        includeParentEnvironment: false,
-      );
-      if (result.exitCode == 0) {
-        return _extractVersion(result.stdout);
-      }
-    } on ProcessException {
-      // 文件不存在或无法执行，继续尝试下一个
-    }
-    return null;
-  }
-
-  Future<String> useLocalDirectory(String directoryPath) async {
-    final executableName = Platform.isWindows ? 'fvm.bat' : 'fvm';
-    final separator = Platform.pathSeparator;
-    final candidates = <String>[
-      '$directoryPath$separator$executableName',
-      '$directoryPath${separator}bin$separator$executableName',
-    ];
-    String? failure;
-    for (final candidate in candidates) {
-      if (!await File(candidate).exists()) continue;
+    for (final inherit in const [false, true]) {
       try {
         final result = await Process.run(
           candidate,
           const ['--version'],
           environment: _environment.processEnvironment,
-          includeParentEnvironment: false,
+          // 打包安装后的 GUI 环境可能缺 COMSPEC/PATHEXT/PATH；
+          // 先用合并环境，失败再继承父进程作兜底。
+          includeParentEnvironment: inherit,
+          runInShell: Platform.isWindows,
         );
         if (result.exitCode == 0) {
-          final version = _extractVersion(result.stdout);
-          await _environment.setCustomFvmExecutable(candidate);
-          await _environment.setCachedFvmExecutable(candidate);
-          _executable = candidate;
-          return version ?? "";
+          // 能跑通就视为可用。版本号解析失败时返回空串而不是 null，
+          // 避免 detect() 误判失败并清掉用户刚选择的路径。
+          return _extractVersion(result.stdout) ?? '';
         }
-        failure = _decodeOutput(result.stderr);
-      } on ProcessException catch (error) {
-        failure = error.message;
+      } on ProcessException {
+        // 文件不存在或无法执行，继续尝试下一个
       }
     }
+    return null;
+  }
+
+  Future<({int exitCode, String output, String error})> _runVersionProbe(
+    String candidate,
+  ) async {
+    for (final inherit in const [false, true]) {
+      try {
+        final result = await Process.run(
+          candidate,
+          const ['--version'],
+          environment: _environment.processEnvironment,
+          includeParentEnvironment: inherit,
+          runInShell: Platform.isWindows,
+        );
+        if (result.exitCode == 0) {
+          return (
+            exitCode: result.exitCode,
+            output: _decodeOutput(result.stdout),
+            error: _decodeOutput(result.stderr),
+          );
+        }
+        final output = _decodeOutput(result.stdout).trim();
+        final error = _decodeOutput(result.stderr).trim();
+        if (output.isNotEmpty || error.isNotEmpty) {
+          return (exitCode: result.exitCode, output: output, error: error);
+        }
+      } on ProcessException catch (e) {
+        return (exitCode: -1, output: '', error: e.message);
+      }
+    }
+    return (exitCode: -1, output: '', error: '无法执行 $candidate');
+  }
+
+  Future<String> useLocalDirectory(String directoryPath) async {
+    final separator = Platform.pathSeparator;
+    final normalized = directoryPath.replaceAll(RegExp(r'[\\/]$'), '');
+    final candidates = <String>[];
+    // 允许直接选中可执行文件本身。
+    if (File(normalized).existsSync()) {
+      candidates.add(normalized);
+    }
+    // 常见层级：
+    //   <dir>/fvm.bat          （Pub\\Cache\\bin）
+    //   <dir>/bin/fvm.bat      （Pub\\Cache）
+    //   <dir>/../bin/fvm.bat   （误选了 versions 等相邻目录时的兜底）
+    final parent = File(normalized).parent.path;
+    for (final name in _fvmExecutableNames) {
+      candidates.addAll([
+        '$normalized$separator$name',
+        '$normalized${separator}bin$separator$name',
+        '$parent${separator}bin$separator$name',
+        '$parent$separator$name',
+      ]);
+    }
+    String? failure;
+    var foundAny = false;
+    String? lastCandidate;
+    for (final candidate in candidates) {
+      if (!await File(candidate).exists()) continue;
+      foundAny = true;
+      lastCandidate = candidate;
+      final probe = await _runVersionProbe(candidate);
+      if (probe.exitCode == 0) {
+        final version = _extractVersion(probe.output) ?? '';
+        await _environment.setCustomFvmExecutable(candidate);
+        await _environment.setCachedFvmExecutable(candidate);
+        _executable = candidate;
+        return version;
+      }
+      failure = probe.error.isNotEmpty ? probe.error : probe.output;
+    }
+    final names = _fvmExecutableNames.join(' / ');
+    final example =
+        '示例：C:\\Users\\<用户名>\\AppData\\Local\\Pub\\Cache\\bin'
+        '（或其上级 Pub\\Cache，也可直接选中 fvm.bat）。'
+        '不要选择 D:\\fvm 这类 Flutter SDK 缓存目录。';
     throw Exception(
       failure?.isNotEmpty == true
-          ? '所选目录中的 FVM 无法运行：$failure'
-          : '所选目录中未找到 $executableName，请选择包含该文件的目录或其上级目录',
+          ? '所选路径中的 FVM 无法运行（$lastCandidate）：$failure\n$example'
+          : foundAny
+          ? '所选路径中的 FVM 无法运行，请确认 $names 可执行\n$example'
+          : '所选路径中未找到 $names。\n'
+              '可选择：可执行文件所在目录、其上级目录（会自动找 bin\\）、'
+              '或直接选中 fvm.exe/fvm.bat。\n$example',
     );
   }
 
@@ -508,7 +595,9 @@ class FvmService {
       arguments,
       workingDirectory: workingDirectory,
       environment: _environment.processEnvironment,
-      includeParentEnvironment: false,
+      // 打包安装后优先用合并环境；失败场景由 detect 的 inherit 兜底覆盖。
+      includeParentEnvironment: true,
+      runInShell: Platform.isWindows,
     );
     if (result.exitCode != 0) {
       throw Exception(
@@ -521,7 +610,6 @@ class FvmService {
   }
 
   Iterable<String> _candidates() sync* {
-    final executableName = Platform.isWindows ? 'fvm.bat' : 'fvm';
     final separator = Platform.pathSeparator;
     final all = <String>[];
 
@@ -532,12 +620,16 @@ class FvmService {
 
     // 2. 从 executableSearchPaths 构建（包含系统 PATH、Pub Cache bin 等）
     for (final directory in _environment.executableSearchPaths) {
-      all.add('$directory$separator$executableName');
+      for (final name in _fvmExecutableNames) {
+        all.add('$directory$separator$name');
+      }
     }
 
     // 3. 平台特定的 FVM 常见安装路径（补充兜底，可能与上面重复，下方去重）
     for (final directory in _wellKnownFvmDirectories()) {
-      all.add('$directory$separator$executableName');
+      for (final name in _fvmExecutableNames) {
+        all.add('$directory$separator$name');
+      }
     }
 
     // 去重后按优先级顺序 yield（Windows 路径不区分大小写）
@@ -562,12 +654,12 @@ class FvmService {
     final paths = <String>[];
 
     if (Platform.isWindows) {
-      final home = Platform.environment['USERPROFILE'];
-      final localAppData = Platform.environment['LOCALAPPDATA'];
+      final home = _env('USERPROFILE');
+      final localAppData = _env('LOCALAPPDATA');
       // Pub Cache bin（dart pub global activate fvm 的默认安装位置）
       // 优先级: PUB_CACHE > LOCALAPPDATA\Pub\Cache > USERPROFILE\AppData\Local\Pub\Cache
       final pubCache =
-          Platform.environment['PUB_CACHE'] ??
+          _env('PUB_CACHE') ??
           (localAppData != null ? '$localAppData\\Pub\\Cache' : null) ??
           (home != null ? '$home\\AppData\\Local\\Pub\\Cache' : null);
       if (pubCache != null) paths.add('$pubCache${separator}bin');
@@ -576,20 +668,33 @@ class FvmService {
         paths.add('$home\\fvm\\bin');
         paths.add('$home\\fvm\\default\\bin');
         paths.add('$home\\.fvm\\default\\bin');
+        paths.add('$home\\AppData\\Local\\fvm\\bin');
+        paths.add('$home\\scoop\\shims');
       }
-      final programData = Platform.environment['ProgramData'];
+      final fvmCache = _env('FVM_CACHE_PATH') ?? _env('FVM_HOME');
+      if (fvmCache != null && fvmCache.trim().isNotEmpty) {
+        final cache = fvmCache.trim().replaceAll(RegExp(r'[\\/]$'), '');
+        paths.add('$cache${separator}bin');
+        paths.add('$cache${separator}default${separator}bin');
+      }
+      final programData = _env('ProgramData');
       if (programData != null) paths.add('$programData\\chocolatey\\bin');
     } else {
       // macOS / Linux
-      final home = Platform.environment['HOME'];
+      final home = _env('HOME');
       final pubCache =
-          Platform.environment['PUB_CACHE'] ??
-          (home != null ? '$home/.pub-cache' : null);
+          _env('PUB_CACHE') ?? (home != null ? '$home/.pub-cache' : null);
       if (pubCache != null) paths.add('$pubCache${separator}bin');
       if (home != null) {
         paths.add('$home/fvm/bin');
         paths.add('$home/fvm/default/bin');
         paths.add('$home/.fvm/default/bin');
+      }
+      final fvmCache = _env('FVM_CACHE_PATH') ?? _env('FVM_HOME');
+      if (fvmCache != null && fvmCache.trim().isNotEmpty) {
+        final cache = fvmCache.trim().replaceAll(RegExp(r'[\\/]$'), '');
+        paths.add('$cache${separator}bin');
+        paths.add('$cache${separator}default${separator}bin');
       }
       if (Platform.isMacOS) {
         paths.add('/opt/homebrew/bin');

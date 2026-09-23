@@ -58,6 +58,17 @@ abstract class InstalledSdk with _$InstalledSdk {
 }
 
 @freezed
+abstract class ConsoleTabInfo with _$ConsoleTabInfo {
+  const factory ConsoleTabInfo({
+    required String id,
+    required String projectPath,
+    required String title,
+    @Default('run') String kind,
+    @Default(false) bool running,
+  }) = _ConsoleTabInfo;
+}
+
+@freezed
 abstract class FvmState with _$FvmState {
   const factory FvmState({
     @Default(false) bool loading,
@@ -101,6 +112,8 @@ abstract class FvmState with _$FvmState {
     @Default(false) bool devicesLoading,
     @Default(false) bool commandRunning,
     @Default('') String commandLog,
+    @Default(<ConsoleTabInfo>[]) List<ConsoleTabInfo> consoleTabs,
+    String? selectedConsoleTabId,
     String? activeCommand,
     String? statusMessage,
     String? errorMessage,

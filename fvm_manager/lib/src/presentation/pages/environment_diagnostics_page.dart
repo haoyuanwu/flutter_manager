@@ -173,10 +173,12 @@ class _EnvironmentDiagnosticsPageState
       );
     });
     try {
+      // 使用最新 Provider 状态，避免刚选完本地 FVM 后仍拿旧的 widget.state。
+      final currentState = ref.read(fvmControllerProvider);
       final report = await ref
           .read(environmentDiagnosticsServiceProvider)
           .run(
-            state: widget.state,
+            state: currentState,
             onItemAdded: (items) {
               if (mounted) {
                 setState(() {
@@ -207,7 +209,9 @@ class _EnvironmentDiagnosticsPageState
 
   Future<void> _selectLocalFvm() async {
     await ref.read(fvmControllerProvider.notifier).selectLocalFvmDirectory();
-    if (mounted) await _run();
+    if (!mounted) return;
+    setState(() {});
+    await _run();
   }
 
   Future<void> _installFlutter(String? version) async {
@@ -276,7 +280,10 @@ class _FvmRequiredCard extends StatelessWidget {
                 const SizedBox(height: 6),
                 Text(
                   '运行、构建、Pub Get、Clean、DevTools、Flutter 版本管理等功能都依赖 FVM。'
-                  '点击“安装 FVM”可由软件自动完成安装，也可选择已安装好的本地 FVM 目录。',
+                  '点击“安装 FVM”可自动安装，也可选择本地 FVM。'
+                  '路径选到「fvm.exe / fvm.bat 所在目录」或其上一级即可'
+                  '（Windows 通常是 C:\\Users\\<用户名>\\AppData\\Local\\Pub\\Cache\\bin）。'
+                  '不要选择 D:\\fvm 这类 Flutter SDK 缓存目录。',
                   style: TextStyle(color: Colors.orange.shade900, height: 1.45),
                 ),
                 const SizedBox(height: 14),

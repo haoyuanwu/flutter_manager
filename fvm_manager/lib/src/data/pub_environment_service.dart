@@ -97,12 +97,134 @@ class PubEnvironmentService {
     return mirror.storageUrl ?? 'https://storage.googleapis.com';
   }
 
+  Map<String, String>? _windowsRegistryEnvCache;
+  DateTime? _windowsRegistryEnvAt;
+
+  /// Windows 环境变量名大小写不敏感，但 Dart Map 大小写敏感。
+  /// 统一按小写查找 PATH / FVM_CACHE_PATH 等键。
+  ///
+  /// 打包安装后的 GUI 进程可能只拿到精简环境；查找顺序为：
+  /// 进程环境 → 注册表用户/系统环境（短缓存）。
+  String? _env(String name) {
+    if (!Platform.isWindows) {
+      return Platform.environment[name];
+    }
+    final lower = name.toLowerCase();
+    for (final entry in Platform.environment.entries) {
+      if (entry.key.toLowerCase() == lower) return entry.value;
+    }
+    final registry = _windowsRegistryEnvironment();
+    for (final entry in registry.entries) {
+      if (entry.key.toLowerCase() == lower) return entry.value;
+    }
+    return null;
+  }
+
+  Map<String, String> _windowsRegistryEnvironment() {
+    final now = DateTime.now();
+    final cache = _windowsRegistryEnvCache;
+    if (cache != null &&
+        _windowsRegistryEnvAt != null &&
+        now.difference(_windowsRegistryEnvAt!) < const Duration(seconds: 30)) {
+      return cache;
+    }
+
+    final values = <String, String>{};
+    void mergeQuery(List<String> arguments) {
+      try {
+        final result = Process.runSync(
+          'reg',
+          arguments,
+          runInShell: false,
+          stdoutEncoding: SystemEncoding(),
+          stderrEncoding: SystemEncoding(),
+        );
+        if (result.exitCode != 0) return;
+        for (final rawLine in result.stdout
+            .toString()
+            .split(RegExp(r'\r?\n'))) {
+          final line = rawLine.trim();
+          if (line.isEmpty) continue;
+          final match = RegExp(
+            r'^(\S+)\s+REG_\w+\s+(.+)$',
+          ).firstMatch(line);
+          if (match == null) continue;
+          final key = match.group(1)!.trim();
+          var value = match.group(2)!.trim();
+          // REG_EXPAND_SZ 里的 %VAR% 在 reg query 输出中保持原样，这里做一层展开。
+          value = value.replaceAllMapped(RegExp(r'%([^%]+)%'), (m) {
+            final token = m.group(1)!;
+            for (final entry in {
+              ...Platform.environment,
+              ...values,
+            }.entries) {
+              if (entry.key.toLowerCase() == token.toLowerCase()) {
+                return entry.value;
+              }
+            }
+            return m.group(0)!;
+          });
+          if (key.isNotEmpty && value.isNotEmpty) {
+            values[key] = value;
+          }
+        }
+      } on Object {
+        // 注册表不可用时忽略，回退进程环境。
+      }
+    }
+
+    mergeQuery([r'query', r'HKCU\Environment']);
+    mergeQuery([
+      r'query',
+      r'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment',
+    ]);
+    _windowsRegistryEnvCache = values;
+    _windowsRegistryEnvAt = now;
+    return values;
+  }
+
   Map<String, String> get processEnvironment {
     final environment = Map<String, String>.from(Platform.environment);
-    // 优先使用缓存的 PATH（从 source 获取的）
-    environment['PATH'] =
+    // 优先使用缓存的 PATH（从 source 获取的）；Windows 上去掉大小写重复键后写入。
+    final resolvedPath =
         _cachedPath ??
         executableSearchPaths.join(Platform.isWindows ? ';' : ':');
+    if (Platform.isWindows) {
+      // 打包安装后 GUI 可能缺少 System32 / COMSPEC / PATHEXT，
+      // 先补齐这些，再写入合并后的 PATH，避免 cmd 与 fvm.bat/dart.bat 无法启动。
+      final registry = _windowsRegistryEnvironment();
+      void ensure(String key, String? fallback) {
+        final hasKey = environment.keys.any(
+          (existing) => existing.toLowerCase() == key.toLowerCase(),
+        );
+        if (!hasKey && fallback != null && fallback.isNotEmpty) {
+          environment[key] = fallback;
+        }
+      }
+
+      ensure('SystemRoot', registry['SystemRoot'] ?? r'C:\Windows');
+      ensure('windir', registry['windir'] ?? environment['SystemRoot']);
+      ensure(
+        'ComSpec',
+        registry['ComSpec'] ??
+            '${_env('SystemRoot') ?? r'C:\Windows'}\\system32\\cmd.exe',
+      );
+      ensure(
+        'PATHEXT',
+        registry['PATHEXT'] ??
+            r'.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC',
+      );
+      ensure('USERPROFILE', registry['USERPROFILE']);
+      ensure('LOCALAPPDATA', registry['LOCALAPPDATA']);
+      ensure('ProgramData', registry['ProgramData']);
+      ensure('PUB_CACHE', registry['PUB_CACHE']);
+      ensure('FVM_CACHE_PATH', registry['FVM_CACHE_PATH']);
+      ensure('FVM_HOME', registry['FVM_HOME']);
+      environment.removeWhere((key, _) => key.toLowerCase() == 'path');
+    }
+    environment['PATH'] = resolvedPath;
+    // Windows 批处理（fvm.bat / dart.bat）依赖 PATH 中的 dart。
+    // 若系统只有 FVM_CACHE_PATH/default/bin 里的 dart，也要保证 PATH 能解析到。
     final mirror = currentMirror;
     if (mirror.pubUrl != null) {
       environment['PUB_HOSTED_URL'] = mirror.pubUrl!;
@@ -127,13 +249,31 @@ class PubEnvironmentService {
     if (_customFvmExecutable != null) {
       add(File(_customFvmExecutable!).parent.path);
     }
-    for (final path in (Platform.environment['PATH'] ?? '').split(separator)) {
+    // 进程 PATH + 注册表 PATH：打包安装后的 GUI 往往只有精简 PATH。
+    for (final path in (_env('PATH') ?? '').split(separator)) {
       add(path);
     }
-    final home =
-        Platform.environment[Platform.isWindows ? 'USERPROFILE' : 'HOME'];
+    if (Platform.isWindows) {
+      final registry = _windowsRegistryEnvironment();
+      var registryPath = '';
+      for (final entry in registry.entries) {
+        if (entry.key.toLowerCase() == 'path') {
+          registryPath = entry.value;
+          break;
+        }
+      }
+      for (final path in registryPath.split(';')) {
+        add(path);
+      }
+      final systemRoot = _env('SystemRoot') ?? r'C:\Windows';
+      add('$systemRoot\\system32');
+      add(systemRoot);
+      add('$systemRoot\\System32\\Wbem');
+      add('$systemRoot\\System32\\WindowsPowerShell\\v1.0\\');
+    }
+    final home = _env(Platform.isWindows ? 'USERPROFILE' : 'HOME');
     final pubCache =
-        Platform.environment['PUB_CACHE'] ??
+        _env('PUB_CACHE') ??
         (home == null
             ? null
             : Platform.isWindows
@@ -141,15 +281,26 @@ class PubEnvironmentService {
             : '$home/.pub-cache');
     if (pubCache != null) add('$pubCache${Platform.pathSeparator}bin');
 
+    // fvm.bat 会调用 PATH 里的 dart；把 FVM 缓存的 default/bin 也加进来。
+    final fvmCache = _env('FVM_CACHE_PATH') ?? _env('FVM_HOME');
+    if (fvmCache != null && fvmCache.trim().isNotEmpty) {
+      final cache = fvmCache.trim().replaceAll(RegExp(r'[\\/]$'), '');
+      add('$cache${Platform.pathSeparator}default${Platform.pathSeparator}bin');
+      add('$cache${Platform.pathSeparator}bin');
+    }
+
     if (home != null) {
       if (Platform.isWindows) {
         add('$home\\fvm\\bin');
         add('$home\\fvm\\default\\bin');
         add('$home\\.fvm\\default\\bin');
+        add('$home\\AppData\\Local\\fvm\\bin');
+        add('$home\\scoop\\shims');
       } else {
         add('$home/fvm/bin');
         add('$home/fvm/default/bin');
         add('$home/.fvm/default/bin');
+        add('$home/.local/share/fvm/bin');
       }
     }
     if (Platform.isMacOS) {

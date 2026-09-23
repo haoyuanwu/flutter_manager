@@ -2718,11 +2718,14 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
     final projectChanged =
         oldWidget.state.selectedManagedProjectPath !=
         widget.state.selectedManagedProjectPath;
-    if (oldWidget.state.commandLog != widget.state.commandLog) {
-      _refreshMatches(preserveCurrent: true);
-      if (_stickToBottom || projectChanged) _scrollToBottom();
+    final tabChanged =
+        oldWidget.state.selectedConsoleTabId !=
+        widget.state.selectedConsoleTabId;
+    if (oldWidget.state.commandLog != widget.state.commandLog || tabChanged) {
+      _refreshMatches(preserveCurrent: !tabChanged);
+      if (_stickToBottom || projectChanged || tabChanged) _scrollToBottom();
     }
-    if (projectChanged) _stickToBottom = true;
+    if (projectChanged || tabChanged) _stickToBottom = true;
   }
 
   @override
@@ -2904,8 +2907,9 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
                 Text(
                   tasks.isEmpty ? '命令输出' : '正在执行 ${tasks.length} 个任务',
                   style: const TextStyle(
-                    color: Colors.white,
+                    color: Color(0xfff0f6fc),
                     fontWeight: FontWeight.w700,
+                    fontSize: 14,
                   ),
                 ),
                 const Spacer(),
@@ -2916,42 +2920,71 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
                       controller.clearCommandLog();
                       await controller.rerunManagedProject();
                     },
-                    icon: const Icon(Icons.replay, color: Colors.white70),
+                    icon: const Icon(Icons.replay, color: Color(0xff9fb0c2)),
                   ),
                 ],
                 IconButton(
                   tooltip: '搜索日志 (⌘F)',
                   onPressed: _openSearch,
-                  icon: const Icon(Icons.search, color: Colors.white70),
+                  icon: const Icon(Icons.search, color: Color(0xff9fb0c2)),
                 ),
                 IconButton(
-                  tooltip: '在新窗口中打开',
-                  onPressed: controller.openSelectedProjectConsole,
-                  icon: const Icon(Icons.open_in_new, color: Colors.white70),
+                  tooltip: '在新窗口中打开当前标签',
+                  onPressed: () {
+                    final tabId = widget.state.selectedConsoleTabId;
+                    if (tabId != null) {
+                      controller.openConsoleTabWindow(tabId);
+                    } else {
+                      controller.openSelectedProjectConsole();
+                    }
+                  },
+                  icon: const Icon(Icons.open_in_new, color: Color(0xff9fb0c2)),
                 ),
                 IconButton(
-                  tooltip: '清空输出',
+                  tooltip: '清空当前标签输出',
                   onPressed: () => _confirmClearCommandLog(controller),
-                  icon: const Icon(Icons.delete_sweep, color: Colors.white70),
+                  icon: const Icon(Icons.delete_sweep, color: Color(0xff9fb0c2)),
                 ),
               ],
             ),
+            if (widget.state.consoleTabs.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              _ConsoleTabBar(state: widget.state, controller: controller),
+            ],
             if (tasks.isNotEmpty)
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: tasks
-                    .map(
-                      (task) => InputChip(
-                        label: Text(task.label),
-                        avatar: const Icon(Icons.terminal, size: 17),
-                        deleteIcon: const Icon(Icons.stop, size: 18),
-                        deleteButtonTooltipMessage: '停止此任务',
-                        onDeleted: () =>
-                            _confirmStopCommand(context, controller, task),
-                      ),
-                    )
-                    .toList(),
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: tasks
+                      .map(
+                        (task) => Chip(
+                          backgroundColor: const Color(0xff1b2733),
+                          side: const BorderSide(color: Color(0xff2f3d4c)),
+                          labelStyle: const TextStyle(
+                            color: Color(0xffd7e0ea),
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          avatar: const Icon(
+                            Icons.radio_button_checked,
+                            size: 14,
+                            color: Color(0xff3fb950),
+                          ),
+                          label: Text(task.label),
+                          deleteIcon: const Icon(
+                            Icons.stop,
+                            size: 16,
+                            color: Color(0xff9fb0c2),
+                          ),
+                          deleteButtonTooltipMessage: '停止此任务',
+                          onDeleted: () =>
+                              _confirmStopCommand(context, controller, task),
+                        ),
+                      )
+                      .toList(),
+                ),
               ),
             if (_showSearch) ...[
               const SizedBox(height: 8),
@@ -2964,11 +2997,11 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
                         key: const ValueKey('command-console-search-field'),
                         controller: _searchController,
                         focusNode: _searchFocusNode,
-                        style: const TextStyle(color: Colors.white),
+                        style: const TextStyle(color: Color(0xfff0f6fc)),
                         decoration: const InputDecoration(
                           hintText: '搜索打印内容',
-                          hintStyle: TextStyle(color: Colors.white54),
-                          prefixIcon: Icon(Icons.search, color: Colors.white70),
+                          hintStyle: TextStyle(color: Color(0xff7f8fa3)),
+                          prefixIcon: Icon(Icons.search, color: Color(0xff9fb0c2)),
                           filled: true,
                           fillColor: Color(0xff1b2733),
                           border: OutlineInputBorder(),
@@ -2983,25 +3016,25 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
                       _matches.isEmpty
                           ? '0 / 0'
                           : '${_currentMatch + 1} / ${_matches.length}',
-                      style: const TextStyle(color: Colors.white70),
+                      style: const TextStyle(color: Color(0xff9fb0c2)),
                     ),
                     IconButton(
                       tooltip: '上一个结果',
                       onPressed: _matches.isEmpty ? null : _previousMatch,
                       icon: const Icon(Icons.keyboard_arrow_up),
-                      color: Colors.white,
+                      color: const Color(0xffd7e0ea),
                     ),
                     IconButton(
                       tooltip: '下一个结果',
                       onPressed: _matches.isEmpty ? null : _nextMatch,
                       icon: const Icon(Icons.keyboard_arrow_down),
-                      color: Colors.white,
+                      color: const Color(0xffd7e0ea),
                     ),
                     IconButton(
                       tooltip: '关闭搜索',
                       onPressed: _closeSearch,
                       icon: const Icon(Icons.close),
-                      color: Colors.white,
+                      color: const Color(0xffd7e0ea),
                     ),
                   ],
                 ),
@@ -3025,9 +3058,10 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
                       ),
                     ),
                     style: const TextStyle(
-                      color: Color(0xffc9d1d9),
+                      color: Color(0xffd7e0ea),
                       fontFamily: 'monospace',
                       fontSize: 12,
+                      height: 1.45,
                     ),
                   ),
                 ),
@@ -3043,9 +3077,163 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
     final confirmed = await confirmDeletion(
       context,
       title: '确认清空命令输出？',
-      message: '将清空当前项目打印台中的全部输出内容，此操作不可撤销。',
+      message: '将清空当前选中打印台标签中的输出内容，此操作不可撤销。',
       confirmLabel: '清空输出',
     );
     if (confirmed) controller.clearCommandLog();
+  }
+}
+
+class _ConsoleTabBar extends StatelessWidget {
+  const _ConsoleTabBar({required this.state, required this.controller});
+
+  // 深色打印台专用配色，保证标签文字对比度。
+  static const _bg = Color(0xff0d141c);
+  static const _tabIdle = Color(0xff1b2733);
+  static const _tabActive = Color(0xff1f4f8a);
+  static const _borderIdle = Color(0xff2f3d4c);
+  static const _borderActive = Color(0xff4c9aed);
+  static const _textActive = Color(0xfff0f6fc);
+  static const _textIdle = Color(0xff9fb0c2);
+  static const _running = Color(0xff3fb950);
+  static const _closeIdle = Color(0xff7f8fa3);
+
+  final FvmState state;
+  final FvmController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final projectPath = state.selectedManagedProjectPath;
+    final tabs = state.consoleTabs
+        .where((tab) => tab.projectPath == projectPath)
+        .toList(growable: false);
+    if (tabs.isEmpty) return const SizedBox.shrink();
+    return Container(
+      height: 34,
+      decoration: BoxDecoration(
+        color: _bg,
+        borderRadius: BorderRadius.circular(8),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: tabs.length,
+        separatorBuilder: (_, _) => const SizedBox(width: 6),
+        itemBuilder: (context, index) {
+          final tab = tabs[index];
+          final selected = tab.id == state.selectedConsoleTabId;
+          return _ConsoleTabChip(
+            title: tab.title,
+            running: tab.running,
+            selected: selected,
+            onSelect: () => controller.selectConsoleTab(tab.id),
+            onClose: () => controller.closeConsoleTab(tab.id),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ConsoleTabChip extends StatefulWidget {
+  const _ConsoleTabChip({
+    required this.title,
+    required this.running,
+    required this.selected,
+    required this.onSelect,
+    required this.onClose,
+  });
+
+  final String title;
+  final bool running;
+  final bool selected;
+  final VoidCallback onSelect;
+  final VoidCallback onClose;
+
+  @override
+  State<_ConsoleTabChip> createState() => _ConsoleTabChipState();
+}
+
+class _ConsoleTabChipState extends State<_ConsoleTabChip> {
+  bool _hovered = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = widget.selected;
+    final background = selected
+        ? _ConsoleTabBar._tabActive
+        : _hovered
+        ? const Color(0xff243241)
+        : _ConsoleTabBar._tabIdle;
+    final borderColor = selected
+        ? _ConsoleTabBar._borderActive
+        : _hovered
+        ? const Color(0xff44586c)
+        : _ConsoleTabBar._borderIdle;
+    final textColor = selected
+        ? _ConsoleTabBar._textActive
+        : _ConsoleTabBar._textIdle;
+    final closeColor = selected || _hovered
+        ? _ConsoleTabBar._textActive
+        : _ConsoleTabBar._closeIdle;
+
+    return MouseRegion(
+      onEnter: (_) => setState(() => _hovered = true),
+      onExit: (_) => setState(() => _hovered = false),
+      cursor: SystemMouseCursors.click,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: widget.onSelect,
+          borderRadius: BorderRadius.circular(7),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 120),
+            padding: const EdgeInsets.only(left: 10, right: 4),
+            decoration: BoxDecoration(
+              color: background,
+              borderRadius: BorderRadius.circular(7),
+              border: Border.all(color: borderColor, width: 1),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 7,
+                  height: 7,
+                  margin: const EdgeInsets.only(right: 7),
+                  decoration: BoxDecoration(
+                    color: widget.running
+                        ? _ConsoleTabBar._running
+                        : _ConsoleTabBar._closeIdle,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                Text(
+                  widget.title,
+                  style: TextStyle(
+                    color: textColor,
+                    fontSize: 12,
+                    height: 1.2,
+                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: 2),
+                IconButton(
+                  tooltip: '关闭标签',
+                  visualDensity: VisualDensity.compact,
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(
+                    minWidth: 24,
+                    minHeight: 24,
+                  ),
+                  onPressed: widget.onClose,
+                  icon: Icon(Icons.close, size: 13, color: closeColor),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
