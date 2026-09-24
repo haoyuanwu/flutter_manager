@@ -267,9 +267,15 @@ class _ProjectManagementState extends ConsumerState<_ProjectManagement> {
                     const SizedBox(width: 16),
                     Expanded(
                       child: selected == null
-                          ? const Card(
-                              child: Center(child: Text('请添加或选择一个 Flutter 项目')),
-                            )
+                          ? state.consoleTabs.isEmpty
+                                ? const Card(
+                                    child: Center(
+                                      child: Text('请添加或选择一个 Flutter 项目'),
+                                    ),
+                                  )
+                                : SingleChildScrollView(
+                                    child: _CommandConsole(state: state),
+                                  )
                           : _ProjectDetail(
                               state: state,
                               project: selected,
@@ -1017,49 +1023,58 @@ class _ProjectDetail extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(fvmControllerProvider.notifier);
     if (!project.pathExists) {
-      return Card(
-        child: Padding(
-          padding: const EdgeInsets.all(28),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const Icon(
-                Icons.folder_off_outlined,
-                size: 52,
-                color: Colors.red,
-              ),
-              const SizedBox(height: 14),
-              Text(
-                '${project.displayName} 的目录不存在',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.w700,
+      return SingleChildScrollView(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(28),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(
+                      Icons.folder_off_outlined,
+                      size: 52,
+                      color: Colors.red,
+                    ),
+                    const SizedBox(height: 14),
+                    Text(
+                      '${project.displayName} 的目录不存在',
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    SelectableText(project.path),
+                    const SizedBox(height: 20),
+                    Wrap(
+                      spacing: 12,
+                      children: [
+                        FilledButton.icon(
+                          onPressed: () =>
+                              controller.relocateManagedProject(project),
+                          icon: const Icon(Icons.drive_file_move_outline),
+                          label: const Text('重新定位'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () => _confirmRemoveManagedProject(
+                            context,
+                            controller,
+                            project,
+                          ),
+                          icon: const Icon(Icons.delete_outline),
+                          label: const Text('删除记录'),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              const SizedBox(height: 8),
-              SelectableText(project.path),
-              const SizedBox(height: 20),
-              Wrap(
-                spacing: 12,
-                children: [
-                  FilledButton.icon(
-                    onPressed: () => controller.relocateManagedProject(project),
-                    icon: const Icon(Icons.drive_file_move_outline),
-                    label: const Text('重新定位'),
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: () => _confirmRemoveManagedProject(
-                      context,
-                      controller,
-                      project,
-                    ),
-                    icon: const Icon(Icons.delete_outline),
-                    label: const Text('删除记录'),
-                  ),
-                ],
-              ),
-            ],
-          ),
+            ),
+            if (state.consoleTabs.isNotEmpty) _CommandConsole(state: state),
+          ],
         ),
       );
     }
@@ -1302,10 +1317,13 @@ class _ProjectDetail extends ConsumerWidget {
                         icon: const Icon(Icons.open_in_browser),
                         label: const Text('DevTools'),
                       ),
-                      _CommandStopButton(
-                        tasks: controller.activeTasksForSelectedProject,
-                        controller: controller,
-                      ),
+                      if (state.consoleTabs.isEmpty &&
+                          !state.showMainWindowConsole &&
+                          !controller.selectedProjectBuildConsoleVisible)
+                        _CommandStopButton(
+                          tasks: controller.activeTasksForSelectedProject,
+                          controller: controller,
+                        ),
                     ],
                   ),
                 ],
@@ -1636,11 +1654,10 @@ class _ProjectDetail extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 12),
-          if (state.showMainWindowConsole ||
+          if (state.consoleTabs.isNotEmpty ||
+              state.showMainWindowConsole ||
               controller.selectedProjectBuildConsoleVisible)
-            _RevealOnMount(
-              child: _CommandConsole(state: state, project: project),
-            ),
+            _RevealOnMount(child: _CommandConsole(state: state)),
         ],
       ),
     );
@@ -2676,18 +2693,10 @@ Future<void> _confirmStopCommand(
   if (confirmed) await controller.stopProjectCommand(task.id);
 }
 
-class _ConsoleSearchMatch {
-  const _ConsoleSearchMatch(this.start, this.end);
-
-  final int start;
-  final int end;
-}
-
 class _CommandConsole extends ConsumerStatefulWidget {
-  const _CommandConsole({required this.state, required this.project});
+  const _CommandConsole({required this.state});
 
   final FvmState state;
-  final FlutterProject project;
 
   @override
   ConsumerState<_CommandConsole> createState() => _CommandConsoleState();
@@ -2698,7 +2707,9 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
   final _searchRevealKey = GlobalKey();
-  List<_ConsoleSearchMatch> _matches = const [];
+  final _logViewportKey = GlobalKey();
+  final _logTextKey = GlobalKey();
+  List<TextRange> _matches = const [];
   String _searchQuery = '';
   int _currentMatch = -1;
   bool _showSearch = false;
@@ -2790,25 +2801,13 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
   void _refreshMatches({bool preserveCurrent = false}) {
     final query = _searchController.text;
     final log = widget.state.commandLog;
-    final matches = <_ConsoleSearchMatch>[];
-    if (query.isNotEmpty && log.isNotEmpty) {
-      final lowerLog = log.toLowerCase();
-      final lowerQuery = query.toLowerCase();
-      var offset = 0;
-      while (offset < lowerLog.length) {
-        final start = lowerLog.indexOf(lowerQuery, offset);
-        if (start < 0) break;
-        final end = start + query.length;
-        matches.add(_ConsoleSearchMatch(start, end));
-        offset = end;
-      }
-    }
-    var nextIndex = matches.isEmpty ? -1 : 0;
-    if (preserveCurrent &&
-        _currentMatch >= 0 &&
-        _currentMatch < matches.length) {
-      nextIndex = _currentMatch;
-    }
+    final matches = findConsoleMatches(log, query);
+    final nextIndex =
+        preserveCurrent &&
+            query == _searchQuery &&
+            _currentMatch < matches.length
+        ? _currentMatch
+        : -1;
     if (mounted) {
       setState(() {
         _searchQuery = query;
@@ -2819,19 +2818,16 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
   }
 
   void _submitSearch() {
-    final queryChanged = _searchController.text != _searchQuery;
-    if (queryChanged) {
-      _refreshMatches();
-      _scrollToCurrentMatch();
-    } else {
-      _nextMatch();
-    }
+    if (_searchController.text != _searchQuery) _refreshMatches();
+    _nextMatch();
   }
 
   void _previousMatch() {
     if (_matches.isEmpty) return;
     setState(() {
-      _currentMatch = (_currentMatch - 1 + _matches.length) % _matches.length;
+      _currentMatch = _currentMatch < 0
+          ? _matches.length - 1
+          : (_currentMatch - 1 + _matches.length) % _matches.length;
     });
     _scrollToCurrentMatch();
   }
@@ -2848,17 +2844,13 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
         widget.state.commandLog.isEmpty) {
       return;
     }
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_scrollController.hasClients) return;
-      final max = _scrollController.position.maxScrollExtent;
-      final ratio =
-          _matches[_currentMatch].start / widget.state.commandLog.length;
-      _scrollController.animateTo(
-        (max * ratio).clamp(0, max),
-        duration: const Duration(milliseconds: 180),
-        curve: Curves.easeOutCubic,
-      );
-    });
+    _stickToBottom = false;
+    revealConsoleMatch(
+      textKey: _logTextKey,
+      viewportKey: _logViewportKey,
+      scrollController: _scrollController,
+      match: _matches[_currentMatch],
+    );
   }
 
   List<TextSpan> _consoleSpans(String text) {
@@ -2916,10 +2908,7 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
                 if (hasRunTask) ...[
                   IconButton(
                     tooltip: '清空并重新运行',
-                    onPressed: () async {
-                      controller.clearCommandLog();
-                      await controller.rerunManagedProject();
-                    },
+                    onPressed: controller.rerunManagedProject,
                     icon: const Icon(Icons.replay, color: Color(0xff9fb0c2)),
                   ),
                 ],
@@ -2943,7 +2932,10 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
                 IconButton(
                   tooltip: '清空当前标签输出',
                   onPressed: () => _confirmClearCommandLog(controller),
-                  icon: const Icon(Icons.delete_sweep, color: Color(0xff9fb0c2)),
+                  icon: const Icon(
+                    Icons.delete_sweep,
+                    color: Color(0xff9fb0c2),
+                  ),
                 ),
               ],
             ),
@@ -2951,41 +2943,6 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
               const SizedBox(height: 10),
               _ConsoleTabBar(state: widget.state, controller: controller),
             ],
-            if (tasks.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
-                child: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: tasks
-                      .map(
-                        (task) => Chip(
-                          backgroundColor: const Color(0xff1b2733),
-                          side: const BorderSide(color: Color(0xff2f3d4c)),
-                          labelStyle: const TextStyle(
-                            color: Color(0xffd7e0ea),
-                            fontSize: 12,
-                            fontWeight: FontWeight.w500,
-                          ),
-                          avatar: const Icon(
-                            Icons.radio_button_checked,
-                            size: 14,
-                            color: Color(0xff3fb950),
-                          ),
-                          label: Text(task.label),
-                          deleteIcon: const Icon(
-                            Icons.stop,
-                            size: 16,
-                            color: Color(0xff9fb0c2),
-                          ),
-                          deleteButtonTooltipMessage: '停止此任务',
-                          onDeleted: () =>
-                              _confirmStopCommand(context, controller, task),
-                        ),
-                      )
-                      .toList(),
-                ),
-              ),
             if (_showSearch) ...[
               const SizedBox(height: 8),
               KeyedSubtree(
@@ -3001,21 +2958,24 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
                         decoration: const InputDecoration(
                           hintText: '搜索打印内容',
                           hintStyle: TextStyle(color: Color(0xff7f8fa3)),
-                          prefixIcon: Icon(Icons.search, color: Color(0xff9fb0c2)),
+                          prefixIcon: Icon(
+                            Icons.search,
+                            color: Color(0xff9fb0c2),
+                          ),
                           filled: true,
                           fillColor: Color(0xff1b2733),
                           border: OutlineInputBorder(),
                           isDense: true,
                         ),
                         onChanged: (_) => _refreshMatches(),
+                        onEditingComplete: () {},
                         onSubmitted: (_) => _submitSearch(),
                       ),
                     ),
                     const SizedBox(width: 8),
                     Text(
-                      _matches.isEmpty
-                          ? '0 / 0'
-                          : '${_currentMatch + 1} / ${_matches.length}',
+                      '共 ${_matches.length} 处 · '
+                      '${_currentMatch + 1}/${_matches.length}',
                       style: const TextStyle(color: Color(0xff9fb0c2)),
                     ),
                     IconButton(
@@ -3042,12 +3002,14 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
             ],
             const Divider(color: Colors.white24),
             SizedBox(
+              key: _logViewportKey,
               height: 360,
               width: double.infinity,
               child: Scrollbar(
                 controller: _scrollController,
                 thumbVisibility: true,
                 child: SingleChildScrollView(
+                  key: const ValueKey('command-console-output-scroll'),
                   controller: _scrollController,
                   child: SelectableText.rich(
                     TextSpan(
@@ -3057,6 +3019,7 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
                             : widget.state.commandLog,
                       ),
                     ),
+                    key: _logTextKey,
                     style: const TextStyle(
                       color: Color(0xffd7e0ea),
                       fontFamily: 'monospace',
@@ -3084,7 +3047,7 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
   }
 }
 
-class _ConsoleTabBar extends StatelessWidget {
+class _ConsoleTabBar extends StatefulWidget {
   const _ConsoleTabBar({required this.state, required this.controller});
 
   // 深色打印台专用配色，保证标签文字对比度。
@@ -3102,34 +3065,76 @@ class _ConsoleTabBar extends StatelessWidget {
   final FvmController controller;
 
   @override
+  State<_ConsoleTabBar> createState() => _ConsoleTabBarState();
+}
+
+class _ConsoleTabBarState extends State<_ConsoleTabBar> {
+  final _scrollController = ScrollController();
+
+  @override
+  void didUpdateWidget(covariant _ConsoleTabBar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.state.selectedConsoleTabId !=
+            oldWidget.state.selectedConsoleTabId &&
+        widget.state.consoleTabs.lastOrNull?.id ==
+            widget.state.selectedConsoleTabId) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || !_scrollController.hasClients) return;
+        _scrollController.animateTo(
+          _scrollController.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 180),
+          curve: Curves.easeOutCubic,
+        );
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final projectPath = state.selectedManagedProjectPath;
-    final tabs = state.consoleTabs
-        .where((tab) => tab.projectPath == projectPath)
-        .toList(growable: false);
+    final state = widget.state;
+    final tabs = state.consoleTabs;
     if (tabs.isEmpty) return const SizedBox.shrink();
     return Container(
-      height: 34,
+      height: 44,
       decoration: BoxDecoration(
-        color: _bg,
+        color: _ConsoleTabBar._bg,
         borderRadius: BorderRadius.circular(8),
       ),
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 3),
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        itemCount: tabs.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 6),
-        itemBuilder: (context, index) {
-          final tab = tabs[index];
-          final selected = tab.id == state.selectedConsoleTabId;
-          return _ConsoleTabChip(
-            title: tab.title,
-            running: tab.running,
-            selected: selected,
-            onSelect: () => controller.selectConsoleTab(tab.id),
-            onClose: () => controller.closeConsoleTab(tab.id),
-          );
-        },
+      padding: const EdgeInsets.only(left: 4, right: 4, top: 3, bottom: 9),
+      child: Scrollbar(
+        controller: _scrollController,
+        thumbVisibility: true,
+        child: ListView.separated(
+          key: const ValueKey('console-tabs-horizontal-scroll'),
+          controller: _scrollController,
+          scrollDirection: Axis.horizontal,
+          itemCount: tabs.length,
+          separatorBuilder: (_, _) => const SizedBox(width: 6),
+          itemBuilder: (context, index) {
+            final tab = tabs[index];
+            final selected = tab.id == state.selectedConsoleTabId;
+            final projectName =
+                state.managedProjects
+                    .where((project) => project.path == tab.projectPath)
+                    .firstOrNull
+                    ?.displayName ??
+                tab.projectPath.split(Platform.pathSeparator).last;
+            return _ConsoleTabChip(
+              key: ValueKey(tab.id),
+              title: '$projectName · ${tab.title}',
+              running: tab.running,
+              selected: selected,
+              onSelect: () => widget.controller.selectConsoleTab(tab.id),
+              onClose: () => widget.controller.closeConsoleTab(tab.id),
+            );
+          },
+        ),
       ),
     );
   }
@@ -3137,6 +3142,7 @@ class _ConsoleTabBar extends StatelessWidget {
 
 class _ConsoleTabChip extends StatefulWidget {
   const _ConsoleTabChip({
+    super.key,
     required this.title,
     required this.running,
     required this.selected,
@@ -3208,18 +3214,28 @@ class _ConsoleTabChipState extends State<_ConsoleTabChip> {
                     shape: BoxShape.circle,
                   ),
                 ),
-                Text(
-                  widget.title,
-                  style: TextStyle(
-                    color: textColor,
-                    fontSize: 12,
-                    height: 1.2,
-                    fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 240),
+                  child: Tooltip(
+                    message: widget.title,
+                    child: Text(
+                      widget.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: textColor,
+                        fontSize: 12,
+                        height: 1.2,
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      ),
+                    ),
                   ),
                 ),
                 const SizedBox(width: 2),
                 IconButton(
-                  tooltip: '关闭标签',
+                  tooltip: widget.running ? '停止命令并关闭标签' : '关闭标签',
                   visualDensity: VisualDensity.compact,
                   padding: EdgeInsets.zero,
                   constraints: const BoxConstraints(

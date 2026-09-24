@@ -131,10 +131,9 @@ class ConsoleWindowService {
     }
   }
 
-  Future<void> _syncWhenReady(
-    String windowKey,
-    WindowController window,
-  ) async {
+  bool isTracking(String windowKey) => _latestPayloads.containsKey(windowKey);
+
+  Future<void> _syncWhenReady(String windowKey, WindowController window) async {
     for (var attempt = 0; attempt < 12; attempt++) {
       if (!identical(_windows[windowKey], window)) return;
       final payload = _latestPayloads[windowKey];

@@ -96,7 +96,8 @@ class FlutterReleaseService {
     await versions.create(recursive: true);
     final archivePath = '${work.path}${separator}flutter.zip';
     var lastReceived = 0;
-    var lastSample = DateTime.now();
+    final progressClock = Stopwatch()..start();
+    var lastSampleElapsed = Duration.zero;
     var smoothedSpeed = 0.0;
     try {
       await _dio.download(
@@ -105,16 +106,24 @@ class FlutterReleaseService {
         cancelToken: _cancelToken,
         deleteOnError: true,
         onReceiveProgress: (received, total) {
-          final now = DateTime.now();
-          final elapsed = now.difference(lastSample).inMilliseconds / 1000;
-          if (elapsed >= .25) {
-            final currentSpeed = (received - lastReceived) / elapsed;
+          final elapsedSinceSample = progressClock.elapsed - lastSampleElapsed;
+          final isComplete = total > 0 && received >= total;
+          if (elapsedSinceSample < const Duration(milliseconds: 250) &&
+              !isComplete) {
+            return;
+          }
+
+          final elapsedSeconds =
+              elapsedSinceSample.inMicroseconds /
+              Duration.microsecondsPerSecond;
+          if (elapsedSeconds > 0) {
+            final currentSpeed = (received - lastReceived) / elapsedSeconds;
             smoothedSpeed = smoothedSpeed == 0
                 ? currentSpeed
                 : smoothedSpeed * .72 + currentSpeed * .28;
-            lastReceived = received;
-            lastSample = now;
           }
+          lastReceived = received;
+          lastSampleElapsed = progressClock.elapsed;
           onProgress(
             total > 0 ? received / total * .9 : 0,
             received,

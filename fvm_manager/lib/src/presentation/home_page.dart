@@ -18,6 +18,7 @@ import '../data/distribution_service.dart';
 import '../data/local_project_service.dart';
 import '../data/pub_environment_service.dart';
 import 'confirm_dialog.dart';
+import 'console_search.dart';
 import 'providers.dart';
 import 'theme/app_theme.dart';
 

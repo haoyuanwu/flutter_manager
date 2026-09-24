@@ -6,29 +6,37 @@ import 'process_runner.dart';
 
 /// 按控制台标签（会话/任务 ID）隔离日志，避免不同命令互相干扰。
 class ProjectCommandLogBuffer {
-  ProjectCommandLogBuffer({this.maxLength = 120000});
+  final Map<String, StringBuffer> _logs = {};
+  final Map<String, String> _tails = {};
 
-  final int maxLength;
-  final Map<String, String> _logs = {};
+  String logFor(String tabId) => _logs[tabId]?.toString() ?? '';
 
-  String logFor(String tabId) => _logs[tabId] ?? '';
-
-  String append(String tabId, String output) {
-    var log = logFor(tabId) + output;
-    if (log.length > maxLength) log = log.substring(log.length - maxLength);
-    _logs[tabId] = log;
-    return log;
+  void append(String tabId, String output) {
+    _logs.putIfAbsent(tabId, StringBuffer.new).write(output);
+    if (output.length >= 2000) {
+      _tails[tabId] = output.substring(output.length - 2000);
+      return;
+    }
+    final tail = '${_tails[tabId] ?? ''}$output';
+    _tails[tabId] = tail.length > 2000
+        ? tail.substring(tail.length - 2000)
+        : tail;
   }
 
-  void clear(String tabId) => _logs[tabId] = '';
+  String tailFor(String tabId) => _tails[tabId] ?? '';
 
-  void remove(String tabId) => _logs.remove(tabId);
+  void clear(String tabId) {
+    _logs[tabId] = StringBuffer();
+    _tails.remove(tabId);
+  }
+
+  void remove(String tabId) {
+    _logs.remove(tabId);
+    _tails.remove(tabId);
+  }
 
   /// 合并某项目下全部标签日志（MCP 兼容用）。
-  String logForProject(
-    String projectPath,
-    Iterable<String> tabIds,
-  ) {
+  String logForProject(String projectPath, Iterable<String> tabIds) {
     final buffer = StringBuffer();
     for (final id in tabIds) {
       final log = logFor(id);

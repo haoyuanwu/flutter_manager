@@ -24,14 +24,20 @@ class ProcessRunResult {
 
 class ProcessRunner {
   final Map<String, Process> _activeProcesses = {};
+  final Map<String, Future<Process>> _startingProcesses = {};
 
-  bool isRunning(String taskId) => _activeProcesses.containsKey(taskId);
+  bool isRunning(String taskId) =>
+      _activeProcesses.containsKey(taskId) ||
+      _startingProcesses.containsKey(taskId);
 
   Process? processFor(String taskId) => _activeProcesses[taskId];
 
   int? pidFor(String taskId) => _activeProcesses[taskId]?.pid;
 
-  List<String> get activeTaskIds => _activeProcesses.keys.toList();
+  List<String> get activeTaskIds => [
+    ..._activeProcesses.keys,
+    ..._startingProcesses.keys,
+  ];
 
   Future<Process> start({
     required String taskId,
@@ -60,16 +66,24 @@ class ProcessRunner {
     required Future<Process> Function() starter,
   }) async {
     if (isRunning(taskId)) throw Exception('该任务已在运行');
-    final process = await starter();
-    _activeProcesses[taskId] = process;
-    unawaited(
-      process.exitCode.whenComplete(() {
-        if (identical(_activeProcesses[taskId], process)) {
-          _activeProcesses.remove(taskId);
-        }
-      }),
-    );
-    return process;
+    final starting = starter();
+    _startingProcesses[taskId] = starting;
+    try {
+      final process = await starting;
+      _activeProcesses[taskId] = process;
+      unawaited(
+        process.exitCode.whenComplete(() {
+          if (identical(_activeProcesses[taskId], process)) {
+            _activeProcesses.remove(taskId);
+          }
+        }),
+      );
+      return process;
+    } finally {
+      if (identical(_startingProcesses[taskId], starting)) {
+        _startingProcesses.remove(taskId);
+      }
+    }
   }
 
   Future<ProcessRunResult> run({
@@ -128,8 +142,16 @@ class ProcessRunner {
     String taskId, {
     Future<bool> Function(Process process)? gracefulStop,
   }) async {
-    final process = _activeProcesses[taskId];
-    if (process == null) return;
+    var process = _activeProcesses[taskId];
+    if (process == null) {
+      final starting = _startingProcesses[taskId];
+      if (starting == null) return;
+      try {
+        process = await starting;
+      } on Object {
+        return;
+      }
+    }
     if (gracefulStop != null && await gracefulStop(process)) return;
     await _killProcessTree(process);
   }

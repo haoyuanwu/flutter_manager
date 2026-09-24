@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../confirm_dialog.dart';
+import '../console_search.dart';
 import '../console_window_service.dart';
 
 class ConsoleWindowApp extends StatelessWidget {
@@ -82,6 +83,10 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
   final _scrollController = ScrollController();
   final _searchController = TextEditingController();
   final _searchFocusNode = FocusNode();
+  final _logViewportKey = GlobalKey();
+  final _logTextKey = GlobalKey();
+  List<TextRange> _matches = const [];
+  int _currentMatch = -1;
   late String _projectTitle;
   late String _commandLog;
   late List<Map<String, String>> _tasks;
@@ -120,9 +125,13 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
             ),
           )
           .toList(growable: false);
+      final nextLog = data['commandLog'] as String? ?? _commandLog;
+      final nextMatches = findConsoleMatches(nextLog, _searchQuery);
       setState(() {
         _projectTitle = data['projectTitle'] as String? ?? _projectTitle;
-        _commandLog = data['commandLog'] as String? ?? _commandLog;
+        _commandLog = nextLog;
+        _matches = nextMatches;
+        if (_currentMatch >= nextMatches.length) _currentMatch = -1;
         _tasks = tasks;
         _showQuickCommands =
             data['showQuickCommands'] as bool? ?? _showQuickCommands;
@@ -130,7 +139,7 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
         _actionChannelName =
             data['actionChannelName'] as String? ?? _actionChannelName;
       });
-      if (_stickToBottom) _scrollToBottom();
+      if (_stickToBottom && _currentMatch < 0) _scrollToBottom();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
       unawaited(_notifyReady());
@@ -168,10 +177,7 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
     if (event is KeyDownEvent &&
         event.logicalKey == LogicalKeyboardKey.keyF &&
         (keyboard.isMetaPressed || keyboard.isControlPressed)) {
-      setState(() => _showSearch = true);
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _searchFocusNode.requestFocus();
-      });
+      _openSearch();
       return true;
     }
     return false;
@@ -189,6 +195,64 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
         _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
       }
     });
+  }
+
+  void _openSearch() {
+    if (!_showSearch) setState(() => _showSearch = true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _searchFocusNode.requestFocus();
+      _searchController.selection = TextSelection(
+        baseOffset: 0,
+        extentOffset: _searchController.text.length,
+      );
+    });
+  }
+
+  void _closeSearch() {
+    _searchFocusNode.unfocus();
+    _searchController.clear();
+    setState(() {
+      _showSearch = false;
+      _searchQuery = '';
+      _matches = const [];
+      _currentMatch = -1;
+    });
+  }
+
+  void _updateSearch(String query) {
+    setState(() {
+      _searchQuery = query;
+      _matches = findConsoleMatches(_commandLog, query);
+      _currentMatch = -1;
+    });
+  }
+
+  void _nextMatch() {
+    if (_matches.isEmpty) return;
+    setState(() => _currentMatch = (_currentMatch + 1) % _matches.length);
+    _revealCurrentMatch();
+  }
+
+  void _previousMatch() {
+    if (_matches.isEmpty) return;
+    setState(() {
+      _currentMatch = _currentMatch < 0
+          ? _matches.length - 1
+          : (_currentMatch - 1 + _matches.length) % _matches.length;
+    });
+    _revealCurrentMatch();
+  }
+
+  void _revealCurrentMatch() {
+    if (_currentMatch < 0 || _currentMatch >= _matches.length) return;
+    _stickToBottom = false;
+    revealConsoleMatch(
+      textKey: _logTextKey,
+      viewportKey: _logViewportKey,
+      scrollController: _scrollController,
+      match: _matches[_currentMatch],
+    );
   }
 
   bool _taskActive(String kind) =>
@@ -381,7 +445,7 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
               const Spacer(),
               IconButton(
                 tooltip: '搜索输出',
-                onPressed: () => setState(() => _showSearch = !_showSearch),
+                onPressed: _openSearch,
                 icon: const Icon(Icons.search, color: Color(0xff9fb0c2)),
               ),
               IconButton(
@@ -392,33 +456,70 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
             ],
           ),
           if (_showSearch)
-            TextField(
-              key: const ValueKey('command-console-search-field'),
-              controller: _searchController,
-              focusNode: _searchFocusNode,
-              style: const TextStyle(color: Color(0xfff0f6fc)),
-              decoration: const InputDecoration(
-                hintText: '搜索输出内容…',
-                hintStyle: TextStyle(color: Color(0xff7f8fa3)),
-                border: OutlineInputBorder(),
-              ),
-              onChanged: (value) => setState(() => _searchQuery = value),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    key: const ValueKey('command-console-search-field'),
+                    controller: _searchController,
+                    focusNode: _searchFocusNode,
+                    style: const TextStyle(color: Color(0xfff0f6fc)),
+                    decoration: const InputDecoration(
+                      hintText: '搜索输出内容…',
+                      hintStyle: TextStyle(color: Color(0xff7f8fa3)),
+                      border: OutlineInputBorder(),
+                    ),
+                    onChanged: _updateSearch,
+                    onEditingComplete: () {},
+                    onSubmitted: (_) => _nextMatch(),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  '共 ${_matches.length} 处 · '
+                  '${_currentMatch + 1}/${_matches.length}',
+                  style: const TextStyle(color: Color(0xff9fb0c2)),
+                ),
+                IconButton(
+                  tooltip: '上一个结果',
+                  onPressed: _matches.isEmpty ? null : _previousMatch,
+                  icon: const Icon(Icons.keyboard_arrow_up),
+                  color: const Color(0xffd7e0ea),
+                ),
+                IconButton(
+                  tooltip: '下一个结果',
+                  onPressed: _matches.isEmpty ? null : _nextMatch,
+                  icon: const Icon(Icons.keyboard_arrow_down),
+                  color: const Color(0xffd7e0ea),
+                ),
+                IconButton(
+                  tooltip: '关闭搜索',
+                  onPressed: _closeSearch,
+                  icon: const Icon(Icons.close),
+                  color: const Color(0xffd7e0ea),
+                ),
+              ],
             ),
           const Divider(color: Colors.white24),
           Expanded(
-            child: Scrollbar(
-              controller: _scrollController,
-              thumbVisibility: true,
-              child: SingleChildScrollView(
+            child: Container(
+              key: _logViewportKey,
+              child: Scrollbar(
                 controller: _scrollController,
-                child: Align(
-                  alignment: Alignment.topLeft,
-                  child: SelectableText.rich(
-                    TextSpan(children: _spans()),
-                    style: const TextStyle(
-                      color: Color(0xffc9d1d9),
-                      fontFamily: 'monospace',
-                      fontSize: 12,
+                thumbVisibility: true,
+                child: SingleChildScrollView(
+                  key: const ValueKey('console-window-output-scroll'),
+                  controller: _scrollController,
+                  child: Align(
+                    alignment: Alignment.topLeft,
+                    child: SelectableText.rich(
+                      TextSpan(children: _spans()),
+                      key: _logTextKey,
+                      style: const TextStyle(
+                        color: Color(0xffc9d1d9),
+                        fontFamily: 'monospace',
+                        fontSize: 12,
+                      ),
                     ),
                   ),
                 ),
@@ -460,28 +561,29 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
 
   List<TextSpan> _spans() {
     final text = _commandLog.isEmpty ? '等待执行命令…' : _commandLog;
-    if (_searchQuery.isEmpty) return [TextSpan(text: text)];
+    if (_matches.isEmpty) return [TextSpan(text: text)];
     final spans = <TextSpan>[];
-    final lower = text.toLowerCase();
-    final query = _searchQuery.toLowerCase();
     var offset = 0;
-    while (offset < text.length) {
-      final index = lower.indexOf(query, offset);
-      if (index < 0) break;
-      if (index > offset) {
-        spans.add(TextSpan(text: text.substring(offset, index)));
+    for (var index = 0; index < _matches.length; index++) {
+      final match = _matches[index];
+      if (match.start > offset) {
+        spans.add(TextSpan(text: text.substring(offset, match.start)));
       }
       spans.add(
         TextSpan(
-          text: text.substring(index, index + query.length),
-          style: const TextStyle(
-            color: Color(0xff101820),
-            backgroundColor: Color(0xffffc857),
-            fontWeight: FontWeight.w700,
+          text: text.substring(match.start, match.end),
+          style: TextStyle(
+            color: const Color(0xff101820),
+            backgroundColor: index == _currentMatch
+                ? const Color(0xffffc857)
+                : const Color(0xfffff3a3),
+            fontWeight: index == _currentMatch
+                ? FontWeight.w700
+                : FontWeight.w500,
           ),
         ),
       );
-      offset = index + query.length;
+      offset = match.end;
     }
     if (offset < text.length) spans.add(TextSpan(text: text.substring(offset)));
     return spans;

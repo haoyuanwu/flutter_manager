@@ -22,7 +22,8 @@ void main() {
 
     if (Platform.isWindows) {
       // FVM_CACHE_PATH 指向自定义缓存时，default/bin 中的 dart 必须可被 fvm.bat 找到。
-      final fvmCache = Platform.environment['FVM_CACHE_PATH'] ??
+      final fvmCache =
+          Platform.environment['FVM_CACHE_PATH'] ??
           Platform.environment['FVM_HOME'];
       if (fvmCache != null && fvmCache.trim().isNotEmpty) {
         final cache = fvmCache.trim().replaceAll(RegExp(r'[\\/]$'), '');
@@ -240,7 +241,7 @@ void main() {
   });
 
   test('isolates command logs by console tab id', () {
-    final logs = ProjectCommandLogBuffer(maxLength: 20);
+    final logs = ProjectCommandLogBuffer();
     logs.append('run::/project/a', 'A log');
     logs.append('build::/project/a', 'B log');
 
@@ -252,9 +253,29 @@ void main() {
     expect(logs.logFor('build::/project/a'), 'B log');
 
     expect(
-      logs.logForProject('/project/a', ['run::/project/a', 'build::/project/a']),
+      logs.logForProject('/project/a', [
+        'run::/project/a',
+        'build::/project/a',
+      ]),
       contains('B log'),
     );
+  });
+
+  test('keeps the full console output beyond the previous limit', () {
+    final logs = ProjectCommandLogBuffer();
+    final first = 'A' * 120000;
+    logs.append('run::/project/a', first);
+    logs.append('run::/project/a', 'END');
+
+    expect(logs.logFor('run::/project/a').length, 120003);
+    expect(logs.logFor('run::/project/a'), startsWith(first));
+    expect(logs.logFor('run::/project/a'), endsWith('END'));
+    expect(logs.tailFor('run::/project/a').length, 2000);
+    expect(logs.tailFor('run::/project/a'), endsWith('END'));
+
+    logs.clear('run::/project/a');
+    expect(logs.logFor('run::/project/a'), isEmpty);
+    expect(logs.tailFor('run::/project/a'), isEmpty);
   });
 
   test('persists console display settings', () async {

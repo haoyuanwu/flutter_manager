@@ -260,6 +260,8 @@ class FvmController extends Notifier<FvmState> {
   final Map<String, ({String projectPath, String label})> _activeCommandTasks =
       {};
   final Set<String> _stoppingCommandTasks = {};
+  final Set<String> _closedConsoleTabIds = {};
+  final Set<String> _closingConsoleTabIds = {};
   final Map<String, String> _consoleModes = {};
   final Map<String, int> _mcpRuntimeCursors = {};
   final McpControlServer _mcpControlServer = McpControlServer();
@@ -310,7 +312,8 @@ class FvmController extends Notifier<FvmState> {
             if (taskId != null) await stopProjectCommand(taskId);
             return;
           case 'clearCommandLog':
-            final tabId = arguments['tabId'] as String? ??
+            final tabId =
+                arguments['tabId'] as String? ??
                 arguments['projectPath'] as String?;
             if (tabId != null) {
               _clearCommandLogFor(
@@ -738,7 +741,10 @@ class FvmController extends Notifier<FvmState> {
             .lastOrNull
             ?.id,
         commandLog: _commandLogs.logFor(
-          state.consoleTabs.where((tab) => tab.projectPath == path).lastOrNull?.id ??
+          state.consoleTabs
+                  .where((tab) => tab.projectPath == path)
+                  .lastOrNull
+                  ?.id ??
               '',
         ),
         commandRunning: _hasActiveTasks(path),
@@ -1095,6 +1101,7 @@ class FvmController extends Notifier<FvmState> {
     final path = state.selectedManagedProjectPath;
     if (path == null) return;
     final taskId = _taskId('run', path);
+    if (_consoleTabById(taskId) != null) selectConsoleTab(taskId);
     _clearCommandLogFor(taskId);
     if (_activeCommandTasks.containsKey(taskId)) {
       _appendCommandLog(taskId, '\n[正在结束当前进程并重新运行]\n');
@@ -1118,7 +1125,10 @@ class FvmController extends Notifier<FvmState> {
     final taskId = _taskId('run', path);
     if (!_activeCommandTasks.containsKey(taskId)) return;
     try {
-      if (!reload) _clearCommandLogFor(taskId);
+      if (!reload) {
+        if (_consoleTabById(taskId) != null) selectConsoleTab(taskId);
+        _clearCommandLogFor(taskId);
+      }
       final service = ref.read(flutterCommandServiceProvider);
       reload
           ? await service.hotReload(taskId)
@@ -1428,10 +1438,7 @@ class FvmController extends Notifier<FvmState> {
         );
       }
     } catch (error) {
-      _appendCommandLog(
-        session.taskId,
-        '\n[保存构建历史失败：${_message(error)}]\n',
-      );
+      _appendCommandLog(session.taskId, '\n[保存构建历史失败：${_message(error)}]\n');
     }
   }
 
@@ -1468,14 +1475,15 @@ class FvmController extends Notifier<FvmState> {
   }
 
   void _appendCommandLog(String tabId, String output) {
-    final log = _commandLogs.append(tabId, output);
+    if (_closedConsoleTabIds.contains(tabId)) return;
+    _commandLogs.append(tabId, output);
     final tab = _consoleTabById(tabId);
     if (tab != null) _bumpMcpRuntimeCursor(tab.projectPath);
     // 主窗口只显示选中标签的内容，其它标签只写缓冲/独立窗口。
     if (state.selectedConsoleTabId == tabId) {
-      state = state.copyWith(commandLog: log);
+      state = state.copyWith(commandLog: _commandLogs.logFor(tabId));
     }
-    final tail = log.length > 2000 ? log.substring(log.length - 2000) : log;
+    final tail = _commandLogs.tailFor(tabId);
     if (tab != null) _parseVmServiceUri(tab.projectPath, tail);
     _syncConsoleWindow(tabId);
   }
@@ -1502,25 +1510,73 @@ class FvmController extends Notifier<FvmState> {
   void selectConsoleTab(String tabId) {
     final tab = _consoleTabById(tabId);
     if (tab == null) return;
+    final project = state.managedProjects
+        .where((item) => item.path == tab.projectPath)
+        .firstOrNull;
+    final projectChanged =
+        project != null && state.selectedManagedProjectPath != tab.projectPath;
     state = state.copyWith(
+      selectedManagedProjectPath: projectChanged
+          ? tab.projectPath
+          : state.selectedManagedProjectPath,
+      selectedAndroidFlavors: projectChanged
+          ? project.selectedFlavors
+          : state.selectedAndroidFlavors,
+      projectBuildTarget: projectChanged
+          ? project.lastBuildTarget
+          : state.projectBuildTarget,
+      projectBuildMode: projectChanged
+          ? project.lastBuildMode
+          : state.projectBuildMode,
+      cleanBeforeBuild: projectChanged
+          ? project.cleanBeforeBuild
+          : state.cleanBeforeBuild,
+      androidTargetPlatform: projectChanged
+          ? project.androidTargetPlatform
+          : state.androidTargetPlatform,
+      commandRunning: projectChanged
+          ? _hasActiveTasks(tab.projectPath)
+          : state.commandRunning,
+      activeCommand: projectChanged
+          ? _activeLabels(tab.projectPath)
+          : state.activeCommand,
       selectedConsoleTabId: tabId,
       commandLog: _commandLogs.logFor(tabId),
     );
+    if (projectChanged) _publishStatusMenu();
   }
 
-  void closeConsoleTab(String tabId) {
+  Future<void> closeConsoleTab(String tabId) async {
+    final tab = _consoleTabById(tabId);
+    if (tab == null || !_closingConsoleTabIds.add(tabId)) return;
+    try {
+      if (tab.running) {
+        await stopProjectCommand(tabId);
+      }
+    } catch (error) {
+      state = state.copyWith(errorMessage: _message(error));
+      return;
+    } finally {
+      _closingConsoleTabIds.remove(tabId);
+    }
+    if (_consoleTabById(tabId) == null) return;
+    _closedConsoleTabIds.add(tabId);
+    final removedIndex = state.consoleTabs.indexWhere(
+      (item) => item.id == tabId,
+    );
     final tabs = state.consoleTabs.where((item) => item.id != tabId).toList();
     _commandLogs.remove(tabId);
     unawaited(ConsoleWindowService.instance.close(tabId));
     final selected = state.selectedConsoleTabId;
-    final nextSelected = selected == tabId
-        ? (tabs.lastOrNull?.id)
-        : selected;
+    final nextSelected = selected == tabId && tabs.isNotEmpty
+        ? tabs[removedIndex.clamp(0, tabs.length - 1)].id
+        : null;
     state = state.copyWith(
       consoleTabs: tabs,
-      selectedConsoleTabId: nextSelected,
-      commandLog: nextSelected == null ? '' : _commandLogs.logFor(nextSelected),
+      selectedConsoleTabId: selected == tabId ? null : selected,
+      commandLog: selected == tabId ? '' : state.commandLog,
     );
+    if (nextSelected != null) selectConsoleTab(nextSelected);
   }
 
   Future<void> openConsoleTabWindow(String tabId) async {
@@ -1537,6 +1593,7 @@ class FvmController extends Notifier<FvmState> {
         consoleMode: _consoleMode(tab.projectPath),
         buildTarget: _projectBuildTarget(tab.projectPath),
       );
+      _syncConsoleWindow(tabId);
     } catch (error) {
       state = state.copyWith(errorMessage: _message(error));
     }
@@ -1548,6 +1605,7 @@ class FvmController extends Notifier<FvmState> {
     required String title,
     required String kind,
   }) {
+    _closedConsoleTabIds.remove(tabId);
     final existing = state.consoleTabs;
     final index = existing.indexWhere((item) => item.id == tabId);
     final tab = ConsoleTabInfo(
@@ -1625,6 +1683,7 @@ class FvmController extends Notifier<FvmState> {
   }
 
   void _syncConsoleWindow(String tabId) {
+    if (!ConsoleWindowService.instance.isTracking(tabId)) return;
     final tab = _consoleTabById(tabId);
     if (tab == null) return;
     unawaited(
@@ -1918,7 +1977,10 @@ class FvmController extends Notifier<FvmState> {
     if (!_activeCommandTasks.containsKey(taskId)) {
       throw Exception('当前项目没有正在运行的 Flutter Run');
     }
-    if (!reload) _clearCommandLogFor(taskId);
+    if (!reload) {
+      if (_consoleTabById(taskId) != null) selectConsoleTab(taskId);
+      _clearCommandLogFor(taskId);
+    }
     final service = ref.read(flutterCommandServiceProvider);
     reload ? await service.hotReload(taskId) : await service.hotRestart(taskId);
     final action = reload ? 'hot_reload' : 'hot_restart';
