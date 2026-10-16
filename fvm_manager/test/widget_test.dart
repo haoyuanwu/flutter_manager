@@ -7,6 +7,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_manager/src/app.dart';
 import 'package:flutter_manager/src/data/pub_environment_service.dart';
+import 'package:flutter_manager/src/data/apk_install_service.dart';
 import 'package:flutter_manager/src/data/process_runner.dart';
 import 'package:flutter_manager/src/data/flutter_command_service.dart';
 import 'package:flutter_manager/src/data/fvm_service.dart';
@@ -24,6 +25,16 @@ final _searchLog = List.generate(140, (index) {
 class _TestPubEnvironmentService extends PubEnvironmentService {
   @override
   Future<List<String>> getSystemPath() async => const ['/tmp/fvm/bin'];
+}
+
+class _TestApkInstallService extends ApkInstallService {
+  _TestApkInstallService() : super(ProcessRunner(), PubEnvironmentService());
+
+  @override
+  Future<List<AndroidDevice>> listDevices() async => const [
+    AndroidDevice(id: 'online-1', status: 'device', model: 'Pixel 8'),
+    AndroidDevice(id: 'offline-1', status: 'offline'),
+  ];
 }
 
 class _TestController extends FvmController {
@@ -307,6 +318,38 @@ class _SearchConsoleController extends FvmController {
 }
 
 void main() {
+  testWidgets('APK install page lists only online devices for selection', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          fvmControllerProvider.overrideWith(_TestController.new),
+          apkInstallServiceProvider.overrideWithValue(_TestApkInstallService()),
+        ],
+        child: const FvmManagerApp(),
+      ),
+    );
+    await tester.tap(find.text('APK 安装'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('选择 APK 文件'), findsOneWidget);
+    expect(find.textContaining('offline-1 (offline)'), findsOneWidget);
+    expect(find.text('安装到所选设备'), findsOneWidget);
+    final installButton = tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, '安装到所选设备'),
+    );
+    expect(installButton.onPressed, isNull);
+    await tester.tap(find.byType(DropdownButtonFormField<String>));
+    await tester.pumpAndSettle();
+    expect(find.text('Pixel 8 (online-1)'), findsWidgets);
+    expect(find.text('offline-1'), findsNothing);
+  });
+
   testWidgets('main console Enter visits search results in order', (
     tester,
   ) async {

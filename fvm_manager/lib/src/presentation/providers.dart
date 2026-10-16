@@ -30,6 +30,7 @@ import 'console_window_service.dart';
 import 'mcp_control_server.dart';
 import 'status_menu_service.dart';
 import '../data/apk_signing_service.dart';
+import '../data/apk_install_service.dart';
 import '../data/build_directory_watcher.dart';
 import '../data/signing_info_service.dart';
 
@@ -76,6 +77,13 @@ final buildDirectoryWatcherProvider = Provider<BuildDirectoryWatcher>((ref) {
 
 final apkSigningServiceProvider = Provider<ApkSigningService>(
   (ref) => ApkSigningService(ref.watch(processRunnerProvider)),
+);
+
+final apkInstallServiceProvider = Provider<ApkInstallService>(
+  (ref) => ApkInstallService(
+    ref.watch(processRunnerProvider),
+    ref.watch(pubEnvironmentServiceProvider),
+  ),
 );
 
 final signingInfoServiceProvider = Provider<SigningInfoService>(

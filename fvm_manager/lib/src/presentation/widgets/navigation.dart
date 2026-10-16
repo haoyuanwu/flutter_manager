@@ -193,6 +193,12 @@ class _SidebarState extends State<_Sidebar> {
                       onTap: () => widget.onSelected(5),
                     ),
                     _NavItem(
+                      icon: Icons.install_mobile_outlined,
+                      label: 'APK 安装',
+                      selected: widget.selected == 11,
+                      onTap: () => widget.onSelected(11),
+                    ),
+                    _NavItem(
                       icon: Icons.verified_outlined,
                       label: '应用签名',
                       shortcut: '⌘7',

@@ -90,19 +90,24 @@ WindowClassRegistrar* WindowClassRegistrar::instance_ = nullptr;
 
 const wchar_t* WindowClassRegistrar::GetWindowClass() {
   if (!class_registered_) {
-    WNDCLASS window_class{};
+    WNDCLASSEXW window_class{};
+    window_class.cbSize = sizeof(WNDCLASSEXW);
     window_class.hCursor = LoadCursor(nullptr, IDC_ARROW);
     window_class.lpszClassName = kWindowClassName;
     window_class.style = CS_HREDRAW | CS_VREDRAW;
     window_class.cbClsExtra = 0;
     window_class.cbWndExtra = 0;
-    window_class.hInstance = GetModuleHandle(nullptr);
-    window_class.hIcon =
-        LoadIcon(window_class.hInstance, MAKEINTRESOURCE(IDI_APP_ICON));
+    window_class.hInstance = GetModuleHandleW(nullptr);
+    window_class.hIcon = static_cast<HICON>(LoadImageW(
+        window_class.hInstance, MAKEINTRESOURCEW(IDI_APP_ICON), IMAGE_ICON,
+        GetSystemMetrics(SM_CXICON), GetSystemMetrics(SM_CYICON), LR_SHARED));
+    window_class.hIconSm = static_cast<HICON>(LoadImageW(
+        window_class.hInstance, MAKEINTRESOURCEW(IDI_APP_ICON), IMAGE_ICON,
+        GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON), LR_SHARED));
     window_class.hbrBackground = 0;
     window_class.lpszMenuName = nullptr;
     window_class.lpfnWndProc = Win32Window::WndProc;
-    RegisterClass(&window_class);
+    RegisterClassExW(&window_class);
     class_registered_ = true;
   }
   return kWindowClassName;
