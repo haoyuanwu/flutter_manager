@@ -1,0 +1,31 @@
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# Flutter / Dart
+.dart_tool/
+.packages
+build/
+**/doc/api/
+.flutter-plugins
+.flutter-plugins-dependencies
+**/GeneratedPluginRegistrant.*
+**/ephemeral/
+**/.plugin_symlinks/
+
+# 本地安装包与产物
+*.exe
+*.dmg
+*.apk
+*.aab
+*.ipa
+*.zip
+!docs/**/*.png
+
+# 系统
+.DS_Store
+Thumbs.db
+
+# 敏感配置
+**/.fvm_manager/settings.json

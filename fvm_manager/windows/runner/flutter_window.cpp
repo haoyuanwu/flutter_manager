@@ -8,7 +8,13 @@
 #include "flutter/generated_plugin_registrant.h"
 #include "desktop_multi_window/desktop_multi_window_plugin.h"
 #include "flutter/standard_method_codec.h"
+#include "resource.h"
 #include "utils.h"
+
+namespace {
+constexpr UINT kTrayIconId = 1;
+constexpr UINT kTrayCallbackMessage = WM_APP + 1;
+}  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
     : project_(project) {}
@@ -44,6 +50,7 @@ bool FlutterWindow::OnCreate() {
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
   if (GetHandle() != nullptr) {
     DragAcceptFiles(GetHandle(), TRUE);
+    SetupTrayIcon();
   }
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -59,6 +66,7 @@ bool FlutterWindow::OnCreate() {
 }
 
 void FlutterWindow::OnDestroy() {
+  RemoveTrayIcon();
   if (GetHandle() != nullptr) {
     DragAcceptFiles(GetHandle(), FALSE);
   }
@@ -71,10 +79,129 @@ void FlutterWindow::OnDestroy() {
   Win32Window::OnDestroy();
 }
 
+void FlutterWindow::SetupTrayIcon() {
+  HWND hwnd = GetHandle();
+  if (hwnd == nullptr || tray_icon_added_) {
+    return;
+  }
+
+  NOTIFYICONDATAW nid = {};
+  nid.cbSize = sizeof(nid);
+  nid.hWnd = hwnd;
+  nid.uID = kTrayIconId;
+  nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
+  nid.uCallbackMessage = kTrayCallbackMessage;
+  nid.hIcon = static_cast<HICON>(LoadImageW(
+      GetModuleHandleW(nullptr), MAKEINTRESOURCEW(IDI_APP_ICON), IMAGE_ICON,
+      GetSystemMetrics(SM_CXSMICON), GetSystemMetrics(SM_CYSMICON),
+      LR_SHARED));
+  if (nid.hIcon == nullptr) {
+    nid.hIcon = LoadIcon(nullptr, IDI_APPLICATION);
+  }
+  lstrcpynW(nid.szTip, L"Flutter Manager", ARRAYSIZE(nid.szTip));
+
+  tray_icon_added_ = Shell_NotifyIconW(NIM_ADD, &nid) != FALSE;
+  if (tray_icon_added_) {
+    nid.uVersion = NOTIFYICON_VERSION_4;
+    Shell_NotifyIconW(NIM_SETVERSION, &nid);
+  }
+}
+
+void FlutterWindow::RemoveTrayIcon() {
+  if (!tray_icon_added_) {
+    return;
+  }
+  NOTIFYICONDATAW nid = {};
+  nid.cbSize = sizeof(nid);
+  nid.hWnd = GetHandle();
+  nid.uID = kTrayIconId;
+  Shell_NotifyIconW(NIM_DELETE, &nid);
+  tray_icon_added_ = false;
+}
+
+void FlutterWindow::HideToTray() {
+  HWND hwnd = GetHandle();
+  if (hwnd == nullptr) {
+    return;
+  }
+  SetupTrayIcon();
+  ShowWindow(hwnd, SW_HIDE);
+}
+
+void FlutterWindow::ShowFromTray() {
+  HWND hwnd = GetHandle();
+  if (hwnd == nullptr) {
+    return;
+  }
+  ShowWindow(hwnd, SW_SHOWNORMAL);
+  if (IsIconic(hwnd)) {
+    ShowWindow(hwnd, SW_RESTORE);
+  }
+  SetForegroundWindow(hwnd);
+}
+
+void FlutterWindow::ShowTrayContextMenu() {
+  HWND hwnd = GetHandle();
+  if (hwnd == nullptr) {
+    return;
+  }
+
+  POINT cursor;
+  GetCursorPos(&cursor);
+
+  HMENU menu = CreatePopupMenu();
+  if (menu == nullptr) {
+    return;
+  }
+  AppendMenuW(menu, MF_STRING, IDM_TRAY_SHOW, L"打开主窗口");
+  AppendMenuW(menu, MF_SEPARATOR, 0, nullptr);
+  AppendMenuW(menu, MF_STRING, IDM_TRAY_EXIT, L"退出");
+
+  // 必须先 SetForegroundWindow，否则菜单点完不会自动消失。
+  SetForegroundWindow(hwnd);
+  const UINT command = TrackPopupMenu(
+      menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, cursor.x, cursor.y, 0, hwnd,
+      nullptr);
+  DestroyMenu(menu);
+  if (command == 0) {
+    return;
+  }
+
+  switch (command) {
+    case IDM_TRAY_SHOW:
+      ShowFromTray();
+      break;
+    case IDM_TRAY_EXIT:
+      allow_quit_ = true;
+      RemoveTrayIcon();
+      DestroyWindow(hwnd);
+      break;
+    default:
+      break;
+  }
+}
+
+void FlutterWindow::HandleTrayCallback(LPARAM lparam) {
+  const UINT event = static_cast<UINT>(lparam);
+  switch (event) {
+    case WM_LBUTTONUP:
+    case WM_LBUTTONDBLCLK:
+    case NIN_SELECT:
+    case NIN_KEYSELECT:
+      ShowFromTray();
+      break;
+    case WM_RBUTTONUP:
+    case WM_CONTEXTMENU:
+      ShowTrayContextMenu();
+      break;
+    default:
+      break;
+  }
+}
+
 LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
-                              WPARAM const wparam,
-                              LPARAM const lparam) noexcept {
+                              WPARAM const wparam, LPARAM const lparam) noexcept {
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =
@@ -86,6 +213,18 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   switch (message) {
+    case WM_CLOSE:
+      // 关闭主窗口 = 最小化到托盘；真正退出走托盘菜单。
+      if (!allow_quit_) {
+        HideToTray();
+        return 0;
+      }
+      break;
+
+    case kTrayCallbackMessage:
+      HandleTrayCallback(lparam);
+      return 0;
+
     case WM_DROPFILES:
       HandleDropFiles(reinterpret_cast<void*>(wparam));
       return 0;

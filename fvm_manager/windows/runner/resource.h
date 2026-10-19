@@ -4,6 +4,10 @@
 //
 #define IDI_APP_ICON                    101
 
+// 托盘菜单命令
+#define IDM_TRAY_SHOW                   40001
+#define IDM_TRAY_EXIT                   40002
+
 // Next default values for new objects
 //
 #ifdef APSTUDIO_INVOKED
