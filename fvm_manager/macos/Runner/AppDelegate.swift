@@ -78,10 +78,9 @@ class AppDelegate: FlutterAppDelegate {
         fallback?.size = NSSize(width: 17, height: 17)
         button.image = fallback
       }
-      button.imagePosition = .imageLeading
+      button.imagePosition = .imageOnly
       button.imageScaling = .scaleProportionallyDown
-      button.title = " FVM"
-      button.font = .systemFont(ofSize: 12, weight: .medium)
+      button.title = ""
       button.toolTip = "Flutter Manager"
     }
 

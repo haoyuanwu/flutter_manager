@@ -26,6 +26,20 @@ class _SidebarState extends State<_Sidebar> {
   bool _systemExpanded = true;
 
   @override
+  void didUpdateWidget(covariant _Sidebar oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.selected == widget.selected) return;
+    final selected = widget.selected;
+    if (selected <= 3) {
+      _coreExpanded = true;
+    } else if (selected <= 7 || selected == 11) {
+      _toolsExpanded = true;
+    } else {
+      _systemExpanded = true;
+    }
+  }
+
+  @override
   void initState() {
     super.initState();
     HardwareKeyboard.instance.addHandler(_handleKeyEvent);
@@ -71,10 +85,6 @@ class _SidebarState extends State<_Sidebar> {
       widget.onSelected(6);
       return true;
     }
-    if (key == LogicalKeyboardKey.digit8 || key == LogicalKeyboardKey.numpad8) {
-      widget.onSelected(7);
-      return true;
-    }
     if (key == LogicalKeyboardKey.digit9 || key == LogicalKeyboardKey.numpad9) {
       widget.onSelected(8);
       return true;
@@ -84,7 +94,7 @@ class _SidebarState extends State<_Sidebar> {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    width: 220,
+    width: 244,
     child: Material(
       color: AppColors.sidebarBackground,
       child: Padding(
@@ -205,13 +215,6 @@ class _SidebarState extends State<_Sidebar> {
                       selected: widget.selected == 6,
                       onTap: () => widget.onSelected(6),
                     ),
-                    _NavItem(
-                      icon: Icons.article_outlined,
-                      label: '日志',
-                      shortcut: '⌘8',
-                      selected: widget.selected == 7,
-                      onTap: () => widget.onSelected(7),
-                    ),
                   ],
                   const SizedBox(height: AppSpacing.sm),
                   _NavGroupHeader(
@@ -316,41 +319,117 @@ class _NavItem extends StatelessWidget {
   final VoidCallback? onIgnoreUpdate;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 2),
-    child: ListTile(
-      shape: RoundedRectangleBorder(borderRadius: AppRadius.mdAll),
-      selected: selected,
-      selectedTileColor: AppColors.sidebarSelected,
-      leading: Icon(
-        icon,
-        color: selected ? AppColors.sidebarIconSelected : AppColors.sidebarIcon,
-        size: 20,
-      ),
-      title: Row(
-        children: [
-          Expanded(
-            child: Text(
-              label,
-              style: AppTextStyles.sidebarItem.copyWith(
+  Widget build(BuildContext context) {
+    final displayShortcut = shortcut?.replaceFirst(
+      '⌘',
+      Platform.isMacOS ? '⌘' : 'Ctrl+',
+    );
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Semantics(
+        selected: selected,
+        button: true,
+        child: Tooltip(
+          message: displayShortcut == null
+              ? label
+              : '$label · $displayShortcut',
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 160),
+            decoration: BoxDecoration(
+              color: selected ? AppColors.sidebarSelected : Colors.transparent,
+              borderRadius: AppRadius.mdAll,
+              border: Border.all(
                 color: selected
-                    ? AppColors.sidebarTextSelected
-                    : AppColors.sidebarText,
+                    ? AppColors.sidebarIndicator.withValues(alpha: .22)
+                    : Colors.transparent,
+              ),
+            ),
+            child: InkWell(
+              borderRadius: AppRadius.mdAll,
+              hoverColor: Colors.white.withValues(alpha: .05),
+              onTap: onTap,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 8,
+                  vertical: 11,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 3,
+                      height: 18,
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? AppColors.sidebarIndicator
+                            : Colors.transparent,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      icon,
+                      size: 19,
+                      color: selected
+                          ? AppColors.sidebarIconSelected
+                          : AppColors.sidebarIcon,
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AppTextStyles.sidebarItem.copyWith(
+                          color: selected
+                              ? AppColors.sidebarTextSelected
+                              : AppColors.sidebarText,
+                          fontWeight: selected
+                              ? FontWeight.w600
+                              : FontWeight.w400,
+                        ),
+                      ),
+                    ),
+                    if (showDot) ...[
+                      _UpdateDot(
+                        key: const ValueKey('flutter-update-dot-nav'),
+                        onTap: onIgnoreUpdate,
+                      ),
+                      const SizedBox(width: 6),
+                    ],
+                    if (displayShortcut != null) ...[
+                      const SizedBox(width: 6),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 5,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(
+                            alpha: selected ? .09 : .04,
+                          ),
+                          borderRadius: BorderRadius.circular(5),
+                          border: Border.all(
+                            color: Colors.white.withValues(alpha: .09),
+                          ),
+                        ),
+                        child: Text(
+                          displayShortcut,
+                          style: AppTextStyles.sidebarShortcut.copyWith(
+                            fontSize: 10,
+                            color: selected
+                                ? AppColors.sidebarIndicator
+                                : Colors.white54,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
           ),
-          if (showDot)
-            _UpdateDot(
-              key: const ValueKey('flutter-update-dot-nav'),
-              onTap: onIgnoreUpdate,
-            ),
-          if (shortcut != null)
-            Text(shortcut!, style: AppTextStyles.sidebarShortcut),
-        ],
+        ),
       ),
-      dense: true,
-      visualDensity: VisualDensity.compact,
-      onTap: onTap,
-    ),
-  );
+    );
+  }
 }
