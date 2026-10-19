@@ -1,4 +1,4 @@
-# Flutter Manager
+﻿# Flutter Manager
 
 > 把 Flutter 开发里那些「不难、但特别容易打断思路」的小事，收进一个桌面工具。
 
@@ -16,6 +16,18 @@
 <p align="center">
   <img src="docs/images/01-cover.png" alt="Flutter Manager" width="720" />
 </p>
+
+
+---
+
+## 下载
+
+| 平台 | 安装包 | 大小 |
+|------|--------|------|
+| **Windows** | [flutter_manager-1.2.5-setup.exe](https://github.com/haoyuanwu/flutter_manager/releases/download/v1.2.5/flutter_manager-1.2.5-setup.exe) | 约 12.5 MB |
+| **macOS** | [FlutterManager-v1.2.5.dmg](https://github.com/haoyuanwu/flutter_manager/releases/download/v1.2.5/FlutterManager-v1.2.5.dmg) | 约 25.8 MB |
+
+或前往 [Releases 页面](https://github.com/haoyuanwu/flutter_manager/releases) 查看全部版本。
 
 ---
 
@@ -170,8 +182,7 @@ flutter run -d windows   # 或 macos
 
 - 构建、下载速度仍取决于本机环境与网络 / 镜像服务  
 - 可上传的分发格式、安装分发规则以蒲公英 / fir.im 等平台为准  
-- 当前版本尚未内置安装包下载地址与开源许可证信息；如需对外发布，请补充你确认的仓库 / 下载页  
-
+- 
 ---
 
 ## 后续想继续打磨
