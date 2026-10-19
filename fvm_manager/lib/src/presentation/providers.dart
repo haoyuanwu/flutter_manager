@@ -58,7 +58,17 @@ final processRunnerProvider = Provider<ProcessRunner>((ref) {
 });
 
 final fvmServiceProvider = Provider<FvmService>(
-  (ref) => FvmService(ref.watch(pubEnvironmentServiceProvider)),
+  (ref) => FvmService(
+    ref.watch(pubEnvironmentServiceProvider),
+    onProgress: (message) {
+      // 延迟读取，避免 Provider 构造阶段循环依赖。
+      Future.microtask(() {
+        ref
+            .read(fvmControllerProvider.notifier)
+            .showStatus(message);
+      });
+    },
+  ),
 );
 
 final localProjectServiceProvider = Provider<LocalProjectService>(
@@ -501,7 +511,7 @@ class FvmController extends Notifier<FvmState> {
 
   Future<void> selectLocalFvmDirectory() async {
     try {
-      final directory = await getDirectoryPath(confirmButtonText: '使用此目录');
+      final directory = await _pickLocalFvmPath();
       if (directory == null) return;
       state = state.copyWith(
         loading: true,
@@ -531,10 +541,33 @@ class FvmController extends Notifier<FvmState> {
       }
       _syncUpdateState();
     } catch (error) {
-      state = state.copyWith(errorMessage: _message(error));
+      state = state.copyWith(
+        errorMessage: _message(error),
+        statusMessage: null,
+      );
     } finally {
       state = state.copyWith(loading: false);
     }
+  }
+
+  /// 优先让用户直接选中 fvm 可执行文件，取消后再选目录。
+  Future<String?> _pickLocalFvmPath() async {
+    try {
+      final file = await openFile(
+        confirmButtonText: '选择 fvm 程序',
+        acceptedTypeGroups: [
+          const XTypeGroup(
+            label: 'FVM 可执行文件',
+            extensions: ['exe', 'bat', 'cmd'],
+          ),
+          const XTypeGroup(label: '全部文件'),
+        ],
+      );
+      if (file != null && file.path.isNotEmpty) return file.path;
+    } on Object {
+      // 某些平台不支持选文件时回退到目录选择。
+    }
+    return getDirectoryPath(confirmButtonText: '使用此目录');
   }
 
   Future<void> updateFvm() async {

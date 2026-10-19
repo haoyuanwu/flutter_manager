@@ -6,9 +6,12 @@ import '../domain/models.dart';
 import 'pub_environment_service.dart';
 
 class FvmService {
-  FvmService(this._environment);
+  FvmService(this._environment, {this.onProgress});
 
   final PubEnvironmentService _environment;
+
+  /// 修复/安装过程中的进度回调（可选）。
+  final void Function(String message)? onProgress;
   String? _executable;
 
   /// 当前已解析到的 FVM 可执行文件完整路径（detect/useLocalDirectory 成功后可用）。
@@ -23,7 +26,7 @@ class FvmService {
     return null;
   }
 
-  Future<String?> detect() async {
+  Future<String?> detect({bool allowRepair = true}) async {
     // 0. 用户手动指定的路径优先：重装后首次选择必须立刻生效，不能被
     //    缓存探测失败清掉。
     final custom = _environment.customFvmExecutable;
@@ -80,8 +83,35 @@ class FvmService {
         }
       }
     }
+
+    // 3. 安装包/重装后常见问题：fvm.bat 被清掉，但 Pub 里仍有 fvm 包和 dart。
+    //    自动执行 dart pub global activate fvm 重建可执行文件。
+    if (allowRepair && Platform.isWindows) {
+      final repaired = await _repairPubGlobalFvm();
+      if (repaired) return detect(allowRepair: false);
+    }
+
     _executable = null;
     return null;
+  }
+
+  /// 尝试通过 `dart pub global activate fvm` 重建丢失的 fvm 可执行文件。
+  Future<bool> _repairPubGlobalFvm() async {
+    final dart = _findExecutable('dart');
+    if (dart == null) return false;
+    try {
+      onProgress?.call('检测到 FVM 可执行文件缺失，正在通过 dart pub global 修复…');
+      final result = await Process.run(
+        dart,
+        const ['pub', 'global', 'activate', 'fvm'],
+        environment: _environment.processEnvironment,
+        includeParentEnvironment: true,
+        runInShell: Platform.isWindows,
+      ).timeout(const Duration(seconds: 120));
+      return result.exitCode == 0;
+    } on Object {
+      return false;
+    }
   }
 
   /// Windows 上 FVM 可能以 .exe / .bat / .cmd 或无扩展名安装。
@@ -183,11 +213,25 @@ class FvmService {
       }
       failure = probe.error.isNotEmpty ? probe.error : probe.output;
     }
+
+    // 选到的是 FVM 缓存 / Flutter SDK 目录，而不是 fvm 程序本身。
+    final looksLikeCache =
+        Directory('$normalized${separator}versions').existsSync() ||
+        Directory('$normalized${separator}default').existsSync() ||
+        File('$normalized${separator}flutter.version').existsSync() ||
+        File('$normalized${separator}version').existsSync();
     final names = _fvmExecutableNames.join(' / ');
     final example =
         '示例：C:\\Users\\<用户名>\\AppData\\Local\\Pub\\Cache\\bin'
         '（或其上级 Pub\\Cache，也可直接选中 fvm.bat）。'
         '不要选择 D:\\fvm 这类 Flutter SDK 缓存目录。';
+    if (!foundAny && looksLikeCache) {
+      throw Exception(
+        '所选目录是 FVM/Flutter SDK 缓存，不是 FVM 程序目录。\n'
+        '请改为选择 fvm.exe / fvm.bat 所在位置，通常是 '
+        '%LOCALAPPDATA%\\Pub\\Cache\\bin。\n$example',
+      );
+    }
     throw Exception(
       failure?.isNotEmpty == true
           ? '所选路径中的 FVM 无法运行（$lastCandidate）：$failure\n$example'
