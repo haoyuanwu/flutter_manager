@@ -34,6 +34,7 @@ part 'pages/signing_info_page.dart';
 part 'pages/log_page.dart';
 part 'pages/mcp_server_page.dart';
 part 'pages/settings_page.dart';
+part 'pages/support_page.dart';
 part 'pages/versions_page.dart';
 part 'widgets/navigation.dart';
 part 'widgets/status_widgets.dart';
@@ -203,6 +204,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                                 8 => _EnvironmentGuide(state: state),
                                 9 => _McpServerPage(state: state),
                                 10 => _SettingsPage(state: state),
+                                12 => const _SupportPage(),
                                 _ => const _ApkInstallPage(),
                               },
                             ),

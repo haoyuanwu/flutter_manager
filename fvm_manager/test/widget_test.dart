@@ -747,14 +747,41 @@ void main() {
     expect(find.text('稳定版 Stable'), findsOneWidget);
     expect(find.text('FVM 目录'), findsOneWidget);
 
-    await tester.tap(find.text('日志'));
-    await tester.pumpAndSettle();
-    expect(find.text('选择日志文件'), findsOneWidget);
-    expect(find.text('选择一个日志文件开始查看。'), findsOneWidget);
+    expect(find.text('日志'), findsNothing);
 
+    await tester.ensureVisible(find.text('环境配置'));
     await tester.tap(find.text('环境配置'));
     await tester.pump();
     expect(find.text('选择下载源'), findsOneWidget);
     expect(find.text('测试连通性'), findsOneWidget);
+
+    await tester.ensureVisible(find.text('请我喝个茶'));
+    await tester.tap(find.text('请我喝个茶'));
+    await tester.pumpAndSettle();
+    expect(find.text('微信支付'), findsOneWidget);
+    expect(find.text('支付宝'), findsOneWidget);
+    await tester.ensureVisible(find.text('点击放大扫码').first);
+    await tester.tap(find.text('点击放大扫码').first);
+    await tester.pumpAndSettle();
+    expect(find.byType(Dialog), findsOneWidget);
+    await tester.tap(find.byTooltip('关闭'));
+    await tester.pumpAndSettle();
+    String? copiedEmail;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copiedEmail = (call.arguments as Map)['text'] as String?;
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+    await tester.ensureVisible(find.text('复制邮箱'));
+    await tester.tap(find.text('复制邮箱'));
+    await tester.pumpAndSettle();
+    expect(find.text('反馈邮箱已复制'), findsOneWidget);
+    expect(copiedEmail, 'qw761754627@163.com');
   });
 }

@@ -244,6 +244,12 @@ class _SidebarState extends State<_Sidebar> {
                       selected: widget.selected == 10,
                       onTap: () => widget.onSelected(10),
                     ),
+                    _NavItem(
+                      icon: Icons.emoji_food_beverage_outlined,
+                      label: '请我喝个茶',
+                      selected: widget.selected == 12,
+                      onTap: () => widget.onSelected(12),
+                    ),
                   ],
                 ],
               ),

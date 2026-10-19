@@ -71,6 +71,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/images/app_logo.png
+    - assets/images/support/
     - mcp_server/dist/flutter-manager-mcp.mjs
     - codex_skills/flutter-manager-mcp/SKILL.md
     - codex_skills/flutter-manager-mcp/agents/openai.yaml
