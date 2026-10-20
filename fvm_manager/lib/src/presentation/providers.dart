@@ -20,6 +20,8 @@ import '../data/fir_service.dart';
 import '../data/custom_command_parser.dart';
 import '../data/build_history_repository.dart';
 import '../data/local_project_service.dart';
+import '../data/project_icon_service.dart';
+import '../data/mcp_ai_setup_service.dart';
 import '../data/project_repository.dart';
 import '../data/pub_environment_service.dart';
 import '../data/process_runner.dart';
@@ -63,9 +65,7 @@ final fvmServiceProvider = Provider<FvmService>(
     onProgress: (message) {
       // 延迟读取，避免 Provider 构造阶段循环依赖。
       Future.microtask(() {
-        ref
-            .read(fvmControllerProvider.notifier)
-            .showStatus(message);
+        ref.read(fvmControllerProvider.notifier).showStatus(message);
       });
     },
   ),
@@ -73,6 +73,14 @@ final fvmServiceProvider = Provider<FvmService>(
 
 final localProjectServiceProvider = Provider<LocalProjectService>(
   (ref) => LocalProjectService(),
+);
+
+final mcpAiSetupServiceProvider = Provider<McpAiSetupService>(
+  (ref) => McpAiSetupService(),
+);
+
+final projectIconProvider = FutureProvider.autoDispose.family<String?, String>(
+  (ref, projectPath) => ProjectIconService().findIcon(projectPath),
 );
 
 final distributionServiceProvider = Provider<DistributionService>(
@@ -798,6 +806,7 @@ class FvmController extends Notifier<FvmState> {
   Future<void> refreshManagedProject() async {
     final path = state.selectedManagedProjectPath;
     if (path == null) return;
+    ref.invalidate(projectIconProvider(path));
     state = state.copyWith(loading: true, errorMessage: null);
     try {
       final inspected = await ref

@@ -248,7 +248,7 @@ class _ProjectManagementState extends ConsumerState<_ProjectManagement> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     SizedBox(
-                      width: collapsed ? 56 : 260,
+                      width: collapsed ? 68 : 260,
                       child: collapsed
                           ? _CollapsedProjectList(
                               key: const ValueKey('collapsed-project-list'),
@@ -400,12 +400,7 @@ class _ProjectListState extends ConsumerState<_ProjectList> {
                           selectedTileColor: Theme.of(
                             context,
                           ).colorScheme.primaryContainer.withValues(alpha: .45),
-                          leading: Icon(
-                            project.pathExists
-                                ? Icons.folder_outlined
-                                : Icons.folder_off_outlined,
-                            color: project.pathExists ? null : Colors.red,
-                          ),
+                          leading: _ProjectLogo(project: project),
                           title: Row(
                             children: [
                               Expanded(
@@ -610,44 +605,97 @@ class _CollapsedProjectList extends ConsumerWidget {
             onPressed: onExpand,
             icon: const Icon(Icons.chevron_right),
           ),
-        PopupMenuButton<String>(
-          tooltip: '选择项目',
-          enabled: state.managedProjects.isNotEmpty,
-          icon: const Icon(Icons.folder_copy_outlined),
-          onSelected: ref
-              .read(fvmControllerProvider.notifier)
-              .selectManagedProject,
-          itemBuilder: (context) => state.managedProjects
-              .map(
-                (project) => PopupMenuItem(
-                  value: project.path,
-                  child: Row(
-                    children: [
-                      Icon(
-                        project.pathExists
-                            ? Icons.folder_outlined
-                            : Icons.folder_off_outlined,
-                        color: project.pathExists ? null : Colors.red,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          project.displayName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            itemCount: state.managedProjects.length,
+            itemBuilder: (context, index) {
+              final project = state.managedProjects[index];
+              final selected = project.path == state.selectedManagedProjectPath;
+              final colors = Theme.of(context).colorScheme;
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+                child: Tooltip(
+                  message:
+                      '${project.displayName}\n${project.path}'
+                      '${project.pathExists ? '' : '\n目录不存在'}',
+                  child: Semantics(
+                    label: project.displayName,
+                    selected: selected,
+                    button: true,
+                    child: Material(
+                      color: selected
+                          ? colors.primaryContainer
+                          : Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        side: BorderSide(
+                          color: selected ? colors.primary : Colors.transparent,
                         ),
                       ),
-                      if (project.path == state.selectedManagedProjectPath)
-                        const Icon(Icons.check, size: 18),
-                    ],
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        key: ValueKey('project-logo-${project.path}'),
+                        onTap: () => ref
+                            .read(fvmControllerProvider.notifier)
+                            .selectManagedProject(project.path),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 9),
+                          child: _ProjectLogo(project: project, size: 30),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              )
-              .toList(),
+              );
+            },
+          ),
         ),
       ],
     ),
   );
+}
+
+class _ProjectLogo extends ConsumerWidget {
+  const _ProjectLogo({required this.project, this.size = 32});
+
+  final FlutterProject project;
+  final double size;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final iconPath = ref.watch(projectIconProvider(project.path)).asData?.value;
+    final Widget logo = iconPath == null
+        ? FlutterLogo(size: size)
+        : ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Image.file(
+              File(iconPath),
+              width: size,
+              height: size,
+              cacheWidth: (size * MediaQuery.devicePixelRatioOf(context))
+                  .round(),
+              fit: BoxFit.contain,
+              errorBuilder: (_, _, _) => FlutterLogo(size: size),
+            ),
+          );
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          logo,
+          if (!project.pathExists)
+            const Positioned(
+              right: 0,
+              bottom: 0,
+              child: Icon(Icons.error, size: 14, color: Colors.red),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ProjectMoreMenu extends ConsumerWidget {

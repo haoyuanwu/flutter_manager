@@ -51,9 +51,12 @@ Use a 10–15 second `timeoutMs` for normal monitoring. A timed-out wait is not 
 
 After editing Dart code:
 
-- Prefer `flutter_manager_hot_reload` for ordinary UI and logic changes.
-- Use `flutter_manager_hot_restart` when state initialization requires a restart.
-- Use `flutter_manager_rerun` only when the process must be stopped and launched again.
+Read [references/command-guide.md](references/command-guide.md) before choosing a verification command after code/configuration changes. It maps UI changes, Dart initialization, native code, dependencies, resources, and startup arguments to the appropriate commands, and explains how to confirm the result.
+
+- Prefer `flutter_manager_hot_reload` for ordinary Dart UI and logic changes in an active debug session.
+- Use `flutter_manager_hot_restart` for Dart initialization or runtime state reset.
+- Use `flutter_manager_rerun` for native code, plugin/host configuration, or launch-argument changes; hot restart does not rebuild native code.
+- If no Flutter run session exists, choose `flutter_manager_run` instead of a reload command.
 
 Open `flutter_manager_devtools` only after `get_runtime_status` reports an active Flutter run and a `vmServiceUri`.
 
