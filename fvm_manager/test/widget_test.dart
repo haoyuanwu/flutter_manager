@@ -8,9 +8,12 @@ import 'package:flutter/services.dart';
 import 'package:flutter_manager/src/app.dart';
 import 'package:flutter_manager/src/data/pub_environment_service.dart';
 import 'package:flutter_manager/src/data/apk_install_service.dart';
+import 'package:flutter_manager/src/data/mcp_ai_setup_service.dart';
 import 'package:flutter_manager/src/data/process_runner.dart';
 import 'package:flutter_manager/src/data/flutter_command_service.dart';
 import 'package:flutter_manager/src/data/fvm_service.dart';
+import 'package:flutter_manager/src/data/local_project_service.dart';
+import 'package:flutter_manager/src/data/project_repository.dart';
 import 'package:flutter_manager/src/domain/models.dart';
 import 'package:flutter_manager/src/domain/project_models.dart';
 import 'package:flutter_manager/src/presentation/providers.dart';
@@ -25,6 +28,29 @@ final _searchLog = List.generate(140, (index) {
 class _TestPubEnvironmentService extends PubEnvironmentService {
   @override
   Future<List<String>> getSystemPath() async => const ['/tmp/fvm/bin'];
+}
+
+class _RefreshProjectService extends LocalProjectService {
+  int refreshCount = 1;
+
+  @override
+  Future<FlutterProject> inspectProject(String path) async => FlutterProject(
+    name: 'demo',
+    path: path,
+    lastOpened: DateTime(2026, 1, ++refreshCount),
+    hasAndroid: true,
+    bugly: const BuglyUploadConfig(version: 'old-gradle-version', buildNo: '1'),
+  );
+
+  @override
+  Future<({String? bundleId, String? version, String? buildNo})>
+  readProjectInfo(String path) async =>
+      (bundleId: null, version: '2.3.0', buildNo: '42');
+}
+
+class _MemoryProjectRepository extends ProjectRepository {
+  @override
+  Future<void> save(List<FlutterProject> projects) async {}
 }
 
 class _TestApkInstallService extends ApkInstallService {
@@ -101,6 +127,57 @@ class _TestController extends FvmController {
           .toList(),
     );
   }
+}
+
+class _McpSetupController extends _TestController {
+  @override
+  FvmState build() => super.build().copyWith(
+    activeVersion: null,
+    mcpServerEnabled: false,
+    mcpServerPort: 18999,
+    mcpServerToken: 'test-only-token',
+  );
+
+  @override
+  Future<void> setMcpServerEnabled(bool enabled) async {
+    state = state.copyWith(mcpServerEnabled: enabled);
+  }
+}
+
+class _TempMcpSetupService extends McpAiSetupService {
+  _TempMcpSetupService(this.directory);
+  final String directory;
+
+  @override
+  Future<McpAiSetupFiles> prepare({
+    required String directory,
+    String serverPath = '',
+    String skillPath = '',
+  }) async {
+    final server = File('${this.directory}/flutter-manager-mcp.mjs');
+    server.writeAsStringSync('test-server');
+    final skill = '${this.directory}/flutter-manager-mcp';
+    for (final name in McpAiSetupService.skillFiles) {
+      final file = File('$skill/$name');
+      file.createSync(recursive: true);
+      file.writeAsStringSync('test-skill-file');
+    }
+    return McpAiSetupFiles(serverPath: server.path, skillPath: skill);
+  }
+}
+
+class _McpSetupEnvironment extends PubEnvironmentService {
+  String _server = '';
+  String _skill = '';
+
+  @override
+  String get mcpServerExecutablePath => _server;
+  @override
+  String get mcpSkillPath => _skill;
+  @override
+  Future<void> setMcpServerExecutablePath(String path) async => _server = path;
+  @override
+  Future<void> setMcpSkillPath(String path) async => _skill = path;
 }
 
 class _MissingFvmController extends FvmController {
@@ -203,6 +280,13 @@ class _AllConsoleTabsController extends FvmController {
 
   @override
   Future<void> initialize() async {}
+}
+
+class _LogoListController extends _AllConsoleTabsController {
+  @override
+  Future<void> selectManagedProject(String path) async {
+    state = state.copyWith(selectedManagedProjectPath: path);
+  }
 }
 
 class _RunConsoleController extends FvmController {
@@ -318,6 +402,123 @@ class _SearchConsoleController extends FvmController {
 }
 
 void main() {
+  testWidgets('MCP quick setup copies working paths and the command guide', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 1000);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final temp = Directory.systemTemp.createTempSync('mcp_setup_widget_');
+    addTearDown(() => temp.deleteSync(recursive: true));
+    String? copied;
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+      if (call.method == 'Clipboard.setData') {
+        copied = (call.arguments as Map)['text'] as String;
+      }
+      return null;
+    });
+    addTearDown(
+      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+    );
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          fvmControllerProvider.overrideWith(_McpSetupController.new),
+          pubEnvironmentServiceProvider.overrideWithValue(
+            _McpSetupEnvironment(),
+          ),
+          mcpAiSetupServiceProvider.overrideWithValue(
+            _TempMcpSetupService(temp.path),
+          ),
+        ],
+        child: const FvmManagerApp(),
+      ),
+    );
+    await tester.ensureVisible(find.text('MCP 服务'));
+    await tester.tap(find.text('MCP 服务'));
+    await tester.pumpAndSettle();
+    expect(find.text('test-only-token'), findsNothing);
+    expect(find.text('配置内容'), findsNothing);
+    await tester.tap(find.byKey(const ValueKey('copy-mcp-ai-setup')));
+    await tester.pumpAndSettle();
+    expect(copied, contains('http://127.0.0.1:18999'));
+    expect(copied, contains('test-only-token'));
+    expect(
+      copied,
+      contains('${temp.path}${Platform.pathSeparator}flutter-manager-mcp.mjs'),
+    );
+    expect(
+      File(
+        '${temp.path}/flutter-manager-mcp/references/command-guide.md',
+      ).existsSync(),
+      isTrue,
+    );
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(FvmManagerApp)),
+    );
+    expect(container.read(fvmControllerProvider).mcpServerEnabled, isTrue);
+    expect(find.text('命令指南 已就绪'), findsOneWidget);
+    await tester.ensureVisible(find.text('手动配置'));
+    await tester.tap(find.text('手动配置'));
+    await tester.pumpAndSettle();
+    expect(find.text('配置内容'), findsOneWidget);
+  });
+
+  testWidgets('collapsed project logos switch projects without a popup', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          fvmControllerProvider.overrideWith(_LogoListController.new),
+        ],
+        child: const FvmManagerApp(),
+      ),
+    );
+    await tester.tap(find.text('项目管理'));
+    await tester.pump();
+    await tester.tap(find.byTooltip('收起项目列表'));
+    await tester.pump();
+    final rail = find.byKey(const ValueKey('collapsed-project-list'));
+    expect(
+      find.descendant(of: rail, matching: find.byType(PopupMenuButton<String>)),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('project-logo-/tmp/project-a')),
+      findsOneWidget,
+    );
+    await tester.tap(find.byKey(const ValueKey('project-logo-/tmp/project-b')));
+    await tester.pump();
+    final container = ProviderScope.containerOf(
+      tester.element(find.byType(FvmManagerApp)),
+    );
+    expect(
+      container.read(fvmControllerProvider).selectedManagedProjectPath,
+      '/tmp/project-b',
+    );
+    final selected = find.descendant(
+      of: rail,
+      matching: find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.label == '项目 B' &&
+            widget.properties.selected == true,
+      ),
+    );
+    expect(selected, findsOneWidget);
+    await tester.tap(find.byTooltip('展开项目列表'));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('expanded-project-list')), findsOneWidget);
+  });
+
   testWidgets('APK install page lists only online devices for selection', (
     tester,
   ) async {
@@ -634,7 +835,54 @@ void main() {
       findsOneWidget,
     );
     expect(find.byKey(const ValueKey('expanded-project-list')), findsNothing);
-    expect(find.byTooltip('选择项目'), findsOneWidget);
+    expect(find.byTooltip('选择项目'), findsNothing);
+    expect(
+      find.byKey(const ValueKey('project-logo-/tmp/demo')),
+      findsOneWidget,
+    );
+    expect(find.byType(FlutterLogo), findsWidgets);
+  });
+
+  testWidgets('project refresh reloads and displays package version', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 1000);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          fvmControllerProvider.overrideWith(_TestController.new),
+          localProjectServiceProvider.overrideWithValue(
+            _RefreshProjectService(),
+          ),
+          projectRepositoryProvider.overrideWithValue(
+            _MemoryProjectRepository(),
+          ),
+          pubEnvironmentServiceProvider.overrideWithValue(
+            _TestPubEnvironmentService(),
+          ),
+        ],
+        child: const FvmManagerApp(),
+      ),
+    );
+    await tester.tap(find.text('项目管理'));
+    await tester.pump();
+    final version = find.byKey(const ValueKey('project-build-version-field'));
+    final buildNo = find.byKey(const ValueKey('project-build-number-field'));
+
+    for (var attempt = 0; attempt < 2; attempt++) {
+      await tester.ensureVisible(version);
+      await tester.enterText(version, 'unsaved');
+      await tester.enterText(buildNo, '999');
+      final refresh = find.byTooltip('刷新项目信息');
+      await tester.ensureVisible(refresh);
+      await tester.tap(refresh);
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(version).controller?.text, '2.3.0');
+      expect(tester.widget<TextField>(buildNo).controller?.text, '42');
+    }
   });
 
   testWidgets('shows FVM dashboard status', (tester) async {

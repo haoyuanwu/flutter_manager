@@ -248,7 +248,7 @@ class _ProjectManagementState extends ConsumerState<_ProjectManagement> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     SizedBox(
-                      width: collapsed ? 56 : 260,
+                      width: collapsed ? 68 : 260,
                       child: collapsed
                           ? _CollapsedProjectList(
                               key: const ValueKey('collapsed-project-list'),
@@ -400,12 +400,7 @@ class _ProjectListState extends ConsumerState<_ProjectList> {
                           selectedTileColor: Theme.of(
                             context,
                           ).colorScheme.primaryContainer.withValues(alpha: .45),
-                          leading: Icon(
-                            project.pathExists
-                                ? Icons.folder_outlined
-                                : Icons.folder_off_outlined,
-                            color: project.pathExists ? null : Colors.red,
-                          ),
+                          leading: _ProjectLogo(project: project),
                           title: Row(
                             children: [
                               Expanded(
@@ -610,44 +605,97 @@ class _CollapsedProjectList extends ConsumerWidget {
             onPressed: onExpand,
             icon: const Icon(Icons.chevron_right),
           ),
-        PopupMenuButton<String>(
-          tooltip: '选择项目',
-          enabled: state.managedProjects.isNotEmpty,
-          icon: const Icon(Icons.folder_copy_outlined),
-          onSelected: ref
-              .read(fvmControllerProvider.notifier)
-              .selectManagedProject,
-          itemBuilder: (context) => state.managedProjects
-              .map(
-                (project) => PopupMenuItem(
-                  value: project.path,
-                  child: Row(
-                    children: [
-                      Icon(
-                        project.pathExists
-                            ? Icons.folder_outlined
-                            : Icons.folder_off_outlined,
-                        color: project.pathExists ? null : Colors.red,
-                      ),
-                      const SizedBox(width: 10),
-                      Expanded(
-                        child: Text(
-                          project.displayName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+        Expanded(
+          child: ListView.builder(
+            padding: const EdgeInsets.symmetric(vertical: 6),
+            itemCount: state.managedProjects.length,
+            itemBuilder: (context, index) {
+              final project = state.managedProjects[index];
+              final selected = project.path == state.selectedManagedProjectPath;
+              final colors = Theme.of(context).colorScheme;
+              return Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 4),
+                child: Tooltip(
+                  message:
+                      '${project.displayName}\n${project.path}'
+                      '${project.pathExists ? '' : '\n目录不存在'}',
+                  child: Semantics(
+                    label: project.displayName,
+                    selected: selected,
+                    button: true,
+                    child: Material(
+                      color: selected
+                          ? colors.primaryContainer
+                          : Colors.transparent,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        side: BorderSide(
+                          color: selected ? colors.primary : Colors.transparent,
                         ),
                       ),
-                      if (project.path == state.selectedManagedProjectPath)
-                        const Icon(Icons.check, size: 18),
-                    ],
+                      clipBehavior: Clip.antiAlias,
+                      child: InkWell(
+                        key: ValueKey('project-logo-${project.path}'),
+                        onTap: () => ref
+                            .read(fvmControllerProvider.notifier)
+                            .selectManagedProject(project.path),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 9),
+                          child: _ProjectLogo(project: project, size: 30),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              )
-              .toList(),
+              );
+            },
+          ),
         ),
       ],
     ),
   );
+}
+
+class _ProjectLogo extends ConsumerWidget {
+  const _ProjectLogo({required this.project, this.size = 32});
+
+  final FlutterProject project;
+  final double size;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final iconPath = ref.watch(projectIconProvider(project.path)).asData?.value;
+    final Widget logo = iconPath == null
+        ? FlutterLogo(size: size)
+        : ClipRRect(
+            borderRadius: BorderRadius.circular(6),
+            child: Image.file(
+              File(iconPath),
+              width: size,
+              height: size,
+              cacheWidth: (size * MediaQuery.devicePixelRatioOf(context))
+                  .round(),
+              fit: BoxFit.contain,
+              errorBuilder: (_, _, _) => FlutterLogo(size: size),
+            ),
+          );
+    return SizedBox(
+      width: size,
+      height: size,
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          logo,
+          if (!project.pathExists)
+            const Positioned(
+              right: 0,
+              bottom: 0,
+              child: Icon(Icons.error, size: 14, color: Colors.red),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ProjectMoreMenu extends ConsumerWidget {
@@ -1560,14 +1608,26 @@ class _ProjectDetail extends ConsumerWidget {
                             ProjectBuildTarget.macos) ...[
                           const SizedBox(width: 8),
                           Tooltip(
-                            message: '打包成 DMG',
-                            child: IconButton.outlined(
-                              onPressed: controller.selectedTaskActive('build')
-                                  ? null
-                                  : controller.packageMacosDmg,
-                              icon: const Icon(
-                                Icons.archive_outlined,
-                                size: 18,
+                            message: '按芯片架构打包 DMG',
+                            child: PopupMenuButton<MacosPackageArchitecture>(
+                              enabled:
+                                  !state.loading &&
+                                  !controller.selectedTaskActive('build'),
+                              tooltip: '按芯片架构打包 DMG',
+                              onSelected: controller.packageMacosDmg,
+                              itemBuilder: (_) => const [
+                                PopupMenuItem(
+                                  value: MacosPackageArchitecture.intel,
+                                  child: Text('英特尔芯片 (x86_64)'),
+                                ),
+                                PopupMenuItem(
+                                  value: MacosPackageArchitecture.appleSilicon,
+                                  child: Text('苹果芯片 (arm64)'),
+                                ),
+                              ],
+                              child: const Padding(
+                                padding: EdgeInsets.all(10),
+                                child: Icon(Icons.archive_outlined, size: 18),
                               ),
                             ),
                           ),
@@ -1746,7 +1806,7 @@ class _ProjectDetail extends ConsumerWidget {
             ProjectBuildTarget.macos => const _PackageGuideContent(
               steps: [
                 ('产物位置', 'build/macos/Build/Products/Release/ 目录下，为 .app 包'),
-                ('打包 DMG', '可使用本工具的「打包成 DMG」按钮，或手动用 hdiutil 命令'),
+                ('打包 DMG', '点击归档图标选择英特尔或苹果芯片架构；文件名包含应用版本号'),
                 ('签名公证', '正式分发需进行代码签名和 Apple 公证：codesign + notarytool'),
                 ('拖拽安装', 'DMG 内放入 Applications 快捷方式，用户拖拽即可安装'),
                 ('Homebrew Cask', '可提交至 homebrew-cask 供用户 brew install 安装'),
@@ -2221,11 +2281,15 @@ class _ProjectVersionSettingsState
   @override
   void didUpdateWidget(covariant _ProjectVersionSettings oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.project.path != widget.project.path ||
+    final projectRefreshed =
+        oldWidget.project.lastOpened != widget.project.lastOpened;
+    if (projectRefreshed ||
+        oldWidget.project.path != widget.project.path ||
         oldWidget.project.bugly.version != widget.project.bugly.version) {
       _versionController.text = widget.project.bugly.version;
     }
-    if (oldWidget.project.path != widget.project.path ||
+    if (projectRefreshed ||
+        oldWidget.project.path != widget.project.path ||
         oldWidget.project.bugly.buildNo != widget.project.bugly.buildNo) {
       _buildNoController.text = widget.project.bugly.buildNo;
     }

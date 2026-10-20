@@ -20,6 +20,8 @@ import '../data/fir_service.dart';
 import '../data/custom_command_parser.dart';
 import '../data/build_history_repository.dart';
 import '../data/local_project_service.dart';
+import '../data/project_icon_service.dart';
+import '../data/mcp_ai_setup_service.dart';
 import '../data/project_repository.dart';
 import '../data/pub_environment_service.dart';
 import '../data/process_runner.dart';
@@ -63,9 +65,7 @@ final fvmServiceProvider = Provider<FvmService>(
     onProgress: (message) {
       // 延迟读取，避免 Provider 构造阶段循环依赖。
       Future.microtask(() {
-        ref
-            .read(fvmControllerProvider.notifier)
-            .showStatus(message);
+        ref.read(fvmControllerProvider.notifier).showStatus(message);
       });
     },
   ),
@@ -73,6 +73,14 @@ final fvmServiceProvider = Provider<FvmService>(
 
 final localProjectServiceProvider = Provider<LocalProjectService>(
   (ref) => LocalProjectService(),
+);
+
+final mcpAiSetupServiceProvider = Provider<McpAiSetupService>(
+  (ref) => McpAiSetupService(),
+);
+
+final projectIconProvider = FutureProvider.autoDispose.family<String?, String>(
+  (ref, projectPath) => ProjectIconService().findIcon(projectPath),
 );
 
 final distributionServiceProvider = Provider<DistributionService>(
@@ -798,19 +806,24 @@ class FvmController extends Notifier<FvmState> {
   Future<void> refreshManagedProject() async {
     final path = state.selectedManagedProjectPath;
     if (path == null) return;
+    ref.invalidate(projectIconProvider(path));
     state = state.copyWith(loading: true, errorMessage: null);
     try {
-      final inspected = await ref
-          .read(localProjectServiceProvider)
-          .inspectProject(path);
+      final service = ref.read(localProjectServiceProvider);
+      final inspected = await service.inspectProject(path);
+      final info = await service.readProjectInfo(path);
       final previous = state.managedProjects
           .where((item) => item.path == path)
           .firstOrNull;
+      final bugly = (previous?.bugly ?? inspected.bugly).copyWith(
+        version: info.version ?? '',
+        buildNo: info.buildNo ?? '',
+      );
       final project = previous == null
-          ? inspected
+          ? inspected.copyWith(bugly: bugly)
           : inspected.copyWith(
               alias: previous.alias,
-              bugly: previous.bugly,
+              bugly: bugly,
               pgyer: previous.pgyer,
               fir: previous.fir,
               selectedFlavors: previous.selectedFlavors,
@@ -2421,7 +2434,7 @@ class FvmController extends Notifier<FvmState> {
     }
   }
 
-  Future<void> packageMacosDmg() async {
+  Future<void> packageMacosDmg(MacosPackageArchitecture architecture) async {
     final project = _selectedManagedProject;
     if (project == null) return;
     _consoleModes[project.path] = 'build';
@@ -2435,7 +2448,7 @@ class FvmController extends Notifier<FvmState> {
     try {
       final dmgPath = await ref
           .read(localProjectServiceProvider)
-          .packageMacosDmg(project.path, project.name);
+          .packageMacosDmg(project.path, project.name, architecture);
       state = state.copyWith(statusMessage: 'DMG 已生成：$dmgPath');
       await ref.read(localProjectServiceProvider).revealFile(dmgPath);
     } catch (error) {

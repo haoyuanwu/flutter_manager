@@ -15,6 +15,9 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
   String _installedMcpSkillPath = '';
   bool _downloadingMcpServer = false;
   bool _downloadingMcpSkill = false;
+  bool _copyingAiSetup = false;
+  bool _showToken = false;
+  String _configTarget = 'Codex';
 
   @override
   void initState() {
@@ -49,99 +52,146 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
   Widget build(BuildContext context) {
     final controller = ref.read(fvmControllerProvider.notifier);
     final endpoint = 'http://127.0.0.1:${widget.state.mcpServerPort}';
-    final sourceMcpServerPath =
+    final sourcePath =
         '${Directory.current.path}${Platform.pathSeparator}mcp_server'
         '${Platform.pathSeparator}dist${Platform.pathSeparator}index.js';
-    final mcpServerPath = _installedMcpServerPath.isNotEmpty
-        ? _installedMcpServerPath
-        : sourceMcpServerPath;
-    final installedMcpServerExists =
+    final serverPath =
         _installedMcpServerPath.isNotEmpty &&
-        File(_installedMcpServerPath).existsSync();
-    final installedMcpSkillExists =
+            File(_installedMcpServerPath).existsSync()
+        ? _installedMcpServerPath
+        : File(sourcePath).existsSync()
+        ? sourcePath
+        : '';
+    final skillReady =
         _installedMcpSkillPath.isNotEmpty &&
         File(
           '$_installedMcpSkillPath${Platform.pathSeparator}SKILL.md',
         ).existsSync();
-    final codexConfig = _codexConfig(mcpServerPath);
-    final openCodeConfig = _openCodeConfig(mcpServerPath);
-    final crushConfigValue = _crushConfig(mcpServerPath);
-    final mimoConfig = _mimoConfig(mcpServerPath);
+    final guideReady =
+        _installedMcpSkillPath.isNotEmpty &&
+        File(
+          '$_installedMcpSkillPath${Platform.pathSeparator}references${Platform.pathSeparator}command-guide.md',
+        ).existsSync();
+    final busy =
+        _copyingAiSetup || _downloadingMcpServer || _downloadingMcpSkill;
+    final config = switch (_configTarget) {
+      'OpenCode' => _openCodeConfig(serverPath),
+      'Crush' => _crushConfig(serverPath),
+      'Xiaomi MiMo' => _mimoConfig(serverPath),
+      _ => _codexConfig(serverPath),
+    };
+    final home = Platform.isWindows ? r'%USERPROFILE%' : '~';
+    final configPath = switch (_configTarget) {
+      'OpenCode' => '$home/.config/opencode/opencode.json',
+      'Crush' =>
+        Platform.isWindows
+            ? r'%APPDATA%\crush\crush.json'
+            : '~/.config/crush/crush.json',
+      'Xiaomi MiMo' => '$home/.config/mimocode/mimocode.jsonc',
+      _ => '$home/.codex/config.toml',
+    };
     return SingleChildScrollView(
       padding: const EdgeInsets.all(24),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          const Text('MCP 服务', style: AppTextStyles.h1),
+          const SizedBox(height: 6),
           const Text(
-            'MCP 服务',
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+            '连接 AI 工具，在本机管理项目、运行命令和查看控制台。',
+            style: TextStyle(color: Colors.black54),
           ),
-          const SizedBox(height: 4),
-          const Text('给 Xiaomi MiMo、Claude、Cursor、Codex 等 AI 软件调用本工具的运行命令。'),
           const SizedBox(height: 20),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   SwitchListTile(
                     contentPadding: EdgeInsets.zero,
-                    secondary: const Icon(Icons.smart_toy_outlined),
-                    title: const Text('启用 MCP 控制接口'),
-                    subtitle: Text('仅监听本机：$endpoint'),
+                    secondary: const Icon(Icons.lan_outlined),
+                    title: const Text(
+                      '本机服务',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: Text(endpoint),
                     value: widget.state.mcpServerEnabled,
-                    onChanged: controller.setMcpServerEnabled,
+                    onChanged: busy ? null : controller.setMcpServerEnabled,
                   ),
-                  const Divider(height: 24),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    crossAxisAlignment: WrapCrossAlignment.center,
+                  ExpansionTile(
+                    tilePadding: EdgeInsets.zero,
+                    title: const Text(
+                      '端口与 Token',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                    childrenPadding: const EdgeInsets.only(top: 8, bottom: 8),
                     children: [
-                      SizedBox(
-                        width: 180,
-                        child: TextField(
-                          controller: _portController,
-                          keyboardType: TextInputType.number,
-                          decoration: const InputDecoration(
-                            labelText: 'HTTP 端口',
-                            border: OutlineInputBorder(),
+                      Wrap(
+                        spacing: 12,
+                        runSpacing: 12,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          SizedBox(
+                            width: 150,
+                            child: TextField(
+                              controller: _portController,
+                              enabled: !busy,
+                              keyboardType: TextInputType.number,
+                              decoration: const InputDecoration(
+                                labelText: 'HTTP 端口',
+                                isDense: true,
+                                border: OutlineInputBorder(),
+                              ),
+                              onSubmitted: _savePort,
+                            ),
                           ),
-                          onSubmitted: _savePort,
-                        ),
+                          OutlinedButton(
+                            onPressed: busy
+                                ? null
+                                : () => _savePort(_portController.text.trim()),
+                            child: const Text('保存端口'),
+                          ),
+                        ],
                       ),
-                      FilledButton.tonal(
-                        onPressed: () => _savePort(_portController.text.trim()),
-                        child: const Text('保存端口'),
-                      ),
-                      TextButton.icon(
-                        onPressed: _resetToken,
-                        icon: const Icon(Icons.refresh),
-                        label: const Text('重置 Token'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Token',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 6),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: SelectableText(
-                          widget.state.mcpServerToken,
-                          style: const TextStyle(fontFamily: 'monospace'),
-                        ),
-                      ),
-                      IconButton(
-                        tooltip: '复制 Token',
-                        onPressed: () =>
-                            _copy(widget.state.mcpServerToken, 'Token 已复制'),
-                        icon: const Icon(Icons.copy_outlined),
+                      const SizedBox(height: 12),
+                      Row(
+                        children: [
+                          const Text('Token'),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: SelectableText(
+                              _showToken
+                                  ? widget.state.mcpServerToken
+                                  : '••••••••••••••••',
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 12,
+                              ),
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: _showToken ? '隐藏 Token' : '显示 Token',
+                            onPressed: () =>
+                                setState(() => _showToken = !_showToken),
+                            icon: Icon(
+                              _showToken
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
+                            ),
+                          ),
+                          IconButton(
+                            tooltip: '复制 Token',
+                            onPressed: () =>
+                                _copy(widget.state.mcpServerToken, 'Token 已复制'),
+                            icon: const Icon(Icons.copy_outlined, size: 20),
+                          ),
+                          IconButton(
+                            tooltip: '重置 Token',
+                            onPressed: busy ? null : _resetToken,
+                            icon: const Icon(Icons.refresh, size: 20),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -149,416 +199,182 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           Card(
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  const Text('一键接入 AI', style: AppTextStyles.h3),
+                  const SizedBox(height: 8),
                   const Text(
-                    'AI 工具安装',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    '先将 App 内置的 MCP Server 下载到指定目录，再把自动生成的配置复制到 AI 工具。',
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: installedMcpServerExists
-                          ? Colors.green.shade50
-                          : Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: installedMcpServerExists
-                            ? Colors.green.shade200
-                            : Colors.grey.shade300,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          installedMcpServerExists
-                              ? Icons.check_circle_outline
-                              : Icons.download_outlined,
-                          color: installedMcpServerExists
-                              ? Colors.green.shade700
-                              : Colors.grey.shade700,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                installedMcpServerExists
-                                    ? 'MCP Server 已下载'
-                                    : '尚未下载 MCP Server',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                _installedMcpServerPath.isEmpty
-                                    ? '请选择一个长期保留的目录'
-                                    : _installedMcpServerPath,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.black54,
-                                  fontFamily: 'monospace',
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      FilledButton.icon(
-                        onPressed: _downloadingMcpServer
-                            ? null
-                            : _downloadMcpServer,
-                        icon: _downloadingMcpServer
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.download_outlined),
-                        label: Text(
-                          installedMcpServerExists
-                              ? '重新下载到指定目录'
-                              : '下载 MCP Server',
-                        ),
-                      ),
-                      if (installedMcpServerExists)
-                        OutlinedButton.icon(
-                          onPressed: () => ref
-                              .read(localProjectServiceProvider)
-                              .revealFile(_installedMcpServerPath),
-                          icon: const Icon(Icons.folder_open_outlined),
-                          label: const Text('打开所在目录'),
-                        ),
-                      if (_installedMcpServerPath.isNotEmpty)
-                        OutlinedButton.icon(
-                          onPressed: () => _copy(
-                            _installedMcpServerPath,
-                            'MCP Server 路径已复制',
-                          ),
-                          icon: const Icon(Icons.copy_outlined),
-                          label: const Text('复制路径'),
-                        ),
-                    ],
-                  ),
-                  const Divider(height: 32),
-                  const Text(
-                    'AI Skill',
-                    style: TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text(
-                    'Skill 为 AI 提供 Flutter Manager 的操作说明；它不能代替下方的 MCP 连接配置。',
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: installedMcpSkillExists
-                          ? Colors.green.shade50
-                          : Colors.grey.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: installedMcpSkillExists
-                            ? Colors.green.shade200
-                            : Colors.grey.shade300,
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          installedMcpSkillExists
-                              ? Icons.check_circle_outline
-                              : Icons.extension_outlined,
-                          color: installedMcpSkillExists
-                              ? Colors.green.shade700
-                              : Colors.grey.shade700,
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                installedMcpSkillExists
-                                    ? 'Skill 已下载'
-                                    : '尚未下载 Skill',
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                _installedMcpSkillPath.isEmpty
-                                    ? '请选择 AI 工具的 Skills 根目录'
-                                    : _installedMcpSkillPath,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: Colors.black54,
-                                  fontFamily: 'monospace',
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 12,
-                    runSpacing: 12,
-                    children: [
-                      FilledButton.icon(
-                        onPressed: _downloadingMcpSkill
-                            ? null
-                            : () => _downloadMcpSkill(
-                                rootDirectory: _defaultSkillRoot(
-                                  openCode: false,
-                                ),
-                              ),
-                        icon: _downloadingMcpSkill
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.download_outlined),
-                        label: const Text('安装到 Codex'),
-                      ),
-                      FilledButton.tonalIcon(
-                        onPressed: _downloadingMcpSkill
-                            ? null
-                            : () => _downloadMcpSkill(
-                                rootDirectory: _defaultSkillRoot(
-                                  openCode: true,
-                                ),
-                              ),
-                        icon: const Icon(Icons.download_outlined),
-                        label: const Text('安装到 OpenCode'),
-                      ),
-                      FilledButton.tonalIcon(
-                        onPressed: _downloadingMcpSkill
-                            ? null
-                            : () => _downloadMcpSkill(
-                                rootDirectory: _defaultSkillRoot(mimo: true),
-                                forMimo: true,
-                              ),
-                        icon: _downloadingMcpSkill
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.download_outlined),
-                        label: const Text('安装到 Xiaomi MiMo'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: _downloadingMcpSkill
-                            ? null
-                            : () => _downloadMcpSkill(),
-                        icon: const Icon(Icons.folder_outlined),
-                        label: const Text('选择其他目录'),
-                      ),
-                      if (installedMcpSkillExists)
-                        OutlinedButton.icon(
-                          onPressed: () => ref
-                              .read(localProjectServiceProvider)
-                              .revealFile(
-                                '$_installedMcpSkillPath'
-                                '${Platform.pathSeparator}SKILL.md',
-                              ),
-                          icon: const Icon(Icons.folder_open_outlined),
-                          label: const Text('打开 Skill 目录'),
-                        ),
-                      if (_installedMcpSkillPath.isNotEmpty)
-                        OutlinedButton.icon(
-                          onPressed: () =>
-                              _copy(_installedMcpSkillPath, 'Skill 路径已复制'),
-                          icon: const Icon(Icons.copy_outlined),
-                          label: const Text('复制 Skill 路径'),
-                        ),
-                    ],
+                    '准备 MCP、Skill 与命令选择指南。复制后粘贴给 AI，完成本机连接并学习何时热重载、热重启或重新运行。',
                   ),
                   const SizedBox(height: 16),
-                  _CodeBlock(
-                    title: 'Codex：选择此 Skills 根目录',
-                    text: Platform.isWindows
-                        ? r'%USERPROFILE%\.codex\skills'
-                        : '~/.codex/skills',
-                    onCopy: _copy,
+                  FilledButton.icon(
+                    key: const ValueKey('copy-mcp-ai-setup'),
+                    onPressed: busy ? null : _copyAiSetupInstructions,
+                    icon: _copyingAiSetup
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.copy_all_outlined),
+                    label: Text(_copyingAiSetup ? '正在准备…' : '一键复制接入说明'),
                   ),
                   const SizedBox(height: 12),
-                  _CodeBlock(
-                    title: 'OpenCode：选择此 Skills 根目录',
-                    text: Platform.isWindows
-                        ? r'%USERPROFILE%\.config\opencode\skills'
-                        : '~/.config/opencode/skills',
-                    onCopy: _copy,
-                  ),
-                  const SizedBox(height: 12),
-                  _CodeBlock(
-                    title: 'Xiaomi MiMo：全局 Skills 目录',
-                    text: Platform.isWindows
-                        ? r'%USERPROFILE%\.config\mimocode\skills'
-                        : '~/.config/mimocode/skills',
-                    onCopy: _copy,
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 8,
+                    children: [
+                      _setupStatus('MCP Server', serverPath.isNotEmpty),
+                      _setupStatus('Skill', skillReady),
+                      _setupStatus('命令指南', guideReady),
+                    ],
                   ),
                   const SizedBox(height: 8),
                   const Text(
-                    '选择根目录后，App 会自动创建 flutter-manager-mcp 文件夹。'
-                    '安装到 Xiaomi MiMo 时会额外写入 locales 展示信息。'
-                    '安装完成后重启 AI 工具。',
+                    '点击时自动启用本机服务。需 Node.js 18+ 和本机 AI 工具；部分客户端配置后需重启。',
                     style: TextStyle(fontSize: 12, color: Colors.black54),
                   ),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
           Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'AI 工具配置',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-                  ),
-                  const SizedBox(height: 4),
-                  const Text('将 MCP 服务配置到 AI 工具中，即可使用 Flutter Manager 的工具。'),
-                  const SizedBox(height: 16),
-                  _CodeBlock(
-                    title: 'OpenCode 配置文件路径',
-                    text: Platform.isMacOS
-                        ? '~/.config/opencode/opencode.json'
-                        : r'%USERPROFILE%\.config\opencode\opencode.json',
-                    onCopy: _copy,
-                  ),
-                  const SizedBox(height: 12),
-                  _CodeBlock(
-                    title: 'OpenCode 配置内容',
-                    text: openCodeConfig,
-                    onCopy: _copy,
-                  ),
-                  const SizedBox(height: 16),
-                  _CodeBlock(
-                    title: 'Crush 配置文件路径',
-                    text: Platform.isMacOS
-                        ? '~/.config/crush/crush.json'
-                        : r'%APPDATA%\crush\crush.json',
-                    onCopy: _copy,
-                  ),
-                  const SizedBox(height: 12),
-                  _CodeBlock(
-                    title: 'Crush 配置内容',
-                    text: crushConfigValue,
-                    onCopy: _copy,
-                  ),
-                  const SizedBox(height: 16),
-                  _CodeBlock(
-                    title: 'codex 配置文件路径',
-                    text: Platform.isMacOS
-                        ? '~/.codex/config.toml'
-                        : r'%USERPROFILE%\.codex\config.toml',
-                    onCopy: _copy,
-                  ),
-                  const SizedBox(height: 12),
-                  _CodeBlock(
-                    title: 'codex 配置内容',
-                    text: codexConfig,
-                    onCopy: _copy,
-                  ),
-                  const SizedBox(height: 16),
-                  _CodeBlock(
-                    title: 'Xiaomi MiMo 配置文件路径',
-                    text: Platform.isWindows
-                        ? r'%USERPROFILE%\.config\mimocode\mimocode.jsonc'
-                        : '~/.config/mimocode/mimocode.jsonc',
-                    onCopy: _copy,
-                  ),
-                  const SizedBox(height: 12),
-                  _CodeBlock(
-                    title: 'Xiaomi MiMo：合并到 mcp 配置段',
-                    text: mimoConfig,
-                    onCopy: _copy,
-                  ),
-                  const SizedBox(height: 12),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: Colors.blue.shade50,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.blue.shade200),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.tips_and_updates_outlined,
-                              size: 16,
-                              color: Colors.blue.shade700,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              '提示',
-                              style: TextStyle(
-                                fontWeight: FontWeight.w600,
-                                color: Colors.blue.shade700,
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        Text(
-                          '• 配置完成后需要重启 Xiaomi MiMo、OpenCode、Crush 或 Codex\n'
-                          '• 确保上方的 MCP 控制接口已启用\n'
-                          '• 请先在上方下载 MCP Server，目标电脑需安装 Node.js 18+\n'
-                          '• Token 用于验证请求，请勿泄露',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.blue.shade700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+            child: ExpansionTile(
+              key: const ValueKey('mcp-manual-setup'),
+              title: const Text('手动配置', style: AppTextStyles.h3),
+              subtitle: const Text(
+                '按需下载文件、安装 Skill 或复制配置',
+                style: TextStyle(fontSize: 12),
               ),
+              childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Divider(),
+                const SizedBox(height: 8),
+                const Text(
+                  'MCP Server',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton.icon(
+                      onPressed: busy ? null : _downloadMcpServer,
+                      icon: const Icon(Icons.download_outlined, size: 18),
+                      label: const Text('下载到指定目录'),
+                    ),
+                    if (serverPath.isNotEmpty)
+                      TextButton.icon(
+                        onPressed: () => ref
+                            .read(localProjectServiceProvider)
+                            .revealFile(serverPath),
+                        icon: const Icon(Icons.folder_open_outlined, size: 18),
+                        label: const Text('打开文件'),
+                      ),
+                  ],
+                ),
+                if (serverPath.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: SelectableText(
+                      serverPath,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 20),
+                const Text(
+                  'Skill',
+                  style: TextStyle(fontWeight: FontWeight.w600),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
+                    OutlinedButton(
+                      onPressed: busy
+                          ? null
+                          : () => _downloadMcpSkill(
+                              rootDirectory: _defaultSkillRoot(),
+                            ),
+                      child: const Text('安装到 Codex'),
+                    ),
+                    OutlinedButton(
+                      onPressed: busy
+                          ? null
+                          : () => _downloadMcpSkill(
+                              rootDirectory: _defaultSkillRoot(openCode: true),
+                            ),
+                      child: const Text('安装到 OpenCode'),
+                    ),
+                    OutlinedButton(
+                      onPressed: busy
+                          ? null
+                          : () => _downloadMcpSkill(
+                              rootDirectory: _defaultSkillRoot(mimo: true),
+                              forMimo: true,
+                            ),
+                      child: const Text('安装到 Xiaomi MiMo'),
+                    ),
+                    TextButton(
+                      onPressed: busy ? null : () => _downloadMcpSkill(),
+                      child: const Text('其他目录'),
+                    ),
+                  ],
+                ),
+                if (skillReady)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 8),
+                    child: SelectableText(
+                      _installedMcpSkillPath,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black54,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 20),
+                DropdownButtonFormField<String>(
+                  initialValue: _configTarget,
+                  decoration: const InputDecoration(
+                    labelText: 'AI 工具',
+                    border: OutlineInputBorder(),
+                    isDense: true,
+                  ),
+                  items: ['Codex', 'OpenCode', 'Crush', 'Xiaomi MiMo']
+                      .map(
+                        (name) =>
+                            DropdownMenuItem(value: name, child: Text(name)),
+                      )
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) setState(() => _configTarget = value);
+                  },
+                ),
+                const SizedBox(height: 12),
+                _CodeBlock(title: '配置文件路径', text: configPath, onCopy: _copy),
+                const SizedBox(height: 12),
+                if (serverPath.isNotEmpty)
+                  _CodeBlock(title: '配置内容', text: config, onCopy: _copy)
+                else
+                  const Text('先下载 MCP Server，或点击上方“一键复制接入说明”自动准备文件。'),
+                const SizedBox(height: 12),
+                const Text(
+                  '将配置合并到现有文件，安装 Skill 后重新加载或重启 AI 工具。',
+                  style: TextStyle(fontSize: 12, color: Colors.black54),
+                ),
+              ],
             ),
           ),
         ],
@@ -566,11 +382,80 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
     );
   }
 
+  Widget _setupStatus(String title, bool ready) => Row(
+    mainAxisSize: MainAxisSize.min,
+    children: [
+      Icon(
+        ready ? Icons.check_circle_outline : Icons.radio_button_unchecked,
+        size: 16,
+        color: ready ? Colors.green.shade700 : Colors.black38,
+      ),
+      const SizedBox(width: 5),
+      Text(
+        '$title ${ready ? '已就绪' : '待准备'}',
+        style: const TextStyle(fontSize: 12, color: Colors.black54),
+      ),
+    ],
+  );
+
+  Future<void> _copyAiSetupInstructions() async {
+    setState(() => _copyingAiSetup = true);
+    try {
+      final home =
+          Platform.environment[Platform.isWindows ? 'USERPROFILE' : 'HOME'];
+      if (home == null || home.isEmpty) throw Exception('无法确定用户目录');
+      final environment = ref.read(pubEnvironmentServiceProvider);
+      final controller = ref.read(fvmControllerProvider.notifier);
+      final files = await ref
+          .read(mcpAiSetupServiceProvider)
+          .prepare(
+            directory: [
+              home,
+              '.fvm_manager',
+              'ai_setup',
+            ].join(Platform.pathSeparator),
+            serverPath: _installedMcpServerPath,
+            skillPath: _installedMcpSkillPath,
+          );
+      await environment.setMcpServerExecutablePath(files.serverPath);
+      await environment.setMcpSkillPath(files.skillPath);
+      if (!mounted) return;
+      setState(() {
+        _installedMcpServerPath = files.serverPath;
+        _installedMcpSkillPath = files.skillPath;
+      });
+      if (ref.read(fvmControllerProvider).mcpServerToken.isEmpty) {
+        await controller.resetMcpServerToken();
+      }
+      if (!mounted) return;
+      if (!ref.read(fvmControllerProvider).mcpServerEnabled) {
+        await controller.setMcpServerEnabled(true);
+      }
+      if (!mounted) return;
+      final state = ref.read(fvmControllerProvider);
+      if (state.errorMessage?.startsWith('MCP 控制接口启动失败') == true) {
+        throw Exception(state.errorMessage);
+      }
+      final text = buildMcpAiSetupInstructions(
+        port: state.mcpServerPort,
+        token: state.mcpServerToken,
+        serverPath: files.serverPath,
+        skillPath: files.skillPath,
+        operatingSystem: Platform.operatingSystem,
+      );
+      await _copy(text, '接入说明已复制，粘贴给 AI 即可开始配置');
+    } on Object catch (error) {
+      if (mounted) _snack('准备接入说明失败：$error');
+    } finally {
+      if (mounted) setState(() => _copyingAiSetup = false);
+    }
+  }
+
   String _codexConfig(String mcpServerPath) =>
       '''
 [mcp_servers.flutter_manager]
 command = "node"
-args = ["$mcpServerPath"]
+args = ["${_jsonString(mcpServerPath)}"]
 startup_timeout_sec = 30
 
 [mcp_servers.flutter_manager.env]
@@ -675,40 +560,20 @@ FLUTTER_MANAGER_TOKEN = "${widget.state.mcpServerToken}"
       final skillDirectory = selectedName == 'flutter-manager-mcp'
           ? selectedDirectory
           : Directory('$directory${Platform.pathSeparator}flutter-manager-mcp');
-      final agentsDirectory = Directory(
-        '${skillDirectory.path}${Platform.pathSeparator}agents',
-      );
-      final scriptsDirectory = Directory(
-        '${skillDirectory.path}${Platform.pathSeparator}scripts',
-      );
-      await agentsDirectory.create(recursive: true);
-      await scriptsDirectory.create(recursive: true);
-
-      final skillContent = await rootBundle.loadString(
-        'codex_skills/flutter-manager-mcp/SKILL.md',
-      );
-      final agentContent = await rootBundle.loadString(
-        'codex_skills/flutter-manager-mcp/agents/openai.yaml',
-      );
-      final scriptData = await rootBundle.load(
-        'codex_skills/flutter-manager-mcp/scripts/call_flutter_manager.py',
-      );
-      await File(
-        '${skillDirectory.path}${Platform.pathSeparator}SKILL.md',
-      ).writeAsString(skillContent, flush: true);
-      await File(
-        '${agentsDirectory.path}${Platform.pathSeparator}openai.yaml',
-      ).writeAsString(agentContent, flush: true);
-      await File(
-        '${scriptsDirectory.path}${Platform.pathSeparator}'
-        'call_flutter_manager.py',
-      ).writeAsBytes(
-        scriptData.buffer.asUint8List(
-          scriptData.offsetInBytes,
-          scriptData.lengthInBytes,
-        ),
-        flush: true,
-      );
+      for (final name in McpAiSetupService.skillFiles) {
+        final data = await rootBundle.load(
+          'codex_skills/flutter-manager-mcp/$name',
+        );
+        final file = File(
+          '${skillDirectory.path}${Platform.pathSeparator}'
+          '${name.replaceAll('/', Platform.pathSeparator)}',
+        );
+        await file.parent.create(recursive: true);
+        await file.writeAsBytes(
+          data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes),
+          flush: true,
+        );
+      }
       if (forMimo) {
         final localesDirectory = Directory(
           '${skillDirectory.path}${Platform.pathSeparator}locales',
