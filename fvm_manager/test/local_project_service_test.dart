@@ -7,6 +7,21 @@ String _normalizePath(String path) =>
     File(path).absolute.path.replaceAll('/', Platform.pathSeparator);
 
 void main() {
+  test('names macOS DMGs with product version and chip architecture', () {
+    expect(
+      macosDmgFileName('Demo App', '2.3.0', MacosPackageArchitecture.intel),
+      'Demo-App-2.3.0-x86_64.dmg',
+    );
+    expect(
+      macosDmgFileName(
+        'Demo App',
+        '2.3.0',
+        MacosPackageArchitecture.appleSilicon,
+      ),
+      'Demo-App-2.3.0-arm64.dmg',
+    );
+  });
+
   test('reads Flutter platforms, FVM version, and Android flavors', () async {
     final root = await Directory.systemTemp.createTemp(
       'flutter_manager_project_',

@@ -809,17 +809,21 @@ class FvmController extends Notifier<FvmState> {
     ref.invalidate(projectIconProvider(path));
     state = state.copyWith(loading: true, errorMessage: null);
     try {
-      final inspected = await ref
-          .read(localProjectServiceProvider)
-          .inspectProject(path);
+      final service = ref.read(localProjectServiceProvider);
+      final inspected = await service.inspectProject(path);
+      final info = await service.readProjectInfo(path);
       final previous = state.managedProjects
           .where((item) => item.path == path)
           .firstOrNull;
+      final bugly = (previous?.bugly ?? inspected.bugly).copyWith(
+        version: info.version ?? '',
+        buildNo: info.buildNo ?? '',
+      );
       final project = previous == null
-          ? inspected
+          ? inspected.copyWith(bugly: bugly)
           : inspected.copyWith(
               alias: previous.alias,
-              bugly: previous.bugly,
+              bugly: bugly,
               pgyer: previous.pgyer,
               fir: previous.fir,
               selectedFlavors: previous.selectedFlavors,
@@ -2430,7 +2434,7 @@ class FvmController extends Notifier<FvmState> {
     }
   }
 
-  Future<void> packageMacosDmg() async {
+  Future<void> packageMacosDmg(MacosPackageArchitecture architecture) async {
     final project = _selectedManagedProject;
     if (project == null) return;
     _consoleModes[project.path] = 'build';
@@ -2444,7 +2448,7 @@ class FvmController extends Notifier<FvmState> {
     try {
       final dmgPath = await ref
           .read(localProjectServiceProvider)
-          .packageMacosDmg(project.path, project.name);
+          .packageMacosDmg(project.path, project.name, architecture);
       state = state.copyWith(statusMessage: 'DMG 已生成：$dmgPath');
       await ref.read(localProjectServiceProvider).revealFile(dmgPath);
     } catch (error) {

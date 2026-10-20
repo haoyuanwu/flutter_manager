@@ -1608,14 +1608,26 @@ class _ProjectDetail extends ConsumerWidget {
                             ProjectBuildTarget.macos) ...[
                           const SizedBox(width: 8),
                           Tooltip(
-                            message: '打包成 DMG',
-                            child: IconButton.outlined(
-                              onPressed: controller.selectedTaskActive('build')
-                                  ? null
-                                  : controller.packageMacosDmg,
-                              icon: const Icon(
-                                Icons.archive_outlined,
-                                size: 18,
+                            message: '按芯片架构打包 DMG',
+                            child: PopupMenuButton<MacosPackageArchitecture>(
+                              enabled:
+                                  !state.loading &&
+                                  !controller.selectedTaskActive('build'),
+                              tooltip: '按芯片架构打包 DMG',
+                              onSelected: controller.packageMacosDmg,
+                              itemBuilder: (_) => const [
+                                PopupMenuItem(
+                                  value: MacosPackageArchitecture.intel,
+                                  child: Text('英特尔芯片 (x86_64)'),
+                                ),
+                                PopupMenuItem(
+                                  value: MacosPackageArchitecture.appleSilicon,
+                                  child: Text('苹果芯片 (arm64)'),
+                                ),
+                              ],
+                              child: const Padding(
+                                padding: EdgeInsets.all(10),
+                                child: Icon(Icons.archive_outlined, size: 18),
                               ),
                             ),
                           ),
@@ -1794,7 +1806,7 @@ class _ProjectDetail extends ConsumerWidget {
             ProjectBuildTarget.macos => const _PackageGuideContent(
               steps: [
                 ('产物位置', 'build/macos/Build/Products/Release/ 目录下，为 .app 包'),
-                ('打包 DMG', '可使用本工具的「打包成 DMG」按钮，或手动用 hdiutil 命令'),
+                ('打包 DMG', '点击归档图标选择英特尔或苹果芯片架构；文件名包含应用版本号'),
                 ('签名公证', '正式分发需进行代码签名和 Apple 公证：codesign + notarytool'),
                 ('拖拽安装', 'DMG 内放入 Applications 快捷方式，用户拖拽即可安装'),
                 ('Homebrew Cask', '可提交至 homebrew-cask 供用户 brew install 安装'),
@@ -2269,11 +2281,15 @@ class _ProjectVersionSettingsState
   @override
   void didUpdateWidget(covariant _ProjectVersionSettings oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.project.path != widget.project.path ||
+    final projectRefreshed =
+        oldWidget.project.lastOpened != widget.project.lastOpened;
+    if (projectRefreshed ||
+        oldWidget.project.path != widget.project.path ||
         oldWidget.project.bugly.version != widget.project.bugly.version) {
       _versionController.text = widget.project.bugly.version;
     }
-    if (oldWidget.project.path != widget.project.path ||
+    if (projectRefreshed ||
+        oldWidget.project.path != widget.project.path ||
         oldWidget.project.bugly.buildNo != widget.project.bugly.buildNo) {
       _buildNoController.text = widget.project.bugly.buildNo;
     }

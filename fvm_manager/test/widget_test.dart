@@ -12,6 +12,8 @@ import 'package:flutter_manager/src/data/mcp_ai_setup_service.dart';
 import 'package:flutter_manager/src/data/process_runner.dart';
 import 'package:flutter_manager/src/data/flutter_command_service.dart';
 import 'package:flutter_manager/src/data/fvm_service.dart';
+import 'package:flutter_manager/src/data/local_project_service.dart';
+import 'package:flutter_manager/src/data/project_repository.dart';
 import 'package:flutter_manager/src/domain/models.dart';
 import 'package:flutter_manager/src/domain/project_models.dart';
 import 'package:flutter_manager/src/presentation/providers.dart';
@@ -26,6 +28,29 @@ final _searchLog = List.generate(140, (index) {
 class _TestPubEnvironmentService extends PubEnvironmentService {
   @override
   Future<List<String>> getSystemPath() async => const ['/tmp/fvm/bin'];
+}
+
+class _RefreshProjectService extends LocalProjectService {
+  int refreshCount = 1;
+
+  @override
+  Future<FlutterProject> inspectProject(String path) async => FlutterProject(
+    name: 'demo',
+    path: path,
+    lastOpened: DateTime(2026, 1, ++refreshCount),
+    hasAndroid: true,
+    bugly: const BuglyUploadConfig(version: 'old-gradle-version', buildNo: '1'),
+  );
+
+  @override
+  Future<({String? bundleId, String? version, String? buildNo})>
+  readProjectInfo(String path) async =>
+      (bundleId: null, version: '2.3.0', buildNo: '42');
+}
+
+class _MemoryProjectRepository extends ProjectRepository {
+  @override
+  Future<void> save(List<FlutterProject> projects) async {}
 }
 
 class _TestApkInstallService extends ApkInstallService {
@@ -816,6 +841,48 @@ void main() {
       findsOneWidget,
     );
     expect(find.byType(FlutterLogo), findsWidgets);
+  });
+
+  testWidgets('project refresh reloads and displays package version', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 1000);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          fvmControllerProvider.overrideWith(_TestController.new),
+          localProjectServiceProvider.overrideWithValue(
+            _RefreshProjectService(),
+          ),
+          projectRepositoryProvider.overrideWithValue(
+            _MemoryProjectRepository(),
+          ),
+          pubEnvironmentServiceProvider.overrideWithValue(
+            _TestPubEnvironmentService(),
+          ),
+        ],
+        child: const FvmManagerApp(),
+      ),
+    );
+    await tester.tap(find.text('项目管理'));
+    await tester.pump();
+    final version = find.byKey(const ValueKey('project-build-version-field'));
+    final buildNo = find.byKey(const ValueKey('project-build-number-field'));
+
+    for (var attempt = 0; attempt < 2; attempt++) {
+      await tester.ensureVisible(version);
+      await tester.enterText(version, 'unsaved');
+      await tester.enterText(buildNo, '999');
+      final refresh = find.byTooltip('刷新项目信息');
+      await tester.ensureVisible(refresh);
+      await tester.tap(refresh);
+      await tester.pumpAndSettle();
+      expect(tester.widget<TextField>(version).controller?.text, '2.3.0');
+      expect(tester.widget<TextField>(buildNo).controller?.text, '42');
+    }
   });
 
   testWidgets('shows FVM dashboard status', (tester) async {

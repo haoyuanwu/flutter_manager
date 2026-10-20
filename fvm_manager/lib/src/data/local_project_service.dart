@@ -21,6 +21,25 @@ class InnoCompilerNotFoundException implements Exception {
       '或手动指定 ISCC.exe 路径。';
 }
 
+enum MacosPackageArchitecture {
+  intel('x86_64'),
+  appleSilicon('arm64');
+
+  const MacosPackageArchitecture(this.machineName);
+
+  final String machineName;
+}
+
+String macosDmgFileName(
+  String productName,
+  String version,
+  MacosPackageArchitecture architecture,
+) {
+  String safe(String value) =>
+      value.trim().replaceAll(RegExp(r'[^\p{L}\p{N}._-]+', unicode: true), '-');
+  return '${safe(productName)}-${safe(version)}-${architecture.machineName}.dmg';
+}
+
 class LocalProjectService {
   Future<String?> chooseDirectory() async {
     try {
@@ -526,7 +545,12 @@ Filename: "{app}\\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChan
   }
 
   /// 将 macOS .app 打包成 .dmg
-  Future<String> packageMacosDmg(String projectPath, String appName) async {
+  Future<String> packageMacosDmg(
+    String projectPath,
+    String appName,
+    MacosPackageArchitecture architecture,
+  ) async {
+    if (!Platform.isMacOS) throw Exception('DMG 打包仅支持 macOS');
     final separator = Platform.pathSeparator;
     final app = await findMacosReleaseApp(projectPath, appName);
     final appPath = app.path;
@@ -534,11 +558,22 @@ Filename: "{app}\\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChan
         .where((segment) => segment.isNotEmpty)
         .last;
     final productName = bundleName.substring(0, bundleName.length - 4);
+    final infoPlist = '$appPath${separator}Contents${separator}Info.plist';
+    final versionResult = await Process.run('plutil', [
+      '-extract',
+      'CFBundleShortVersionString',
+      'raw',
+      '-o',
+      '-',
+      infoPlist,
+    ]);
+    if (versionResult.exitCode != 0 ||
+        versionResult.stdout.toString().trim().isEmpty) {
+      throw Exception('无法读取 macOS 应用版本号：$infoPlist');
+    }
+    final version = versionResult.stdout.toString().trim();
     final dmgPath =
-        '$projectPath${separator}build$separator${productName.replaceAll(' ', '')}.dmg';
-    // 删除旧的 dmg
-    final oldDmg = File(dmgPath);
-    if (oldDmg.existsSync()) await oldDmg.delete();
+        '$projectPath${separator}build$separator${macosDmgFileName(productName, version, architecture)}';
 
     // 使用临时目录组织标准的拖拽安装布局：应用 + Applications 快捷方式。
     final stagingDirectory = await Directory.systemTemp.createTemp(
@@ -549,6 +584,31 @@ Filename: "{app}\\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChan
       final copyResult = await Process.run('ditto', [appPath, stagedAppPath]);
       if (copyResult.exitCode != 0) {
         throw Exception('准备 DMG 应用文件失败：${copyResult.stderr}');
+      }
+      await _thinMacosApp(Directory(stagedAppPath), architecture.machineName);
+      final executableResult = await Process.run('plutil', [
+        '-extract',
+        'CFBundleExecutable',
+        'raw',
+        '-o',
+        '-',
+        infoPlist,
+      ]);
+      if (executableResult.exitCode != 0) {
+        throw Exception('无法读取 macOS 应用可执行文件名：$infoPlist');
+      }
+      final executable = executableResult.stdout.toString().trim();
+      final stagedExecutable =
+          '$stagedAppPath${separator}Contents${separator}MacOS$separator$executable';
+      final archResult = await Process.run('lipo', [
+        '-archs',
+        stagedExecutable,
+      ]);
+      if (archResult.exitCode != 0 ||
+          archResult.stdout.toString().trim() != architecture.machineName) {
+        throw Exception(
+          '应用未生成 ${architecture.machineName} 单架构可执行文件，请确认 Release 构建包含该架构',
+        );
       }
       await Link(
         '${stagingDirectory.path}${separator}Applications',
@@ -576,6 +636,36 @@ Filename: "{app}\\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChan
       }
     }
     return dmgPath;
+  }
+
+  Future<void> _thinMacosApp(Directory app, String architecture) async {
+    final entries = await app
+        .list(recursive: true, followLinks: false)
+        .toList();
+    for (final entity in entries) {
+      if (entity is! File) continue;
+      final architectures = await Process.run('lipo', ['-archs', entity.path]);
+      if (architectures.exitCode != 0) continue; // 普通资源文件。
+      final slices = architectures.stdout.toString().trim().split(
+        RegExp(r'\s+'),
+      );
+      if (!slices.contains(architecture)) {
+        throw Exception('${entity.path} 不包含 $architecture 架构，无法生成对应的 DMG');
+      }
+      if (slices.length == 1) continue;
+      final thinPath = '${entity.path}.flutter-manager-thin';
+      final thinResult = await Process.run('lipo', [
+        '-thin',
+        architecture,
+        entity.path,
+        '-output',
+        thinPath,
+      ]);
+      if (thinResult.exitCode != 0) {
+        throw Exception('提取 $architecture 架构失败：${thinResult.stderr}');
+      }
+      await File(thinPath).rename(entity.path);
+    }
   }
 
   /// 查找 Flutter/Xcode 实际生成的 macOS Release 应用。
