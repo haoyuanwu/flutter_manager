@@ -1,0 +1,19 @@
+name: Update release title
+
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/release-title.yml']
+
+permissions:
+  contents: write
+
+jobs:
+  update-title:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Use version number as the release title
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release edit v1.2.6 --title v1.2.6

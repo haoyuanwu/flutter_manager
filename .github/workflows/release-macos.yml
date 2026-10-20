@@ -55,4 +55,4 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          gh release create "$RELEASE_TAG" --verify-tag --title "Flutter Manager $RELEASE_TAG" --notes-file RELEASE_NOTES_v1.2.6.md "build/release/FlutterManager-$RELEASE_TAG.dmg" build/release/SHA256SUMS.txt
+          gh release create "$RELEASE_TAG" --verify-tag --title "$RELEASE_TAG" --notes-file RELEASE_NOTES_v1.2.6.md "build/release/FlutterManager-$RELEASE_TAG.dmg" build/release/SHA256SUMS.txt
