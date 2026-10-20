@@ -1,0 +1,24 @@
+name: Upload existing v1.2.6 DMGs
+
+on:
+  push:
+    branches: ['codex/upload-v1.2.6-dmgs']
+
+permissions:
+  contents: write
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Replace release packages
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          cd .release-assets
+          sha256sum Flutter-Manager-1.2.6-arm64.dmg Flutter-Manager-1.2.6-x86_64.dmg > SHA256SUMS.txt
+          gh release upload v1.2.6 Flutter-Manager-1.2.6-arm64.dmg Flutter-Manager-1.2.6-x86_64.dmg SHA256SUMS.txt --clobber
+          gh release edit v1.2.6 --notes-file ../fvm_manager/RELEASE_NOTES_v1.2.6.md
+          gh release delete-asset v1.2.6 FlutterManager-v1.2.6.dmg --yes
