@@ -190,6 +190,22 @@ class ConsoleWindowService {
         'action': action,
       });
 
+  Future<Map<dynamic, dynamic>> requestStartupLock(
+    String channelName,
+    String projectPath, {
+    Map<String, dynamic>? report,
+    bool force = false,
+  }) async {
+    final channel = channelName == 'fvm_manager/console_commands'
+        ? _commandChannel
+        : _actionChannel(channelName);
+    final result = await channel.invokeMethod<dynamic>(
+      report == null ? 'inspectStartupLock' : 'stopStartupLock',
+      {'projectPath': projectPath, 'report': ?report, 'force': force},
+    );
+    return result as Map<dynamic, dynamic>;
+  }
+
   Future<void> requestActionOn(
     String channelName,
     String projectPath,

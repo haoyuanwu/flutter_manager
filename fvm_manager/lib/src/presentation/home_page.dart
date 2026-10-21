@@ -15,12 +15,14 @@ import '../data/signing_info_service.dart';
 import '../domain/models.dart';
 import '../domain/project_models.dart';
 import '../data/log_service.dart';
+import '../data/flutter_startup_lock_service.dart';
 import '../data/distribution_service.dart';
 import '../data/local_project_service.dart';
 import '../data/mcp_ai_setup_service.dart';
 import '../data/pub_environment_service.dart';
 import 'confirm_dialog.dart';
 import 'console_search.dart';
+import 'widgets/flutter_startup_lock_button.dart';
 import 'providers.dart';
 import 'theme/app_theme.dart';
 

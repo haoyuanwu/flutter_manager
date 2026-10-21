@@ -11,6 +11,7 @@ import 'package:pub_semver/pub_semver.dart';
 
 import '../data/flutter_release_service.dart';
 import '../data/fvm_service.dart';
+import '../data/flutter_startup_lock_service.dart';
 import '../data/flutter_command_service.dart';
 import '../data/flutter_device_monitor.dart';
 import '../data/environment_diagnostics_service.dart';
@@ -69,6 +70,10 @@ final fvmServiceProvider = Provider<FvmService>(
       });
     },
   ),
+);
+
+final flutterStartupLockServiceProvider = Provider<FlutterStartupLockService>(
+  (ref) => FlutterStartupLockService(),
 );
 
 final localProjectServiceProvider = Provider<LocalProjectService>(
@@ -333,10 +338,20 @@ class FvmController extends Notifier<FvmState> {
       await ConsoleWindowService.instance.registerMainHandler((call) async {
         final arguments = call.arguments as Map<dynamic, dynamic>? ?? const {};
         switch (call.method) {
+          case 'inspectStartupLock':
+            return (await inspectProjectStartupLock(
+              arguments['projectPath'] as String,
+            )).toJson();
+          case 'stopStartupLock':
+            return (await stopProjectStartupLock(
+              arguments['projectPath'] as String,
+              FlutterLockReport.fromJson(arguments['report'] as Map),
+              force: arguments['force'] == true,
+            )).toJson();
           case 'stopCommand':
             final taskId = arguments['taskId'] as String?;
             if (taskId != null) await stopProjectCommand(taskId);
-            return;
+            return null;
           case 'clearCommandLog':
             final tabId =
                 arguments['tabId'] as String? ??
@@ -348,20 +363,20 @@ class FvmController extends Notifier<FvmState> {
                     : _tabIdForProjectFallback(tabId),
               );
             }
-            return;
+            return null;
           case 'runProjectAction':
             final projectPath = arguments['projectPath'] as String?;
             final action = arguments['action'] as String?;
             if (projectPath != null && action != null) {
               await _runProjectActionFromConsole(projectPath, action);
             }
-            return;
+            return null;
           case 'consoleReady':
             final projectPath = arguments['projectPath'] as String?;
             if (projectPath != null) {
               ConsoleWindowService.instance.markReady(projectPath);
             }
-            return;
+            return null;
         }
       });
     } on MissingPluginException {
@@ -1292,6 +1307,16 @@ class FvmController extends Notifier<FvmState> {
           '自定义工作流（${index + 1}/${commands.length}）',
         );
         final service = ref.read(flutterCommandServiceProvider);
+        final distribution = ref.read(distributionServiceProvider);
+        final naming =
+            command.executable == 'flutter' &&
+                BuildArtifactNaming.supportsCommand(command.arguments)
+            ? await distribution.buildArtifactNaming(
+                project.path,
+                command.arguments,
+              )
+            : null;
+        final buildStartedAt = DateTime.now();
         final code = command.executable == 'flutter'
             ? await service.run(
                 taskId: taskId,
@@ -1314,6 +1339,14 @@ class FvmController extends Notifier<FvmState> {
         }
         if (code != 0 && !_stoppingCommandTasks.contains(taskId)) {
           throw Exception('${command.executable} 执行失败（退出码 $code）');
+        }
+        if (naming != null) {
+          await _publishVersionedArtifacts(
+            taskId,
+            project.path,
+            naming,
+            buildStartedAt,
+          );
         }
         _appendCommandLog(taskId, '\n${List.filled(72, '─').join()}\n\n');
       }
@@ -1339,6 +1372,23 @@ class FvmController extends Notifier<FvmState> {
     required String label,
     String taskKind = 'operation',
   }) => _runProjectCommands([arguments], label: label, taskKind: taskKind);
+
+  Future<void> _publishVersionedArtifacts(
+    String taskId,
+    String projectPath,
+    BuildArtifactNaming naming,
+    DateTime startedAt,
+  ) async {
+    final paths = await ref
+        .read(distributionServiceProvider)
+        .publishBuildArtifacts(projectPath, naming, startedAt);
+    for (final path in paths) {
+      _appendCommandLog(taskId, '\n[版本化分发包] $path\n');
+    }
+    if (paths.isEmpty) {
+      _appendCommandLog(taskId, '\n[未找到本次构建的最终安装包，未重命名旧产物]\n');
+    }
+  }
 
   Future<void> _runProjectCommands(
     List<List<String>> commands, {
@@ -1392,6 +1442,12 @@ class FvmController extends Notifier<FvmState> {
               ? label
               : '$label（${index + 1}/${commands.length}）',
         );
+        final naming = BuildArtifactNaming.supportsCommand(commands[index])
+            ? await ref
+                  .read(distributionServiceProvider)
+                  .buildArtifactNaming(path, commands[index])
+            : null;
+        final buildStartedAt = DateTime.now();
         final code = await ref
             .read(flutterCommandServiceProvider)
             .run(
@@ -1408,6 +1464,14 @@ class FvmController extends Notifier<FvmState> {
         }
         if (code != 0 && !_stoppingCommandTasks.contains(taskId)) {
           throw Exception(_commandFailureMessage(label, path, code));
+        }
+        if (naming != null) {
+          await _publishVersionedArtifacts(
+            taskId,
+            path,
+            naming,
+            buildStartedAt,
+          );
         }
         if (afterEach != null) await afterEach(index);
         if (index < commands.length - 1) {
@@ -2383,6 +2447,35 @@ class FvmController extends Notifier<FvmState> {
         .read(flutterCommandServiceProvider)
         .stop(taskId, gracefulFlutterRun: taskId.startsWith('run::'));
   }
+
+  Future<FlutterLockReport> inspectProjectStartupLock(
+    String projectPath,
+  ) async {
+    if (!state.managedProjects.any((project) => project.path == projectPath)) {
+      throw Exception('项目已移除，请重新选择项目');
+    }
+    final sdk = await ref
+        .read(fvmServiceProvider)
+        .projectFlutterSdkPath(projectPath);
+    return ref.read(flutterStartupLockServiceProvider).inspect(sdk);
+  }
+
+  Future<FlutterLockReport> stopProjectStartupLock(
+    String projectPath,
+    FlutterLockReport approved, {
+    required bool force,
+  }) async {
+    final current = await inspectProjectStartupLock(projectPath);
+    if (current.sdkPath != approved.sdkPath) {
+      throw Exception('项目的 Flutter SDK 已变更，请重新检查后操作');
+    }
+    return ref
+        .read(flutterStartupLockServiceProvider)
+        .stop(approved, force: force);
+  }
+
+  Future<void> rerunProjectAfterUnlock(String projectPath) =>
+      _runProjectActionFromConsole(projectPath, 'rerun');
 
   void clearCommandLog() {
     final tabId = state.selectedConsoleTabId;

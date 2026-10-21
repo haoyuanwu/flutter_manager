@@ -1365,6 +1365,19 @@ class _ProjectDetail extends ConsumerWidget {
                         icon: const Icon(Icons.open_in_browser),
                         label: const Text('DevTools'),
                       ),
+                      FlutterStartupLockButton(
+                        key: ValueKey('unlock-${project.path}'),
+                        inspect: () =>
+                            controller.inspectProjectStartupLock(project.path),
+                        stop: (report, force) =>
+                            controller.stopProjectStartupLock(
+                              project.path,
+                              report,
+                              force: force,
+                            ),
+                        rerun: () =>
+                            controller.rerunProjectAfterUnlock(project.path),
+                      ),
                       if (state.consoleTabs.isEmpty &&
                           !state.showMainWindowConsole &&
                           !controller.selectedProjectBuildConsoleVisible)
@@ -1625,9 +1638,24 @@ class _ProjectDetail extends ConsumerWidget {
                                   child: Text('苹果芯片 (arm64)'),
                                 ),
                               ],
-                              child: const Padding(
-                                padding: EdgeInsets.all(10),
-                                child: Icon(Icons.archive_outlined, size: 18),
+                              icon: const Icon(
+                                Icons.archive_outlined,
+                                size: 18,
+                              ),
+                              style: ButtonStyle(
+                                shape: const WidgetStatePropertyAll(
+                                  CircleBorder(),
+                                ),
+                                side: WidgetStateProperty.resolveWith((states) {
+                                  final colors = Theme.of(context).colorScheme;
+                                  return BorderSide(
+                                    color: states.contains(WidgetState.disabled)
+                                        ? colors.onSurface.withValues(
+                                            alpha: .12,
+                                          )
+                                        : colors.outline,
+                                  );
+                                }),
                               ),
                             ),
                           ),
@@ -2951,6 +2979,11 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
     final controller = ref.read(fvmControllerProvider.notifier);
     final tasks = controller.activeTasksForSelectedProject;
     final hasRunTask = tasks.any((t) => t.id.startsWith('run::'));
+    final consoleTab = widget.state.consoleTabs
+        .where((tab) => tab.id == widget.state.selectedConsoleTabId)
+        .firstOrNull;
+    final unlockProjectPath =
+        consoleTab?.projectPath ?? widget.state.selectedManagedProjectPath;
     return Card(
       color: const Color(0xff101820),
       child: Padding(
@@ -2969,6 +3002,23 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
                   ),
                 ),
                 const Spacer(),
+                if (unlockProjectPath != null)
+                  FlutterStartupLockButton(
+                    key: ValueKey('console-unlock-$unlockProjectPath'),
+                    compact: true,
+                    visible: hasFlutterStartupLockWarning(
+                      widget.state.commandLog,
+                    ),
+                    inspect: () =>
+                        controller.inspectProjectStartupLock(unlockProjectPath),
+                    stop: (report, force) => controller.stopProjectStartupLock(
+                      unlockProjectPath,
+                      report,
+                      force: force,
+                    ),
+                    rerun: () =>
+                        controller.rerunProjectAfterUnlock(unlockProjectPath),
+                  ),
                 if (hasRunTask) ...[
                   IconButton(
                     tooltip: '清空并重新运行',

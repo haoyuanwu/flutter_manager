@@ -238,8 +238,8 @@ class FvmService {
           : foundAny
           ? '所选路径中的 FVM 无法运行，请确认 $names 可执行\n$example'
           : '所选路径中未找到 $names。\n'
-              '可选择：可执行文件所在目录、其上级目录（会自动找 bin\\）、'
-              '或直接选中 fvm.exe/fvm.bat。\n$example',
+                '可选择：可执行文件所在目录、其上级目录（会自动找 bin\\）、'
+                '或直接选中 fvm.exe/fvm.bat。\n$example',
     );
   }
 
@@ -564,6 +564,40 @@ class FvmService {
       includeParentEnvironment: false,
       runInShell: Platform.isWindows,
     );
+  }
+
+  /// Resolve without invoking Flutter itself: `flutter --version` also waits
+  /// for the startup lock. Refuse unknown wrappers rather than unlock another SDK.
+  Future<String> projectFlutterSdkPath(String projectPath) async {
+    if (_usesFvm(projectPath) &&
+        (_executable != null || await detect(allowRepair: false) != null)) {
+      final config = File('$projectPath/.fvmrc');
+      final legacy = File('$projectPath/.fvm/fvm_config.json');
+      final data =
+          jsonDecode(
+                await (await config.exists() ? config : legacy).readAsString(),
+              )
+              as Map;
+      final version = (data['flutter'] ?? data['flutterSdkVersion']) as String?;
+      final sdks = await listInstalled();
+      final sdk = sdks.where((sdk) => sdk.name == version).firstOrNull;
+      if (sdk == null || sdk.directory.isEmpty) {
+        throw Exception('无法确定项目的 FVM SDK（$version），请先检查项目版本配置');
+      }
+      return _validatedFlutterSdk(Directory(sdk.directory));
+    }
+    final executable = _findExecutable('flutter');
+    if (executable == null) throw Exception('未检测到当前项目使用的 Flutter SDK');
+    final resolved = await File(executable).resolveSymbolicLinks();
+    return _validatedFlutterSdk(File(resolved).parent.parent);
+  }
+
+  Future<String> _validatedFlutterSdk(Directory directory) async {
+    final resolved = await directory.resolveSymbolicLinks();
+    if (!await File('$resolved/packages/flutter_tools/pubspec.yaml').exists()) {
+      throw Exception('无法从启动脚本确定 Flutter SDK，请检查 Flutter 路径：$resolved');
+    }
+    return resolved;
   }
 
   Future<Process> startDartCommand({

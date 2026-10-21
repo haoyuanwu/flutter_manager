@@ -94,10 +94,12 @@ class LocalProjectService {
 
   Future<void> openApkOutput(String projectPath) async {
     final separator = Platform.pathSeparator;
-    final output = Directory(
+    var output = Directory(
       '$projectPath${separator}build${separator}app${separator}outputs'
       '${separator}flutter-apk',
     );
+    final versioned = Directory('$projectPath/build/outputs/release/apk');
+    if (await versioned.exists()) output = versioned;
     if (!await output.exists()) {
       throw Exception('APK 输出目录尚不存在，请先完成一次 APK 构建');
     }
@@ -305,7 +307,11 @@ class LocalProjectService {
       case 'appbundle':
         outputPath =
             '$projectPath${separator}build${separator}app${separator}outputs'
-            '$separator${target == 'apk' ? 'flutter-apk' : 'flutter-aab'}';
+            '$separator${target == 'apk' ? 'flutter-apk' : 'bundle'}';
+        final versioned = Directory(
+          '$projectPath/build/outputs/release/${target == 'apk' ? 'apk' : 'aab'}',
+        );
+        if (await versioned.exists()) outputPath = versioned.path;
       case 'ios':
         outputPath = '$projectPath${separator}build${separator}ios';
       case 'macos':

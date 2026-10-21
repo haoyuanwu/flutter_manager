@@ -7,6 +7,8 @@ import 'package:flutter/services.dart';
 import '../confirm_dialog.dart';
 import '../console_search.dart';
 import '../console_window_service.dart';
+import '../../data/flutter_startup_lock_service.dart';
+import '../widgets/flutter_startup_lock_button.dart';
 
 class ConsoleWindowApp extends StatelessWidget {
   const ConsoleWindowApp({
@@ -443,6 +445,36 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
                 ),
               ),
               const Spacer(),
+              FlutterStartupLockButton(
+                compact: true,
+                visible: hasFlutterStartupLockWarning(_commandLog),
+                inspect: () async => FlutterLockReport.fromJson(
+                  await ConsoleWindowService.instance.requestStartupLock(
+                    _actionChannelName,
+                    widget.projectPath,
+                  ),
+                ),
+                stop: (report, force) async => FlutterLockReport.fromJson(
+                  await ConsoleWindowService.instance.requestStartupLock(
+                    _actionChannelName,
+                    widget.projectPath,
+                    report: report.toJson(),
+                    force: force,
+                  ),
+                ),
+                rerun: () => _request(
+                  onGlobal: () => ConsoleWindowService.instance.requestAction(
+                    widget.projectPath,
+                    'rerun',
+                  ),
+                  onChannel: () =>
+                      ConsoleWindowService.instance.requestActionOn(
+                        _actionChannelName,
+                        widget.projectPath,
+                        'rerun',
+                      ),
+                ),
+              ),
               IconButton(
                 tooltip: '搜索输出',
                 onPressed: _openSearch,

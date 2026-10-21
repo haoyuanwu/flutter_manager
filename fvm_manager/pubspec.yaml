@@ -44,6 +44,8 @@ dependencies:
   encrypt: ^5.0.3
   desktop_multi_window: ^0.3.0
   package_info_plus: ^8.1.0
+  ffi: ^2.2.0
+  crypto: ^3.0.7
 
 dev_dependencies:
   flutter_test:
