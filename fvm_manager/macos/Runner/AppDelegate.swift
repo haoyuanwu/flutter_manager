@@ -11,6 +11,10 @@ class AppDelegate: FlutterAppDelegate {
   private var flutterVersion = "检测中…"
   private var managedProjects: [[String: String]] = []
   private var runningProcesses: [[String: String]] = []
+  private var dockVisibilityUpdateScheduled = false
+  private var observingWindowVisibility = false
+  private let closingWindows = NSHashTable<NSWindow>.weakObjects()
+  private let managedWindows = NSHashTable<NSWindow>.weakObjects()
 
   override func applicationDidFinishLaunching(_ notification: Notification) {
     super.applicationDidFinishLaunching(notification)
@@ -19,6 +23,7 @@ class AppDelegate: FlutterAppDelegate {
     } else {
       configureStatusItem()
     }
+    observeWindowVisibility()
   }
 
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -130,12 +135,91 @@ class AppDelegate: FlutterAppDelegate {
 
   func attachMainWindow(_ window: MainFlutterWindow) {
     mainWindow = window
+    managedWindows.add(window)
     configureStatusItem()
     configureStatusMenuChannel()
     configureDragDropChannel()
 
     // 设置窗口支持拖放
     setupWindowDragDrop(window)
+  }
+
+  func attachConsoleWindow(_ window: NSWindow) {
+    managedWindows.add(window)
+    scheduleDockVisibilityUpdate()
+  }
+
+  func mainWindowWillClose(_ window: NSWindow) {
+    managedWindows.add(window)
+    closingWindows.add(window)
+    scheduleDockVisibilityUpdate()
+  }
+
+  func mainWindowVisibilityChanged(_ window: NSWindow) {
+    managedWindows.add(window)
+    if window.isVisible { closingWindows.remove(window) }
+    scheduleDockVisibilityUpdate()
+  }
+
+  private func observeWindowVisibility() {
+    guard !observingWindowVisibility else { return }
+    observingWindowVisibility = true
+    let center = NotificationCenter.default
+    for name in [
+      NSWindow.willCloseNotification,
+      NSWindow.didBecomeKeyNotification,
+      NSWindow.didMiniaturizeNotification,
+      NSWindow.didDeminiaturizeNotification,
+      NSWindow.didChangeOcclusionStateNotification,
+      NSWindow.didUpdateNotification,
+    ] {
+      center.addObserver(
+        self,
+        selector: #selector(applicationWindowVisibilityChanged(_:)),
+        name: name,
+        object: nil
+      )
+    }
+    scheduleDockVisibilityUpdate()
+  }
+
+  @objc private func applicationWindowVisibilityChanged(_ notification: Notification) {
+    // Only app windows count. Status-menu windows, tooltips and system panels
+    // must not bring the Dock icon back while the app is running in the tray.
+    guard let window = notification.object as? NSWindow,
+          managedWindows.contains(window) || window is MainFlutterWindow else { return }
+    if notification.name == NSWindow.willCloseNotification {
+      closingWindows.add(window)
+    } else if window.isVisible &&
+              (notification.name == NSWindow.didBecomeKeyNotification ||
+               notification.name == NSWindow.didDeminiaturizeNotification) {
+      closingWindows.remove(window)
+    }
+    scheduleDockVisibilityUpdate()
+  }
+
+  private func scheduleDockVisibilityUpdate() {
+    guard !dockVisibilityUpdateScheduled else { return }
+    dockVisibilityUpdateScheduled = true
+    // willClose is sent before isVisible changes. Coalesce notifications and
+    // evaluate after AppKit finishes closing/hiding/ordering the windows.
+    DispatchQueue.main.async { [weak self] in
+      guard let self else { return }
+      self.dockVisibilityUpdateScheduled = false
+      // Cmd-H hides an application, not its windows. Keep its existing Dock
+      // policy so it can be restored through the normal system shortcuts.
+      guard !NSApp.isHidden else { return }
+      let hasOpenWindow = self.managedWindows.allObjects.contains { window in
+        !self.closingWindows.contains(window) &&
+          (window.isVisible || window.isMiniaturized)
+      }
+      // Minimizing, hiding the app (Cmd-H), or covering a window is not closing
+      // it. Keep the Dock entry so those windows can still be restored normally.
+      let policy: NSApplication.ActivationPolicy = hasOpenWindow ? .regular : .accessory
+      if NSApp.activationPolicy() != policy {
+        NSApp.setActivationPolicy(policy)
+      }
+    }
   }
 
   // 设置窗口拖放支持
@@ -290,6 +374,12 @@ class AppDelegate: FlutterAppDelegate {
       return
     }
     mainWindow = window
+    closingWindows.remove(window)
+    // Restore a regular app before activating it from the tray or Finder.
+    if NSApp.activationPolicy() != .regular {
+      NSApp.setActivationPolicy(.regular)
+    }
+    if window.isMiniaturized { window.deminiaturize(nil) }
     window.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
   }

@@ -3,7 +3,7 @@ name: Release macOS DMG
 on:
   push:
     tags:
-      - 'v1.2.6'
+      - 'v1.2.7'
 
 permissions:
   contents: write
@@ -23,7 +23,7 @@ jobs:
           cache-dependency-path: fvm_manager/mcp_server/package-lock.json
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: '3.47.6'
+          flutter-version: '3.47.7'
           channel: stable
           cache: true
       - name: Build bundled MCP server
@@ -35,24 +35,20 @@ jobs:
         run: |
           flutter pub get
           flutter test --no-pub
-      - name: Build macOS release
-        run: flutter build macos --release --no-pub
-      - name: Package DMG
+      - name: Check tag and application version
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          mkdir -p build/release
-          staging_dir="$(mktemp -d)"
-          ditto 'build/macos/Build/Products/Release/Flutter Manager.app' "$staging_dir/Flutter Manager.app"
-          ln -s /Applications "$staging_dir/Applications"
-          hdiutil create -volname 'Flutter Manager' -srcfolder "$staging_dir" -ov -format UDZO "build/release/FlutterManager-$RELEASE_TAG.dmg"
-          hdiutil verify "build/release/FlutterManager-$RELEASE_TAG.dmg"
-          cd build/release
-          shasum -a 256 "FlutterManager-$RELEASE_TAG.dmg" > SHA256SUMS.txt
+          version="$(sed -n 's/^version: \([^+]*\).*/\1/p' pubspec.yaml)"
+          test "$RELEASE_TAG" = "v$version"
+      - name: Build macOS release
+        run: flutter build macos --release --no-pub
+      - name: Package DMG
+        run: python3 scripts/package_macos_release.py
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          gh release create "$RELEASE_TAG" --verify-tag --title "$RELEASE_TAG" --notes-file RELEASE_NOTES_v1.2.6.md "build/release/FlutterManager-$RELEASE_TAG.dmg" build/release/SHA256SUMS.txt
+          gh release create "$RELEASE_TAG" --verify-tag --title "$RELEASE_TAG" --notes-file "RELEASE_NOTES_$RELEASE_TAG.md" build/release/*.dmg build/release/SHA256SUMS.txt

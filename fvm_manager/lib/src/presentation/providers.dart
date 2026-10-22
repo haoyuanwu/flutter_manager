@@ -286,6 +286,21 @@ final fvmControllerProvider = NotifierProvider<FvmController, FvmState>(
   FvmController.new,
 );
 
+// Run mode is independent of packaging mode, with Debug as the default for
+// every project. Keep each project's choice for this app session.
+class ProjectRunModes extends Notifier<Map<String, ProjectRunMode>> {
+  @override
+  Map<String, ProjectRunMode> build() => const {};
+
+  void select(String path, ProjectRunMode mode) =>
+      state = {...state, path: mode};
+}
+
+final projectRunModesProvider =
+    NotifierProvider<ProjectRunModes, Map<String, ProjectRunMode>>(
+      ProjectRunModes.new,
+    );
+
 class FvmController extends Notifier<FvmState> {
   final ProjectCommandLogBuffer _commandLogs = ProjectCommandLogBuffer();
   final Map<String, ({String projectPath, String label})> _activeCommandTasks =
@@ -294,6 +309,8 @@ class FvmController extends Notifier<FvmState> {
   final Set<String> _closedConsoleTabIds = {};
   final Set<String> _closingConsoleTabIds = {};
   final Map<String, String> _consoleModes = {};
+  final Map<String, ProjectRunMode> _activeRunModes = {};
+  final Map<String, Object> _activeRunSessions = {};
   final Map<String, int> _mcpRuntimeCursors = {};
   final McpControlServer _mcpControlServer = McpControlServer();
   String? _mainBuildConsoleProjectPath;
@@ -350,7 +367,12 @@ class FvmController extends Notifier<FvmState> {
             )).toJson();
           case 'stopCommand':
             final taskId = arguments['taskId'] as String?;
-            if (taskId != null) await stopProjectCommand(taskId);
+            if (taskId != null) {
+              await stopProjectCommand(taskId);
+              if (arguments['waitForExit'] == true) {
+                await waitForProjectCommandExit(taskId);
+              }
+            }
             return null;
           case 'clearCommandLog':
             final tabId =
@@ -1145,13 +1167,16 @@ class FvmController extends Notifier<FvmState> {
 
   Future<void> runManagedProject() {
     final path = state.selectedManagedProjectPath;
+    if (selectedTaskActive('run')) return Future.value();
+    final mode =
+        ref.read(projectRunModesProvider)[path] ?? ProjectRunMode.debug;
     if (path != null) {
       _clearCommandLogFor(_taskId('run', path));
       final uris = Map<String, String>.from(state.vmServiceUris ?? const {});
       uris.remove(path);
       state = state.copyWith(vmServiceUris: uris);
     }
-    final arguments = <String>['run'];
+    final arguments = <String>['run', '--${mode.name}'];
     final deviceId = state.selectedDeviceId;
     if (deviceId != null && deviceId.isNotEmpty) {
       arguments.addAll(['-d', deviceId]);
@@ -1159,8 +1184,32 @@ class FvmController extends Notifier<FvmState> {
     if (state.selectedAndroidFlavors.length == 1) {
       arguments.addAll(['--flavor', state.selectedAndroidFlavors.single]);
     }
-    return _runProjectCommand(arguments, label: '运行项目', taskKind: 'run');
+    final session = Object();
+    if (path != null) {
+      _activeRunModes[path] = mode;
+      _activeRunSessions[path] = session;
+    }
+    return _runProjectCommand(
+      arguments,
+      label: '运行项目 · ${mode == ProjectRunMode.debug ? 'Debug' : 'Release'}',
+      taskKind: 'run',
+    ).whenComplete(() {
+      if (path != null && identical(_activeRunSessions[path], session)) {
+        _activeRunModes.remove(path);
+        _activeRunSessions.remove(path);
+      }
+    });
   }
+
+  void selectProjectRunMode(ProjectRunMode mode) {
+    final path = state.selectedManagedProjectPath;
+    if (path == null || selectedTaskActive('run')) return;
+    ref.read(projectRunModesProvider.notifier).select(path, mode);
+  }
+
+  bool get selectedRunSupportsHotActions =>
+      _activeRunModes[state.selectedManagedProjectPath] !=
+      ProjectRunMode.release;
 
   Future<void> hotReloadManagedProject() => _sendRuntimeCommand(reload: true);
 
@@ -1193,6 +1242,10 @@ class FvmController extends Notifier<FvmState> {
     if (path == null) return;
     final taskId = _taskId('run', path);
     if (!_activeCommandTasks.containsKey(taskId)) return;
+    if (!selectedRunSupportsHotActions) {
+      showStatus('Release 模式不支持热重载或热重启，请使用重新运行');
+      return;
+    }
     try {
       if (!reload) {
         if (_consoleTabById(taskId) != null) selectConsoleTab(taskId);
@@ -1297,6 +1350,8 @@ class FvmController extends Notifier<FvmState> {
     List<EditableCommand> commands,
   ) async {
     final taskId = _taskId('workflow', project.path);
+    if (_activeCommandTasks.containsKey(taskId)) return;
+    _clearCommandLogFor(taskId);
     _startCommandTask(taskId, project.path, '自定义构建工作流');
     var stoppedByUser = false;
     try {
@@ -1403,6 +1458,7 @@ class FvmController extends Notifier<FvmState> {
     }
     final taskId = _taskId(taskKind, path);
     if (_activeCommandTasks.containsKey(taskId)) return;
+    if (taskKind == 'build') _clearCommandLogFor(taskId);
     final buildSession = taskKind == 'build'
         ? BuildSession(
             id: 'build-${DateTime.now().microsecondsSinceEpoch}',
@@ -1782,7 +1838,14 @@ class FvmController extends Notifier<FvmState> {
 
   List<Map<String, String>> _serializedTasks(String projectPath) =>
       _tasksForProject(projectPath)
-          .map((task) => {'id': task.id, 'label': task.label})
+          .map(
+            (task) => {
+              'id': task.id,
+              'label': task.label,
+              'supportsHotActions':
+                  '${_activeRunModes[projectPath] != ProjectRunMode.release}',
+            },
+          )
           .toList(growable: false);
 
   String _consoleMode(String projectPath) =>
@@ -2094,6 +2157,9 @@ class FvmController extends Notifier<FvmState> {
     final taskId = _taskId('run', projectPath);
     if (!_activeCommandTasks.containsKey(taskId)) {
       throw Exception('当前项目没有正在运行的 Flutter Run');
+    }
+    if (!selectedRunSupportsHotActions) {
+      throw Exception('Release 模式不支持热重载或热重启，请重新运行项目');
     }
     if (!reload) {
       if (_consoleTabById(taskId) != null) selectConsoleTab(taskId);
@@ -2446,6 +2512,17 @@ class FvmController extends Notifier<FvmState> {
     await ref
         .read(flutterCommandServiceProvider)
         .stop(taskId, gracefulFlutterRun: taskId.startsWith('run::'));
+  }
+
+  Future<void> waitForProjectCommandExit(String taskId) async {
+    for (var attempt = 0; attempt < 100; attempt++) {
+      if (!_activeCommandTasks.containsKey(taskId) &&
+          !ref.read(flutterCommandServiceProvider).isRunning(taskId)) {
+        return;
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    }
+    throw Exception('命令尚未完全结束，已保留控制台窗口，请稍后重试');
   }
 
   Future<FlutterLockReport> inspectProjectStartupLock(

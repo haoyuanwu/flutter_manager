@@ -4,6 +4,8 @@ part 'project_models.freezed.dart';
 
 enum ProjectBuildMode { debug, profile, release }
 
+enum ProjectRunMode { debug, release }
+
 enum ProjectBuildTarget { apk, appbundle, ios, macos, windows }
 
 enum PgyerInstallType { public, password, invite }

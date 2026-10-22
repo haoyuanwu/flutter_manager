@@ -97,6 +97,7 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
   late String _actionChannelName;
   bool _showSearch = false;
   bool _stickToBottom = true;
+  bool _stoppingAndClosing = false;
   String _searchQuery = '';
 
   @override
@@ -309,6 +310,13 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
 
   Widget _quickCommands() {
     final running = _taskActive('run');
+    final supportsHot =
+        running &&
+        _tasks.any(
+          (task) =>
+              task['id']?.startsWith('run::') == true &&
+              task['supportsHotActions'] != 'false',
+        );
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(14),
@@ -330,12 +338,12 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
               label: const Text('Flutter Run'),
             ),
             OutlinedButton.icon(
-              onPressed: running ? () => _runAction('hotReload') : null,
+              onPressed: supportsHot ? () => _runAction('hotReload') : null,
               icon: const Icon(Icons.bolt),
               label: const Text('热重载'),
             ),
             OutlinedButton.icon(
-              onPressed: running ? () => _runAction('hotRestart') : null,
+              onPressed: supportsHot ? () => _runAction('hotRestart') : null,
               icon: const Icon(Icons.restart_alt),
               label: const Text('热重启'),
             ),
@@ -408,23 +416,40 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
   }
 
   Future<void> _confirmStop(Map<String, String> task) async {
-    final confirmed = await confirmDeletion(
-      context,
-      title: '确认结束运行？',
-      message: '将停止“${task['label'] ?? '运行命令'}”。正在执行的操作会立即中断。',
-      confirmLabel: '结束运行',
-    );
-    if (!confirmed) return;
+    if (_stoppingAndClosing) return;
+    _stoppingAndClosing = true;
     try {
-      await _request(
-        onGlobal: () => ConsoleWindowService.instance.requestStop(task['id']!),
-        onChannel: () => ConsoleWindowService.instance.requestStopOn(
-          _actionChannelName,
-          task['id']!,
-        ),
+      final confirmed = await confirmDeletion(
+        context,
+        title: '确认结束运行？',
+        message: '将停止“${task['label'] ?? '运行命令'}”，结束后自动关闭当前控制台窗口。其他命令不受影响。',
+        confirmLabel: '结束运行',
       );
-    } on Object catch (error) {
-      _showError('结束命令失败：$error');
+      if (!confirmed || !mounted) return;
+      var stopped = false;
+      try {
+        await _request(
+          onGlobal: () => ConsoleWindowService.instance.requestStop(
+            task['id']!,
+            waitForExit: true,
+          ),
+          onChannel: () => ConsoleWindowService.instance.requestStopOn(
+            _actionChannelName,
+            task['id']!,
+            waitForExit: true,
+          ),
+        );
+        stopped = true;
+        if (!mounted) return;
+        final window = await WindowController.fromCurrentEngine();
+        await window.hide();
+      } on Object catch (error) {
+        if (mounted) {
+          _showError(stopped ? '命令已停止，但关闭窗口失败：$error' : '结束命令失败：$error');
+        }
+      }
+    } finally {
+      _stoppingAndClosing = false;
     }
   }
 

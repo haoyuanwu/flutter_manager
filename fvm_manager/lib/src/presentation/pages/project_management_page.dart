@@ -1070,6 +1070,11 @@ class _ProjectDetail extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final controller = ref.read(fvmControllerProvider.notifier);
+    final runMode = ref.watch(
+      projectRunModesProvider.select(
+        (modes) => modes[project.path] ?? ProjectRunMode.debug,
+      ),
+    );
     if (!project.pathExists) {
       return SingleChildScrollView(
         child: Column(
@@ -1231,7 +1236,10 @@ class _ProjectDetail extends ConsumerWidget {
                   const SizedBox(height: 12),
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: Row(
+                    child: Wrap(
+                      spacing: 12,
+                      runSpacing: 16,
+                      crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
                         SizedBox(
                           width: 320,
@@ -1299,7 +1307,6 @@ class _ProjectDetail extends ConsumerWidget {
                                   ),
                                 ),
                         ),
-                        const SizedBox(width: 8),
                         IconButton(
                           tooltip: '重新连接设备监听',
                           onPressed: state.commandRunning
@@ -1307,7 +1314,51 @@ class _ProjectDetail extends ConsumerWidget {
                               : controller.loadDevices,
                           icon: const Icon(Icons.refresh),
                         ),
+                        SizedBox(
+                          width: 190,
+                          child: DropdownButtonFormField<ProjectRunMode>(
+                            key: ValueKey(
+                              'project-run-mode-${project.path}-${runMode.name}',
+                            ),
+                            initialValue: runMode,
+                            isExpanded: true,
+                            decoration: const InputDecoration(
+                              labelText: '运行模式',
+                              border: OutlineInputBorder(),
+                              isDense: true,
+                            ),
+                            items: const [
+                              DropdownMenuItem(
+                                value: ProjectRunMode.debug,
+                                child: Text('Debug · 调试'),
+                              ),
+                              DropdownMenuItem(
+                                value: ProjectRunMode.release,
+                                child: Text('Release · 正式'),
+                              ),
+                            ],
+                            onChanged: controller.selectedTaskActive('run')
+                                ? null
+                                : (mode) {
+                                    if (mode != null) {
+                                      controller.selectProjectRunMode(mode);
+                                    }
+                                  },
+                          ),
+                        ),
                       ],
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 16),
+                    child: Text(
+                      runMode == ProjectRunMode.debug
+                          ? 'Debug 支持热重载与热重启，适合日常开发。'
+                          : 'Release 用于验证正式运行效果，不支持热重载与热重启。',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ),
                   Wrap(
@@ -1322,14 +1373,18 @@ class _ProjectDetail extends ConsumerWidget {
                         label: const Text('Flutter Run'),
                       ),
                       OutlinedButton.icon(
-                        onPressed: controller.selectedTaskActive('run')
+                        onPressed:
+                            controller.selectedTaskActive('run') &&
+                                controller.selectedRunSupportsHotActions
                             ? controller.hotReloadManagedProject
                             : null,
                         icon: const Icon(Icons.bolt),
                         label: const Text('热重载'),
                       ),
                       OutlinedButton.icon(
-                        onPressed: controller.selectedTaskActive('run')
+                        onPressed:
+                            controller.selectedTaskActive('run') &&
+                                controller.selectedRunSupportsHotActions
                             ? controller.hotRestartManagedProject
                             : null,
                         icon: const Icon(Icons.restart_alt),
@@ -1342,6 +1397,16 @@ class _ProjectDetail extends ConsumerWidget {
                         icon: const Icon(Icons.replay),
                         label: const Text('Rerun'),
                       ),
+                    ],
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Divider(height: 1),
+                  ),
+                  Wrap(
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: [
                       OutlinedButton.icon(
                         onPressed:
                             controller.selectedTaskActive('operation') ||

@@ -150,13 +150,20 @@ class ConsoleWindowService {
     }
   }
 
-  Future<void> requestStop(String taskId) =>
-      _commandChannel.invokeMethod<void>('stopCommand', {'taskId': taskId});
+  Future<void> requestStop(String taskId, {bool waitForExit = false}) =>
+      _commandChannel.invokeMethod<void>('stopCommand', {
+        'taskId': taskId,
+        'waitForExit': waitForExit,
+      });
 
-  Future<void> requestStopOn(String channelName, String taskId) =>
-      _actionChannel(
-        channelName,
-      ).invokeMethod<void>('stopCommand', {'taskId': taskId});
+  Future<void> requestStopOn(
+    String channelName,
+    String taskId, {
+    bool waitForExit = false,
+  }) => _actionChannel(channelName).invokeMethod<void>('stopCommand', {
+    'taskId': taskId,
+    'waitForExit': waitForExit,
+  });
 
   Future<void> requestClear(String projectPath) => _commandChannel
       .invokeMethod<void>('clearCommandLog', {'projectPath': projectPath});

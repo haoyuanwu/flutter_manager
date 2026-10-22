@@ -3,6 +3,21 @@ import FlutterMacOS
 import desktop_multi_window
 
 class MainFlutterWindow: NSWindow {
+  override func close() {
+    (NSApp.delegate as? AppDelegate)?.mainWindowWillClose(self)
+    super.close()
+  }
+
+  override func orderOut(_ sender: Any?) {
+    super.orderOut(sender)
+    (NSApp.delegate as? AppDelegate)?.mainWindowVisibilityChanged(self)
+  }
+
+  override func makeKeyAndOrderFront(_ sender: Any?) {
+    super.makeKeyAndOrderFront(sender)
+    (NSApp.delegate as? AppDelegate)?.mainWindowVisibilityChanged(self)
+  }
+
   override func awakeFromNib() {
     let flutterViewController = FlutterViewController()
     let windowFrame = self.frame
@@ -33,6 +48,7 @@ class MainFlutterWindow: NSWindow {
       RegisterGeneratedPlugins(registry: controller)
       DispatchQueue.main.async { [weak self] in
         guard let childWindow = controller.view.window else { return }
+        (NSApp.delegate as? AppDelegate)?.attachConsoleWindow(childWindow)
         let size = NSSize(width: 1200, height: 800)
         // Always center against the original app window. NSApp.keyWindow may
         // still point at a previously opened console window.
