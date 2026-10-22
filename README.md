@@ -22,12 +22,15 @@
 
 ## 下载
 
-| 平台 | 安装包 | 大小 |
-|------|--------|------|
-| **Windows** | [flutter_manager-1.2.5-setup.exe](https://github.com/haoyuanwu/flutter_manager/releases/download/v1.2.5/flutter_manager-1.2.5-setup.exe) | 约 12.5 MB |
-| **macOS** | [FlutterManager-v1.2.5.dmg](https://github.com/haoyuanwu/flutter_manager/releases/download/v1.2.5/FlutterManager-v1.2.5.dmg) | 约 25.8 MB |
+前往 [下载最新正式版](https://github.com/haoyuanwu/flutter_manager/releases/latest)，在附件中选择对应安装包。此入口会随新版本发布自动更新。
 
-或前往 [Releases 页面](https://github.com/haoyuanwu/flutter_manager/releases) 查看全部版本。
+| 平台 | 芯片 / 架构 | 安装包文件标识 |
+|------|-------------|----------------|
+| **Windows** | x64 | `*-windows-x64-setup.exe` |
+| **macOS** | Apple Silicon（苹果芯片） | `*-arm64.dmg` |
+| **macOS** | Intel（英特尔芯片） | `*-x86_64.dmg` |
+
+历史版本请前往 [全部 Releases](https://github.com/haoyuanwu/flutter_manager/releases)。
 
 ---
 
