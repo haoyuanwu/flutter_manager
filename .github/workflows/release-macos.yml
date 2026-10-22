@@ -3,10 +3,14 @@ name: Release macOS DMG
 on:
   push:
     tags:
-      - 'v1.2.7'
+      - 'v[0-9]*.[0-9]*.[0-9]*'
 
 permissions:
   contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
   release:
@@ -33,6 +37,7 @@ jobs:
           npm run bundle --prefix mcp_server
       - name: Resolve dependencies and test
         run: |
+          PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/tests
           flutter pub get
           flutter test --no-pub
       - name: Check tag and application version
@@ -52,3 +57,9 @@ jobs:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           gh release create "$RELEASE_TAG" --verify-tag --title "$RELEASE_TAG" --notes-file "RELEASE_NOTES_$RELEASE_TAG.md" build/release/*.dmg build/release/SHA256SUMS.txt
+      - name: Verify published release and downloads
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: python3 scripts/verify_github_release.py

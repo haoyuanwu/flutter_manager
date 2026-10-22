@@ -154,6 +154,8 @@ Flutter Manager App
 
 ## 开发与构建
 
+macOS 发版已脚本化：本地预览并推送版本，GitHub 自动完成测试、双架构打包、上传和下载校验，详见 [发布说明](fvm_manager/scripts/RELEASING.md)。
+
 ```bash
 cd fvm_manager
 flutter pub get
