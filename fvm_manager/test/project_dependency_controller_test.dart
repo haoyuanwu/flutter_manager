@@ -114,9 +114,9 @@ void main() {
             removals: {},
           );
       expect(saved.projectPath, second.path);
-      expect(commands.calls, [
-        (second.path, ['pub', 'get']),
-      ]);
+      expect(commands.calls, hasLength(1));
+      expect(commands.calls.single.$1, second.path);
+      expect(commands.calls.single.$2, ['pub', 'get']);
       expect(
         container.read(fvmControllerProvider).selectedManagedProjectPath,
         first.path,

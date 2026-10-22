@@ -133,11 +133,20 @@ void main() {
         );
         await opener.openDirectory(root.path);
         await opener.revealFile(artifact.path);
-        expect(calls, [
-          (platform == 'macos' ? 'open' : 'xdg-open', [root.absolute.path]),
+        expect(calls.map((call) => [call.$1, call.$2]).toList(), [
+          [
+            platform == 'macos' ? 'open' : 'xdg-open',
+            [root.absolute.path],
+          ],
           platform == 'macos'
-              ? ('open', ['-R', artifact.absolute.path])
-              : ('xdg-open', [artifact.absolute.parent.path]),
+              ? [
+                  'open',
+                  ['-R', artifact.absolute.path],
+                ]
+              : [
+                  'xdg-open',
+                  [artifact.absolute.parent.path],
+                ],
         ]);
         exitCode = 1;
         await expectLater(

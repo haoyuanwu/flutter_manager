@@ -235,8 +235,14 @@ void main() {
   }
 
   Future<void> navigate(WidgetTester tester, String title) async {
+    final navigation = find.byKey(const ValueKey('sidebar-navigation-list'));
+    final scroll = find
+        .descendant(of: navigation, matching: find.byType(Scrollable))
+        .first;
+    tester.state<ScrollableState>(scroll).position.jumpTo(0);
+    await tester.pumpAndSettle();
     final item = find.text(title).first;
-    await tester.ensureVisible(item);
+    await tester.scrollUntilVisible(item, 120, scrollable: scroll);
     await tester.tap(item);
     await tester.pumpAndSettle();
   }

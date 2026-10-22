@@ -949,7 +949,7 @@ void main() {
     expect(find.text('3.44.2'), findsOneWidget);
     expect(find.text('更新 FVM'), findsOneWidget);
     expect(find.text('最新版本：4.1.2'), findsOneWidget);
-    expect(find.text('打开 FVM 目录'), findsOneWidget);
+    expect(find.text('打开 FVM 目录'), findsNWidgets(2));
     expect(find.text('打开 Flutter 目录'), findsOneWidget);
     expect(find.text('10.0 MB / 100.0 MB'), findsOneWidget);
     expect(find.text('2.0 MB/s'), findsOneWidget);
