@@ -1,11 +1,385 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
+
+class AppTheme {
+  AppTheme._();
+
+  static final light = _build(Brightness.light);
+  static final dark = _build(Brightness.dark);
+
+  static ThemeData _build(Brightness brightness) {
+    final dark = brightness == Brightness.dark;
+    final colors =
+        ColorScheme.fromSeed(
+          seedColor: const Color(0xff0878c9),
+          brightness: brightness,
+        ).copyWith(
+          primary: dark ? const Color(0xff79c5ff) : const Color(0xff086db5),
+          onPrimary: dark ? const Color(0xff062c44) : Colors.white,
+          primaryContainer: dark
+              ? const Color(0xff19364c)
+              : const Color(0xffe5f1fc),
+          onPrimaryContainer: dark
+              ? const Color(0xffb9dfff)
+              : const Color(0xff005b97),
+          surface: dark ? const Color(0xff24272c) : const Color(0xffffffff),
+          surfaceContainerLowest: dark
+              ? const Color(0xff17191c)
+              : const Color(0xfff2f3f5),
+          surfaceContainerLow: dark
+              ? const Color(0xff2b2e34)
+              : const Color(0xfff7f8fa),
+          surfaceContainer: dark
+              ? const Color(0xff30333a)
+              : const Color(0xffeceef1),
+          surfaceContainerHigh: dark
+              ? const Color(0xff373b42)
+              : const Color(0xffe5e8ec),
+          surfaceContainerHighest: dark
+              ? const Color(0xff40454d)
+              : const Color(0xffdce1e7),
+          onSurface: dark ? const Color(0xffeceef2) : const Color(0xff24282e),
+          onSurfaceVariant: dark
+              ? const Color(0xffb4bac4)
+              : const Color(0xff616975),
+          outline: dark ? const Color(0xff727b88) : const Color(0xff87919e),
+          outlineVariant: dark
+              ? const Color(0xff41464f)
+              : const Color(0xffd6dce3),
+          secondary: dark ? const Color(0xff71d7b5) : const Color(0xff17785f),
+          onSecondary: dark ? const Color(0xff062e23) : Colors.white,
+          secondaryContainer: dark
+              ? const Color(0xff1c3930)
+              : const Color(0xffe8f5ef),
+          onSecondaryContainer: dark
+              ? const Color(0xffb5f2d9)
+              : const Color(0xff14533e),
+          tertiary: dark ? const Color(0xffebbd76) : const Color(0xff94611c),
+          onTertiary: dark ? const Color(0xff382407) : Colors.white,
+          tertiaryContainer: dark
+              ? const Color(0xff41351f)
+              : const Color(0xfffff3df),
+          onTertiaryContainer: dark
+              ? const Color(0xffffdba2)
+              : const Color(0xff775019),
+          error: dark ? const Color(0xffffa2ab) : const Color(0xffbb3544),
+          onError: dark ? const Color(0xff56141e) : Colors.white,
+          errorContainer: dark
+              ? const Color(0xff43282e)
+              : const Color(0xffffecef),
+          onErrorContainer: dark
+              ? const Color(0xffffcbd1)
+              : const Color(0xff942936),
+        );
+    final base = ThemeData(
+      useMaterial3: true,
+      colorScheme: colors,
+      brightness: brightness,
+      fontFamily: switch (defaultTargetPlatform) {
+        TargetPlatform.windows => 'Segoe UI',
+        TargetPlatform.macOS => '.AppleSystemUIFont',
+        _ => 'Roboto',
+      },
+      fontFamilyFallback: const [
+        'Microsoft YaHei',
+        'PingFang SC',
+        'sans-serif',
+      ],
+    );
+    final shape = RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(6),
+    );
+    final button = ButtonStyle(
+      visualDensity: VisualDensity.standard,
+      animationDuration: const Duration(milliseconds: 120),
+      overlayColor: WidgetStateProperty.resolveWith(
+        (states) => states.contains(WidgetState.pressed)
+            ? colors.primary.withValues(alpha: .16)
+            : states.contains(WidgetState.focused)
+            ? colors.primary.withValues(alpha: .12)
+            : states.contains(WidgetState.hovered)
+            ? colors.primary.withValues(alpha: .08)
+            : null,
+      ),
+      minimumSize: const WidgetStatePropertyAll(Size(36, 36)),
+      padding: const WidgetStatePropertyAll(
+        EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      ),
+      shape: WidgetStatePropertyAll(shape),
+      textStyle: WidgetStatePropertyAll(
+        TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w600,
+          letterSpacing: 0,
+          fontFamily: base.textTheme.bodyMedium?.fontFamily,
+          fontFamilyFallback: const [
+            'Microsoft YaHei',
+            'PingFang SC',
+            'sans-serif',
+          ],
+        ),
+      ),
+    );
+    return base.copyWith(
+      scaffoldBackgroundColor: colors.surfaceContainerLowest,
+      visualDensity: VisualDensity.compact,
+      textTheme: base.textTheme
+          .copyWith(
+            headlineSmall: TextStyle(
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+              color: colors.onSurface,
+            ),
+            titleLarge: TextStyle(
+              fontSize: 20,
+              fontWeight: FontWeight.w700,
+              color: colors.onSurface,
+            ),
+            titleMedium: TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              color: colors.onSurface,
+            ),
+            bodyLarge: TextStyle(
+              fontSize: 14,
+              height: 1.45,
+              color: colors.onSurface,
+            ),
+            bodyMedium: TextStyle(
+              fontSize: 13,
+              height: 1.45,
+              color: colors.onSurface,
+            ),
+            bodySmall: TextStyle(
+              fontSize: 12,
+              height: 1.4,
+              color: colors.onSurfaceVariant,
+            ),
+          )
+          .apply(
+            fontFamily: base.textTheme.bodyMedium?.fontFamily,
+            fontFamilyFallback: const [
+              'Microsoft YaHei',
+              'PingFang SC',
+              'sans-serif',
+            ],
+          )
+          .merge(
+            const TextTheme(
+              displayLarge: TextStyle(letterSpacing: 0),
+              displayMedium: TextStyle(letterSpacing: 0),
+              displaySmall: TextStyle(letterSpacing: 0),
+              headlineLarge: TextStyle(letterSpacing: 0),
+              headlineMedium: TextStyle(letterSpacing: 0),
+              headlineSmall: TextStyle(letterSpacing: 0),
+              titleLarge: TextStyle(letterSpacing: 0),
+              titleMedium: TextStyle(letterSpacing: 0),
+              titleSmall: TextStyle(letterSpacing: 0),
+              bodyLarge: TextStyle(letterSpacing: 0),
+              bodyMedium: TextStyle(letterSpacing: 0),
+              bodySmall: TextStyle(letterSpacing: 0),
+              labelLarge: TextStyle(letterSpacing: 0),
+              labelMedium: TextStyle(letterSpacing: 0),
+              labelSmall: TextStyle(letterSpacing: 0),
+            ),
+          ),
+      cardTheme: CardThemeData(
+        color: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        margin: EdgeInsets.zero,
+        shape: shape,
+      ),
+      filledButtonTheme: FilledButtonThemeData(
+        style: button.copyWith(
+          overlayColor: WidgetStateProperty.resolveWith(
+            (states) =>
+                states.contains(WidgetState.hovered) ||
+                    states.contains(WidgetState.focused)
+                ? colors.onPrimary.withValues(alpha: .12)
+                : null,
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: button.copyWith(
+          foregroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.disabled)
+                ? colors.onSurface.withValues(alpha: .38)
+                : states.contains(WidgetState.focused) ||
+                      states.contains(WidgetState.hovered)
+                ? colors.primary
+                : colors.onSurface,
+          ),
+          side: WidgetStateProperty.resolveWith(
+            (states) => BorderSide(
+              color: states.contains(WidgetState.disabled)
+                  ? colors.outlineVariant.withValues(alpha: .5)
+                  : states.contains(WidgetState.focused)
+                  ? colors.primary
+                  : colors.outlineVariant,
+              width: states.contains(WidgetState.focused) ? 1.5 : 1,
+            ),
+          ),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(style: button),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(
+          minimumSize: const Size(36, 36),
+          padding: const EdgeInsets.all(8),
+          shape: shape,
+        ),
+      ),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: dark ? const Color(0xff1e2126) : const Color(0xfffafbfc),
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 12,
+        ),
+        border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(6),
+          borderSide: BorderSide(color: colors.outlineVariant),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(6),
+          borderSide: BorderSide(color: colors.primary, width: 1.5),
+        ),
+        hintStyle: TextStyle(color: colors.onSurfaceVariant, fontSize: 13),
+        labelStyle: TextStyle(color: colors.onSurfaceVariant, fontSize: 13),
+        floatingLabelStyle: TextStyle(color: colors.primary, fontSize: 12),
+      ),
+      dividerTheme: DividerThemeData(
+        color: colors.outlineVariant,
+        thickness: 1,
+        space: 1,
+      ),
+      chipTheme: ChipThemeData(
+        shape: shape,
+        side: BorderSide(color: colors.outlineVariant),
+        backgroundColor: colors.surfaceContainerLow,
+        selectedColor: colors.primaryContainer,
+        labelStyle: TextStyle(fontSize: 12, color: colors.onSurface),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: colors.surface,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: colors.surfaceContainerLow,
+        surfaceTintColor: Colors.transparent,
+        shape: shape,
+        textStyle: TextStyle(fontSize: 13, color: colors.onSurface),
+      ),
+      dataTableTheme: DataTableThemeData(
+        headingRowColor: WidgetStatePropertyAll(colors.surfaceContainerLow),
+        headingRowHeight: 40,
+        dataRowMinHeight: 44,
+        dataRowMaxHeight: 56,
+        dividerThickness: 1,
+        headingTextStyle: TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w600,
+          color: colors.onSurfaceVariant,
+        ),
+      ),
+      listTileTheme: const ListTileThemeData(
+        dense: true,
+        minVerticalPadding: 10,
+        contentPadding: EdgeInsets.symmetric(horizontal: 12),
+      ),
+      tabBarTheme: TabBarThemeData(
+        labelColor: colors.primary,
+        unselectedLabelColor: colors.onSurfaceVariant,
+        dividerColor: colors.outlineVariant,
+        indicatorSize: TabBarIndicatorSize.tab,
+        labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+      ),
+      segmentedButtonTheme: SegmentedButtonThemeData(
+        style: button.copyWith(
+          padding: const WidgetStatePropertyAll(
+            EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+          ),
+          backgroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.selected)
+                ? colors.primaryContainer
+                : colors.surface,
+          ),
+          foregroundColor: WidgetStateProperty.resolveWith(
+            (states) => states.contains(WidgetState.disabled)
+                ? colors.onSurface.withValues(alpha: .38)
+                : states.contains(WidgetState.selected)
+                ? colors.onPrimaryContainer
+                : colors.onSurfaceVariant,
+          ),
+          side: WidgetStatePropertyAll(
+            BorderSide(color: colors.outlineVariant),
+          ),
+        ),
+      ),
+      expansionTileTheme: ExpansionTileThemeData(
+        backgroundColor: colors.surface,
+        collapsedBackgroundColor: colors.surfaceContainerLow,
+        iconColor: colors.primary,
+        shape: Border(bottom: BorderSide(color: colors.outlineVariant)),
+        collapsedShape: Border(
+          bottom: BorderSide(color: colors.outlineVariant),
+        ),
+      ),
+      tooltipTheme: const TooltipThemeData(
+        waitDuration: Duration(milliseconds: 450),
+      ),
+    );
+  }
+}
+
+class AppPalette {
+  AppPalette._(this.colors);
+  final ColorScheme colors;
+  static AppPalette of(BuildContext context) =>
+      AppPalette._(Theme.of(context).colorScheme);
+  bool get isDark => colors.brightness == Brightness.dark;
+  Color get primary => colors.primary;
+  Color get surface => colors.surface;
+  Color get surfaceVariant => colors.surfaceContainerLow;
+  Color get border => colors.outlineVariant;
+  Color get borderLight => colors.outlineVariant.withValues(alpha: .6);
+  Color get textPrimary => colors.onSurface;
+  Color get textSecondary => colors.onSurfaceVariant;
+  Color get textTertiary => colors.onSurfaceVariant;
+  Color get sidebarBackground =>
+      isDark ? const Color(0xff1d1f23) : const Color(0xffe9ecf0);
+  Color get sidebarSelected =>
+      isDark ? const Color(0xff2c323a) : colors.surface;
+  Color get sidebarIndicator => colors.primary;
+  Color get sidebarText => colors.onSurfaceVariant;
+  Color get sidebarTextSelected => colors.primary;
+  Color get sidebarIcon => colors.onSurfaceVariant;
+  Color get sidebarIconSelected => colors.primary;
+  Color get sidebarGroupTitle => colors.onSurfaceVariant;
+  Color get messageErrorBackground => colors.errorContainer;
+  Color get messageErrorBorder => colors.error.withValues(alpha: .4);
+  Color get messageErrorText => colors.onErrorContainer;
+  Color get messageSuccessBackground => colors.secondaryContainer;
+  Color get messageSuccessBorder => colors.secondary.withValues(alpha: .3);
+  Color get messageSuccessText => colors.onSecondaryContainer;
+  Color get downloadBackground => colors.primaryContainer;
+  Color get warningBackground => colors.tertiaryContainer;
+  Color get warningText => colors.onTertiaryContainer;
+  Color get warningBorder => colors.tertiary.withValues(alpha: .4);
+}
 
 /// 应用颜色常量
 class AppColors {
   AppColors._();
 
   // 主色调
-  static const Color primary = Color(0xff087ea4);
+  static const Color primary = Color(0xff0071bd);
   static const Color primaryLight = Color(0xff55c2ff);
   static const Color primaryDark = Color(0xff065f80);
 
@@ -44,8 +418,8 @@ class AppColors {
   static const Color info = Color(0xff3b82f6);
 
   // 控制台
-  static const Color consoleBackground = Color(0xff101820);
-  static const Color consoleSurface = Color(0xff1b2733);
+  static const Color consoleBackground = Color(0xff17191c);
+  static const Color consoleSurface = Color(0xff262a30);
   static const Color consoleText = Color(0xffc9d1d9);
   static const Color consoleBorder = Colors.white24;
   static const Color consoleSearchHighlight = Color(0xfffff3a3);
@@ -76,7 +450,9 @@ class AppSpacing {
 
   // 页面边距
   static const EdgeInsets pagePadding = EdgeInsets.all(xl);
-  static const EdgeInsets pagePaddingHorizontal = EdgeInsets.symmetric(horizontal: xl);
+  static const EdgeInsets pagePaddingHorizontal = EdgeInsets.symmetric(
+    horizontal: xl,
+  );
 
   // 卡片边距
   static const EdgeInsets cardPadding = EdgeInsets.all(xl);
@@ -92,10 +468,10 @@ class AppSpacing {
 class AppRadius {
   AppRadius._();
 
-  static const double sm = 8;
-  static const double md = 12;
-  static const double lg = 16;
-  static const double xl = 20;
+  static const double sm = 4;
+  static const double md = 6;
+  static const double lg = 6;
+  static const double xl = 8;
   static const double full = 999;
 
   static BorderRadius get smAll => BorderRadius.circular(sm);
@@ -111,72 +487,61 @@ class AppTextStyles {
 
   // 标题
   static const TextStyle h1 = TextStyle(
-    fontSize: 28,
-    fontWeight: FontWeight.w800,
-    color: AppColors.textPrimary,
+    fontSize: 22,
+    fontWeight: FontWeight.w700,
   );
 
   static const TextStyle h2 = TextStyle(
-    fontSize: 22,
+    fontSize: 20,
     fontWeight: FontWeight.w700,
-    color: AppColors.textPrimary,
   );
 
   static const TextStyle h3 = TextStyle(
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: FontWeight.w700,
-    color: AppColors.textPrimary,
   );
 
   static const TextStyle h4 = TextStyle(
-    fontSize: 17,
+    fontSize: 15,
     fontWeight: FontWeight.w700,
-    color: AppColors.textPrimary,
   );
 
   // 正文
   static const TextStyle bodyLarge = TextStyle(
     fontSize: 15,
     fontWeight: FontWeight.w400,
-    color: AppColors.textPrimary,
   );
 
   static const TextStyle bodyMedium = TextStyle(
     fontSize: 14,
     fontWeight: FontWeight.w400,
-    color: AppColors.textPrimary,
   );
 
   static const TextStyle bodySmall = TextStyle(
     fontSize: 13,
     fontWeight: FontWeight.w400,
-    color: AppColors.textPrimary,
   );
 
   // 辅助文字
   static const TextStyle caption = TextStyle(
     fontSize: 12,
     fontWeight: FontWeight.w400,
-    color: AppColors.textSecondary,
   );
 
   static const TextStyle captionSmall = TextStyle(
     fontSize: 11,
     fontWeight: FontWeight.w400,
-    color: AppColors.textTertiary,
   );
 
   // 标签
   static const TextStyle label = TextStyle(
     fontSize: 13,
     fontWeight: FontWeight.w600,
-    color: AppColors.textPrimary,
   );
 
   static const TextStyle labelSmall = TextStyle(
     fontSize: 11,
     fontWeight: FontWeight.w600,
-    color: AppColors.textSecondary,
   );
 
   // 按钮
@@ -198,32 +563,19 @@ class AppTextStyles {
   );
 
   // 侧边栏
-  static const TextStyle sidebarTitle = TextStyle(
-    color: Colors.white,
-    fontWeight: FontWeight.w700,
-  );
+  static const TextStyle sidebarTitle = TextStyle(fontWeight: FontWeight.w700);
 
-  static const TextStyle sidebarItem = TextStyle(
-    color: AppColors.sidebarText,
-    fontSize: 13,
-  );
+  static const TextStyle sidebarItem = TextStyle(fontSize: 13);
 
-  static const TextStyle sidebarItemSmall = TextStyle(
-    color: AppColors.sidebarText,
-    fontSize: 12,
-  );
+  static const TextStyle sidebarItemSmall = TextStyle(fontSize: 12);
 
   static const TextStyle sidebarGroup = TextStyle(
-    color: AppColors.sidebarGroupTitle,
     fontSize: 11,
     fontWeight: FontWeight.w600,
-    letterSpacing: 0.8,
+    letterSpacing: 0,
   );
 
-  static const TextStyle sidebarShortcut = TextStyle(
-    color: Colors.white24,
-    fontSize: 11,
-  );
+  static const TextStyle sidebarShortcut = TextStyle(fontSize: 11);
 
   // 控制台
   static const TextStyle consoleTitle = TextStyle(
@@ -240,7 +592,7 @@ class AppButtonStyles {
 
   // 主要按钮
   static ButtonStyle get primary => FilledButton.styleFrom(
-    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
     textStyle: AppTextStyles.buttonLarge,
     shape: RoundedRectangleBorder(borderRadius: AppRadius.mdAll),
   );
@@ -315,12 +667,10 @@ class AppCardStyles {
     borderRadius: AppRadius.lgAll,
   );
 
-  static BoxDecoration get metricDecoration => BoxDecoration(
-    gradient: const LinearGradient(
-      colors: [Colors.white, AppColors.surfaceVariant],
-    ),
+  static BoxDecoration metricDecoration(BuildContext context) => BoxDecoration(
+    color: AppPalette.of(context).surface,
     borderRadius: AppRadius.lgAll,
-    border: Border.all(color: AppColors.border),
+    border: Border.all(color: AppPalette.of(context).border),
   );
 }
 
@@ -333,20 +683,17 @@ class AppInputDecorations {
     String? hintText,
     Widget? prefixIcon,
     Widget? suffixIcon,
-  }) =>
-      InputDecoration(
-        labelText: labelText,
-        hintText: hintText,
-        prefixIcon: prefixIcon,
-        suffixIcon: suffixIcon,
-        border: const OutlineInputBorder(),
-        isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      );
+  }) => InputDecoration(
+    labelText: labelText,
+    hintText: hintText,
+    prefixIcon: prefixIcon,
+    suffixIcon: suffixIcon,
+    border: const OutlineInputBorder(),
+    isDense: true,
+    contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+  );
 
-  static InputDecoration searchInput({
-    required String hintText,
-  }) =>
+  static InputDecoration searchInput({required String hintText}) =>
       InputDecoration(
         hintText: hintText,
         hintStyle: const TextStyle(color: Colors.white54),
@@ -355,7 +702,10 @@ class AppInputDecorations {
         fillColor: AppColors.consoleSurface,
         border: const OutlineInputBorder(),
         isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 12,
+          vertical: 10,
+        ),
       );
 }
 

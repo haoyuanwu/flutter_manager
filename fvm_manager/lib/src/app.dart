@@ -1,54 +1,31 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'presentation/home_page.dart';
 import 'presentation/theme/app_theme.dart';
+import 'presentation/theme/theme_controller.dart';
+import 'presentation/theme/window_appearance.dart';
+import 'presentation/console_window_service.dart';
 
-class FvmManagerApp extends StatelessWidget {
+class FvmManagerApp extends ConsumerWidget {
   const FvmManagerApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mode = ref.watch(appThemeModeProvider);
+    ConsoleWindowService.instance.themeMode = mode.name;
+    ref.listen(appThemeModeProvider, (_, next) {
+      unawaited(ConsoleWindowService.instance.syncThemeMode(next.name));
+    });
     return MaterialApp(
       title: 'Flutter Manager',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: AppColors.primary,
-          brightness: Brightness.light,
-        ),
-        useMaterial3: true,
-        scaffoldBackgroundColor: AppColors.scaffoldBackground,
-        cardTheme: CardThemeData(
-          elevation: 0,
-          margin: EdgeInsets.zero,
-          shape: RoundedRectangleBorder(
-            borderRadius: AppRadius.lgAll,
-            side: const BorderSide(color: AppColors.border),
-          ),
-        ),
-        filledButtonTheme: FilledButtonThemeData(
-          style: AppButtonStyles.primary,
-        ),
-        outlinedButtonTheme: OutlinedButtonThemeData(
-          style: AppButtonStyles.outline,
-        ),
-        textButtonTheme: TextButtonThemeData(
-          style: AppButtonStyles.text,
-        ),
-        iconButtonTheme: IconButtonThemeData(
-          style: AppButtonStyles.icon,
-        ),
-        inputDecorationTheme: const InputDecorationTheme(
-          border: OutlineInputBorder(),
-          isDense: true,
-          contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        ),
-        chipTheme: ChipThemeData(
-          shape: RoundedRectangleBorder(
-            borderRadius: AppRadius.smAll,
-          ),
-        ),
-      ),
+      theme: AppTheme.light,
+      darkTheme: AppTheme.dark,
+      themeMode: mode,
+      builder: (context, child) => WindowAppearance(mode: mode, child: child!),
       home: const HomePage(),
     );
   }

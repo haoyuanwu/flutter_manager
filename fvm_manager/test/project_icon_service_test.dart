@@ -13,7 +13,9 @@ void main() {
   tearDown(() => project.delete(recursive: true));
 
   Future<File> file(String name, [String data = '']) async {
-    final result = File('${project.path}/$name');
+    final result = File(
+      '${project.path}${Platform.pathSeparator}${name.replaceAll('/', Platform.pathSeparator)}',
+    );
     await result.create(recursive: true);
     await result.writeAsString(data);
     return result;

@@ -94,13 +94,13 @@ class _SidebarState extends State<_Sidebar> {
 
   @override
   Widget build(BuildContext context) => SizedBox(
-    width: 244,
+    width: 220,
     child: Material(
-      color: AppColors.sidebarBackground,
+      color: AppPalette.of(context).sidebarBackground,
       child: Padding(
         padding: const EdgeInsets.fromLTRB(
           AppSpacing.lg,
-          AppSpacing.xxl,
+          AppSpacing.lg,
           AppSpacing.lg,
           AppSpacing.lg,
         ),
@@ -136,127 +136,137 @@ class _SidebarState extends State<_Sidebar> {
                 style: AppTextStyles.sidebarTitle,
               ),
             ),
-            const SizedBox(height: AppSpacing.xxl),
+            const SizedBox(height: AppSpacing.lg),
             Expanded(
-              child: ListView(
-                padding: EdgeInsets.zero,
-                children: [
-                  _NavGroupHeader(
-                    title: '核心',
-                    icon: Icons.dashboard_outlined,
-                    expanded: _coreExpanded,
-                    onTap: () => setState(() => _coreExpanded = !_coreExpanded),
-                  ),
-                  if (_coreExpanded) ...[
-                    _NavItem(
+              child: ScrollConfiguration(
+                behavior: ScrollConfiguration.of(
+                  context,
+                ).copyWith(scrollbars: false),
+                child: ListView(
+                  key: const ValueKey('sidebar-navigation-list'),
+                  primary: false,
+                  padding: EdgeInsets.zero,
+                  children: [
+                    _NavGroupHeader(
+                      title: '核心',
                       icon: Icons.dashboard_outlined,
-                      label: '概览',
-                      shortcut: '⌘1',
-                      selected: widget.selected == 0,
-                      onTap: () => widget.onSelected(0),
+                      expanded: _coreExpanded,
+                      onTap: () =>
+                          setState(() => _coreExpanded = !_coreExpanded),
                     ),
-                    _NavItem(
-                      icon: Icons.health_and_safety_outlined,
-                      label: '环境诊断',
-                      shortcut: '⌘2',
-                      selected: widget.selected == 1,
-                      onTap: () => widget.onSelected(1),
+                    if (_coreExpanded) ...[
+                      _NavItem(
+                        icon: Icons.dashboard_outlined,
+                        label: '概览',
+                        shortcut: '⌘1',
+                        selected: widget.selected == 0,
+                        onTap: () => widget.onSelected(0),
+                      ),
+                      _NavItem(
+                        icon: Icons.health_and_safety_outlined,
+                        label: '环境诊断',
+                        shortcut: '⌘2',
+                        selected: widget.selected == 1,
+                        onTap: () => widget.onSelected(1),
+                      ),
+                      _NavItem(
+                        icon: Icons.layers_outlined,
+                        label: 'Flutter 版本',
+                        shortcut: '⌘3',
+                        selected: widget.selected == 2,
+                        showDot: widget.showFlutterUpdate,
+                        onIgnoreUpdate: widget.onIgnoreFlutterUpdate,
+                        onTap: () => widget.onSelected(2),
+                      ),
+                      _NavItem(
+                        icon: Icons.workspaces_outline,
+                        label: '项目管理',
+                        shortcut: '⌘4',
+                        selected: widget.selected == 3,
+                        onTap: () => widget.onSelected(3),
+                      ),
+                    ],
+                    const SizedBox(height: AppSpacing.sm),
+                    _NavGroupHeader(
+                      title: '工具',
+                      icon: Icons.build_outlined,
+                      expanded: _toolsExpanded,
+                      onTap: () =>
+                          setState(() => _toolsExpanded = !_toolsExpanded),
                     ),
-                    _NavItem(
-                      icon: Icons.layers_outlined,
-                      label: 'Flutter 版本',
-                      shortcut: '⌘3',
-                      selected: widget.selected == 2,
-                      showDot: widget.showFlutterUpdate,
-                      onIgnoreUpdate: widget.onIgnoreFlutterUpdate,
-                      onTap: () => widget.onSelected(2),
-                    ),
-                    _NavItem(
-                      icon: Icons.workspaces_outline,
-                      label: '项目管理',
-                      shortcut: '⌘4',
-                      selected: widget.selected == 3,
-                      onTap: () => widget.onSelected(3),
-                    ),
-                  ],
-                  const SizedBox(height: AppSpacing.sm),
-                  _NavGroupHeader(
-                    title: '工具',
-                    icon: Icons.build_outlined,
-                    expanded: _toolsExpanded,
-                    onTap: () =>
-                        setState(() => _toolsExpanded = !_toolsExpanded),
-                  ),
-                  if (_toolsExpanded) ...[
-                    _NavItem(
-                      icon: Icons.inventory_2_outlined,
-                      label: '产物中心',
-                      shortcut: '⌘5',
-                      selected: widget.selected == 4,
-                      onTap: () => widget.onSelected(4),
-                    ),
-                    _NavItem(
-                      icon: Icons.app_shortcut_outlined,
-                      label: 'APK 签名',
-                      shortcut: '⌘6',
-                      selected: widget.selected == 5,
-                      onTap: () => widget.onSelected(5),
-                    ),
-                    _NavItem(
-                      icon: Icons.install_mobile_outlined,
-                      label: 'APK 安装',
-                      selected: widget.selected == 11,
-                      onTap: () => widget.onSelected(11),
-                    ),
-                    _NavItem(
-                      icon: Icons.verified_outlined,
-                      label: '应用签名',
-                      shortcut: '⌘7',
-                      selected: widget.selected == 6,
-                      onTap: () => widget.onSelected(6),
-                    ),
-                  ],
-                  const SizedBox(height: AppSpacing.sm),
-                  _NavGroupHeader(
-                    title: '系统',
-                    icon: Icons.settings_outlined,
-                    expanded: _systemExpanded,
-                    onTap: () =>
-                        setState(() => _systemExpanded = !_systemExpanded),
-                  ),
-                  if (_systemExpanded) ...[
-                    _NavItem(
-                      icon: Icons.terminal,
-                      label: '环境配置',
-                      shortcut: '⌘9',
-                      selected: widget.selected == 8,
-                      onTap: () => widget.onSelected(8),
-                    ),
-                    _NavItem(
-                      icon: Icons.smart_toy_outlined,
-                      label: 'MCP 服务',
-                      selected: widget.selected == 9,
-                      onTap: () => widget.onSelected(9),
-                    ),
-                    _NavItem(
+                    if (_toolsExpanded) ...[
+                      _NavItem(
+                        icon: Icons.inventory_2_outlined,
+                        label: '产物中心',
+                        shortcut: '⌘5',
+                        selected: widget.selected == 4,
+                        onTap: () => widget.onSelected(4),
+                      ),
+                      _NavItem(
+                        icon: Icons.app_shortcut_outlined,
+                        label: 'APK 签名',
+                        shortcut: '⌘6',
+                        selected: widget.selected == 5,
+                        onTap: () => widget.onSelected(5),
+                      ),
+                      _NavItem(
+                        icon: Icons.install_mobile_outlined,
+                        label: 'APK 安装',
+                        selected: widget.selected == 11,
+                        onTap: () => widget.onSelected(11),
+                      ),
+                      _NavItem(
+                        icon: Icons.verified_outlined,
+                        label: '应用签名',
+                        shortcut: '⌘7',
+                        selected: widget.selected == 6,
+                        onTap: () => widget.onSelected(6),
+                      ),
+                    ],
+                    const SizedBox(height: AppSpacing.sm),
+                    _NavGroupHeader(
+                      title: '系统',
                       icon: Icons.settings_outlined,
-                      label: '设置',
-                      selected: widget.selected == 10,
-                      onTap: () => widget.onSelected(10),
+                      expanded: _systemExpanded,
+                      onTap: () =>
+                          setState(() => _systemExpanded = !_systemExpanded),
                     ),
-                    _NavItem(
-                      icon: Icons.emoji_food_beverage_outlined,
-                      label: '请我喝个茶',
-                      selected: widget.selected == 12,
-                      onTap: () => widget.onSelected(12),
-                    ),
+                    if (_systemExpanded) ...[
+                      _NavItem(
+                        icon: Icons.terminal,
+                        label: '环境配置',
+                        shortcut: '⌘9',
+                        selected: widget.selected == 8,
+                        onTap: () => widget.onSelected(8),
+                      ),
+                      _NavItem(
+                        icon: Icons.smart_toy_outlined,
+                        label: 'MCP 服务',
+                        selected: widget.selected == 9,
+                        onTap: () => widget.onSelected(9),
+                      ),
+                      _NavItem(
+                        icon: Icons.settings_outlined,
+                        label: '设置',
+                        selected: widget.selected == 10,
+                        onTap: () => widget.onSelected(10),
+                      ),
+                      _NavItem(
+                        icon: Icons.emoji_food_beverage_outlined,
+                        label: '请我喝个茶',
+                        selected: widget.selected == 12,
+                        onTap: () => widget.onSelected(12),
+                      ),
+                    ],
                   ],
-                ],
+                ),
               ),
             ),
             Text(
               Platform.isWindows ? 'Windows' : 'macOS',
-              style: AppTextStyles.captionSmall.copyWith(color: Colors.white38),
+              style: AppTextStyles.captionSmall.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -291,13 +301,23 @@ class _NavGroupHeader extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(icon, size: 16, color: AppColors.sidebarGroupTitle),
+            Icon(
+              icon,
+              size: 16,
+              color: AppPalette.of(context).sidebarGroupTitle,
+            ),
             const SizedBox(width: AppSpacing.sm),
             Expanded(child: Text(title, style: AppTextStyles.sidebarGroup)),
-            Icon(
-              expanded ? Icons.expand_less : Icons.expand_more,
-              size: 18,
-              color: AppColors.sidebarGroupTitle,
+            AnimatedRotation(
+              turns: expanded ? .5 : 0,
+              duration: MediaQuery.disableAnimationsOf(context)
+                  ? Duration.zero
+                  : AppAnimations.fast,
+              child: Icon(
+                Icons.expand_more,
+                size: 18,
+                color: AppPalette.of(context).sidebarGroupTitle,
+              ),
             ),
           ],
         ),
@@ -336,29 +356,36 @@ class _NavItem extends StatelessWidget {
         selected: selected,
         button: true,
         child: Tooltip(
+          waitDuration: const Duration(seconds: 3),
           message: displayShortcut == null
               ? label
               : '$label · $displayShortcut',
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 160),
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 160),
             decoration: BoxDecoration(
-              color: selected ? AppColors.sidebarSelected : Colors.transparent,
+              color: selected
+                  ? AppPalette.of(context).sidebarSelected
+                  : Colors.transparent,
               borderRadius: AppRadius.mdAll,
               border: Border.all(
                 color: selected
-                    ? AppColors.sidebarIndicator.withValues(alpha: .22)
+                    ? AppPalette.of(context).border
                     : Colors.transparent,
               ),
             ),
             child: InkWell(
               borderRadius: AppRadius.mdAll,
-              hoverColor: Colors.white.withValues(alpha: .05),
+              hoverColor: Theme.of(
+                context,
+              ).colorScheme.onSurface.withValues(alpha: .05),
+              focusColor: Theme.of(
+                context,
+              ).colorScheme.primary.withValues(alpha: .14),
               onTap: onTap,
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 11,
-                ),
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
                 child: Row(
                   children: [
                     Container(
@@ -366,7 +393,7 @@ class _NavItem extends StatelessWidget {
                       height: 18,
                       decoration: BoxDecoration(
                         color: selected
-                            ? AppColors.sidebarIndicator
+                            ? AppPalette.of(context).sidebarIndicator
                             : Colors.transparent,
                         borderRadius: BorderRadius.circular(2),
                       ),
@@ -376,8 +403,8 @@ class _NavItem extends StatelessWidget {
                       icon,
                       size: 19,
                       color: selected
-                          ? AppColors.sidebarIconSelected
-                          : AppColors.sidebarIcon,
+                          ? AppPalette.of(context).sidebarIconSelected
+                          : AppPalette.of(context).sidebarIcon,
                     ),
                     const SizedBox(width: 10),
                     Expanded(
@@ -387,8 +414,8 @@ class _NavItem extends StatelessWidget {
                         overflow: TextOverflow.ellipsis,
                         style: AppTextStyles.sidebarItem.copyWith(
                           color: selected
-                              ? AppColors.sidebarTextSelected
-                              : AppColors.sidebarText,
+                              ? AppPalette.of(context).sidebarTextSelected
+                              : AppPalette.of(context).sidebarText,
                           fontWeight: selected
                               ? FontWeight.w600
                               : FontWeight.w400,
@@ -401,33 +428,6 @@ class _NavItem extends StatelessWidget {
                         onTap: onIgnoreUpdate,
                       ),
                       const SizedBox(width: 6),
-                    ],
-                    if (displayShortcut != null) ...[
-                      const SizedBox(width: 6),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
-                          vertical: 3,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.white.withValues(
-                            alpha: selected ? .09 : .04,
-                          ),
-                          borderRadius: BorderRadius.circular(5),
-                          border: Border.all(
-                            color: Colors.white.withValues(alpha: .09),
-                          ),
-                        ),
-                        child: Text(
-                          displayShortcut,
-                          style: AppTextStyles.sidebarShortcut.copyWith(
-                            fontSize: 10,
-                            color: selected
-                                ? AppColors.sidebarIndicator
-                                : Colors.white54,
-                          ),
-                        ),
-                      ),
                     ],
                   ],
                 ),

@@ -28,27 +28,12 @@ class _ProjectManagementState extends ConsumerState<_ProjectManagement> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '项目管理',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text('管理本地 Flutter 项目并执行常用开发、构建命令。'),
-                  ],
-                ),
-              ),
-
+          WorkbenchPageHeader(
+            title: '项目管理',
+            subtitle: '管理本地 Flutter 项目并执行常用开发、构建命令。',
+            breakpoint: 1080,
+            actions: [
               if (selected != null) ...[
-                const SizedBox(width: 8),
                 PopupMenuButton<String>(
                   tooltip: '选择打开 Flutter 项目的工具',
                   padding: EdgeInsets.zero,
@@ -59,7 +44,7 @@ class _ProjectManagementState extends ConsumerState<_ProjectManagement> {
                     ),
                     decoration: BoxDecoration(
                       color: Theme.of(context).colorScheme.secondaryContainer,
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(6),
                     ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
@@ -136,7 +121,6 @@ class _ProjectManagementState extends ConsumerState<_ProjectManagement> {
                     selected.hasIos ||
                     selected.hasMacos ||
                     selected.hasWindows) ...[
-                  const SizedBox(width: 8),
                   PopupMenuButton<String>(
                     tooltip: '选择原生平台及对应开发工具',
                     padding: EdgeInsets.zero,
@@ -149,7 +133,7 @@ class _ProjectManagementState extends ConsumerState<_ProjectManagement> {
                         border: Border.all(
                           color: Theme.of(context).colorScheme.outlineVariant,
                         ),
-                        borderRadius: BorderRadius.circular(20),
+                        borderRadius: BorderRadius.circular(6),
                       ),
                       child: const Row(
                         mainAxisSize: MainAxisSize.min,
@@ -225,19 +209,34 @@ class _ProjectManagementState extends ConsumerState<_ProjectManagement> {
                 ],
               ],
 
-              Padding(
-                padding: const EdgeInsets.only(left: 8.0),
-                child: FilledButton.icon(
-                  onPressed: state.loading
-                      ? null
-                      : controller.addManagedProject,
-                  icon: const Icon(Icons.add),
-                  label: const Text('添加项目'),
-                ),
+              OutlinedButton.icon(
+                key: const ValueKey('manage-project-dependencies-button'),
+                onPressed:
+                    state.loading ||
+                        !state.managedProjects.any(
+                          (project) => project.pathExists,
+                        )
+                    ? null
+                    : () => showProjectDependenciesDialog(context, state),
+                icon: const Icon(Icons.playlist_add_check_outlined),
+                label: const Text('管理依赖'),
+              ),
+              OutlinedButton.icon(
+                onPressed: state.loading ? null : controller.addManagedProject,
+                icon: const Icon(Icons.folder_open_outlined),
+                label: const Text('添加项目'),
+              ),
+              FilledButton.icon(
+                key: const ValueKey('create-flutter-project-button'),
+                onPressed: state.loading
+                    ? null
+                    : () => showCreateProjectDialog(context, state),
+                icon: const Icon(Icons.create_new_folder_outlined),
+                label: const Text('创建项目'),
               ),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 20),
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) {
@@ -309,11 +308,25 @@ class _ProjectList extends ConsumerStatefulWidget {
 
 class _ProjectListState extends ConsumerState<_ProjectList> {
   String? _selectedTag;
+  final _search = TextEditingController();
+
+  @override
+  void dispose() {
+    _search.dispose();
+    super.dispose();
+  }
 
   List<FlutterProject> get _filteredProjects {
-    if (_selectedTag == null) return widget.state.managedProjects;
+    final query = _search.text.trim().toLowerCase();
     return widget.state.managedProjects
-        .where((p) => p.tags.contains(_selectedTag))
+        .where(
+          (p) =>
+              (_selectedTag == null || p.tags.contains(_selectedTag)) &&
+              (query.isEmpty ||
+                  '${p.displayName} ${p.name} ${p.path} ${p.tags.join(' ')}'
+                      .toLowerCase()
+                      .contains(query)),
+        )
         .toList();
   }
 
@@ -328,46 +341,79 @@ class _ProjectListState extends ConsumerState<_ProjectList> {
   @override
   Widget build(BuildContext context) {
     final allTags = _allTags;
-    return Card(
+    return WorkbenchPanel(
       child: Column(
         children: [
-          Row(
-            children: [
-              if (allTags.isNotEmpty)
-                Expanded(
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
-                    child: Row(
-                      children: [
-                        _TagFilterChip(
-                          label: '全部',
-                          selected: _selectedTag == null,
-                          onSelected: () => setState(() => _selectedTag = null),
-                        ),
-                        ...allTags.map(
-                          (tag) => _TagFilterChip(
-                            label: tag,
-                            selected: _selectedTag == tag,
-                            onSelected: () => setState(
-                              () => _selectedTag = _selectedTag == tag
-                                  ? null
-                                  : tag,
-                            ),
-                          ),
-                        ),
-                      ],
+          ColoredBox(
+            color: Theme.of(context).colorScheme.surfaceContainerLow,
+            child: Row(
+              children: [
+                if (allTags.isEmpty)
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      child: Text(
+                        '项目 · ${widget.state.managedProjects.length}',
+                        style: const TextStyle(fontWeight: FontWeight.w600),
+                      ),
                     ),
                   ),
+                if (allTags.isNotEmpty)
+                  Expanded(
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      padding: const EdgeInsets.symmetric(horizontal: 8),
+                      child: Row(
+                        children: [
+                          _TagFilterChip(
+                            label: '全部',
+                            selected: _selectedTag == null,
+                            onSelected: () =>
+                                setState(() => _selectedTag = null),
+                          ),
+                          ...allTags.map(
+                            (tag) => _TagFilterChip(
+                              label: tag,
+                              selected: _selectedTag == tag,
+                              onSelected: () => setState(
+                                () => _selectedTag = _selectedTag == tag
+                                    ? null
+                                    : tag,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                IconButton(
+                  tooltip: '收起项目列表',
+                  onPressed: widget.onCollapse,
+                  icon: const Icon(Icons.chevron_left),
                 ),
-              IconButton(
-                tooltip: '收起项目列表',
-                onPressed: widget.onCollapse,
-                icon: const Icon(Icons.chevron_left),
-              ),
-            ],
+              ],
+            ),
           ),
           const Divider(height: 1),
+          Padding(
+            padding: const EdgeInsets.all(10),
+            child: TextField(
+              key: const ValueKey('managed-project-search'),
+              controller: _search,
+              decoration: InputDecoration(
+                hintText: '搜索项目',
+                prefixIcon: const Icon(Icons.search, size: 18),
+                suffixIcon: _search.text.isEmpty
+                    ? null
+                    : IconButton(
+                        tooltip: '清空搜索',
+                        icon: const Icon(Icons.close, size: 16),
+                        onPressed: () => setState(_search.clear),
+                      ),
+              ),
+              onChanged: (_) => setState(() {}),
+            ),
+          ),
           Expanded(
             child: _filteredProjects.isEmpty
                 ? Center(
@@ -376,6 +422,8 @@ class _ProjectListState extends ConsumerState<_ProjectList> {
                       child: Text(
                         _selectedTag != null
                             ? '没有标签为 "$_selectedTag" 的项目'
+                            : _search.text.trim().isNotEmpty
+                            ? '没有匹配的项目'
                             : '还没有项目记录',
                       ),
                     ),
@@ -408,6 +456,11 @@ class _ProjectListState extends ConsumerState<_ProjectList> {
                                   project.displayName,
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
+                                  style: TextStyle(
+                                    fontWeight: selected
+                                        ? FontWeight.w600
+                                        : FontWeight.w400,
+                                  ),
                                 ),
                               ),
                               if (project.tags.isNotEmpty) ...[
@@ -596,7 +649,7 @@ class _CollapsedProjectList extends ConsumerWidget {
   final VoidCallback onExpand;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => Card(
+  Widget build(BuildContext context, WidgetRef ref) => WorkbenchPanel(
     child: Column(
       children: [
         if (canExpand)
@@ -628,7 +681,7 @@ class _CollapsedProjectList extends ConsumerWidget {
                           ? colors.primaryContainer
                           : Colors.transparent,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(10),
+                        borderRadius: BorderRadius.circular(6),
                         side: BorderSide(
                           color: selected ? colors.primary : Colors.transparent,
                         ),
@@ -1133,10 +1186,12 @@ class _ProjectDetail extends ConsumerWidget {
     }
     final targets = _availableTargets(project);
     return SingleChildScrollView(
+      key: PageStorageKey('project-detail-${project.path}'),
+      primary: false,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Card(
+          WorkbenchPanel(
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
@@ -1175,7 +1230,9 @@ class _ProjectDetail extends ConsumerWidget {
                   ),
                   SelectableText(
                     project.path,
-                    style: const TextStyle(color: Colors.black54),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                   if (project.description?.isNotEmpty ?? false) ...[
                     const SizedBox(height: 8),
@@ -1210,143 +1267,154 @@ class _ProjectDetail extends ConsumerWidget {
           const SizedBox(height: 12),
           _ProjectVersionSettings(project: project, state: state),
           const SizedBox(height: 12),
-          Card(
+          WorkbenchPanel(
             child: Padding(
               padding: const EdgeInsets.all(20),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
-                    children: [
-                      const Text(
-                        '运行与调试',
-                        style: TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                      const Spacer(),
-                      IconButton(
-                        tooltip: '在新窗口中打开',
-                        onPressed: controller.openSelectedProjectConsole,
-                        icon: const Icon(Icons.open_in_new, size: 20),
-                      ),
-                    ],
+                  WorkbenchSectionHeading(
+                    title: '运行与调试',
+                    icon: Icons.play_circle_outline,
+                    color: Theme.of(context).colorScheme.secondary,
+                    trailing: IconButton(
+                      tooltip: '在新窗口中打开',
+                      onPressed: controller.openSelectedProjectConsole,
+                      icon: const Icon(Icons.open_in_new, size: 20),
+                    ),
                   ),
                   const SizedBox(height: 12),
                   Padding(
                     padding: const EdgeInsets.only(bottom: 12),
-                    child: Wrap(
-                      spacing: 12,
-                      runSpacing: 16,
-                      crossAxisAlignment: WrapCrossAlignment.center,
-                      children: [
-                        SizedBox(
-                          width: 320,
-                          child: state.devicesLoading
-                              ? InputDecorator(
-                                  decoration: const InputDecoration(
-                                    labelText: '运行设备（自动监听）',
-                                    border: OutlineInputBorder(),
-                                    isDense: true,
-                                  ),
-                                  child: Row(
-                                    children: const [
-                                      SizedBox(
-                                        width: 16,
-                                        height: 16,
-                                        child: CircularProgressIndicator(
-                                          strokeWidth: 2,
+                    child: LayoutBuilder(
+                      builder: (context, constraints) {
+                        final wide = constraints.maxWidth >= 560;
+                        return Wrap(
+                          spacing: 12,
+                          runSpacing: 16,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: constraints.maxWidth - (wide ? 250 : 48),
+                              child: state.devicesLoading
+                                  ? InputDecorator(
+                                      decoration: const InputDecoration(
+                                        labelText: '运行设备（自动监听）',
+                                        border: OutlineInputBorder(),
+                                        isDense: true,
+                                      ),
+                                      child: Row(
+                                        children: [
+                                          SizedBox(
+                                            width: 16,
+                                            height: 16,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          ),
+                                          SizedBox(width: 8),
+                                          Text(
+                                            '正在连接设备监听…',
+                                            style: TextStyle(
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.onSurfaceVariant,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    )
+                                  : state.devices.isNotEmpty
+                                  ? DropdownButtonFormField<String>(
+                                      isExpanded: true,
+                                      initialValue: state.selectedDeviceId,
+                                      decoration: const InputDecoration(
+                                        labelText: '运行设备（自动监听）',
+                                        border: OutlineInputBorder(),
+                                        isDense: true,
+                                      ),
+                                      items: [
+                                        const DropdownMenuItem(
+                                          value: null,
+                                          child: Text('自动选择'),
+                                        ),
+                                        ...state.devices.map(
+                                          (d) => DropdownMenuItem(
+                                            value: d['id'],
+                                            child: Text(
+                                              '${d['name']}  (${d['platform']})',
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ),
+                                      ],
+                                      onChanged:
+                                          controller.selectedTaskActive('run')
+                                          ? null
+                                          : controller.selectDevice,
+                                    )
+                                  : InputDecorator(
+                                      decoration: const InputDecoration(
+                                        labelText: '运行设备（自动监听）',
+                                        border: OutlineInputBorder(),
+                                        isDense: true,
+                                      ),
+                                      child: Text(
+                                        '未检测到已连接设备',
+                                        style: TextStyle(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.onSurfaceVariant,
                                         ),
                                       ),
-                                      SizedBox(width: 8),
-                                      Text(
-                                        '正在连接设备监听…',
-                                        style: TextStyle(color: Colors.black54),
-                                      ),
-                                    ],
-                                  ),
-                                )
-                              : state.devices.isNotEmpty
-                              ? DropdownButtonFormField<String>(
-                                  isExpanded: true,
-                                  initialValue: state.selectedDeviceId,
-                                  decoration: const InputDecoration(
-                                    labelText: '运行设备（自动监听）',
-                                    border: OutlineInputBorder(),
-                                    isDense: true,
-                                  ),
-                                  items: [
-                                    const DropdownMenuItem(
-                                      value: null,
-                                      child: Text('自动选择'),
                                     ),
-                                    ...state.devices.map(
-                                      (d) => DropdownMenuItem(
-                                        value: d['id'],
-                                        child: Text(
-                                          '${d['name']}  (${d['platform']})',
-                                        ),
-                                      ),
-                                    ),
-                                  ],
-                                  onChanged:
-                                      controller.selectedTaskActive('run')
-                                      ? null
-                                      : controller.selectDevice,
-                                )
-                              : InputDecorator(
-                                  decoration: const InputDecoration(
-                                    labelText: '运行设备（自动监听）',
-                                    border: OutlineInputBorder(),
-                                    isDense: true,
-                                  ),
-                                  child: const Text(
-                                    '未检测到已连接设备',
-                                    style: TextStyle(color: Colors.black54),
-                                  ),
+                            ),
+                            SizedBox(
+                              width: 36,
+                              child: IconButton(
+                                tooltip: '重新连接设备监听',
+                                onPressed: state.commandRunning
+                                    ? null
+                                    : controller.loadDevices,
+                                icon: const Icon(Icons.refresh),
+                              ),
+                            ),
+                            SizedBox(
+                              width: wide ? 190 : constraints.maxWidth,
+                              child: DropdownButtonFormField<ProjectRunMode>(
+                                key: ValueKey(
+                                  'project-run-mode-${project.path}-${runMode.name}',
                                 ),
-                        ),
-                        IconButton(
-                          tooltip: '重新连接设备监听',
-                          onPressed: state.commandRunning
-                              ? null
-                              : controller.loadDevices,
-                          icon: const Icon(Icons.refresh),
-                        ),
-                        SizedBox(
-                          width: 190,
-                          child: DropdownButtonFormField<ProjectRunMode>(
-                            key: ValueKey(
-                              'project-run-mode-${project.path}-${runMode.name}',
-                            ),
-                            initialValue: runMode,
-                            isExpanded: true,
-                            decoration: const InputDecoration(
-                              labelText: '运行模式',
-                              border: OutlineInputBorder(),
-                              isDense: true,
-                            ),
-                            items: const [
-                              DropdownMenuItem(
-                                value: ProjectRunMode.debug,
-                                child: Text('Debug · 调试'),
+                                initialValue: runMode,
+                                isExpanded: true,
+                                decoration: const InputDecoration(
+                                  labelText: '运行模式',
+                                  border: OutlineInputBorder(),
+                                  isDense: true,
+                                ),
+                                items: const [
+                                  DropdownMenuItem(
+                                    value: ProjectRunMode.debug,
+                                    child: Text('Debug · 调试'),
+                                  ),
+                                  DropdownMenuItem(
+                                    value: ProjectRunMode.release,
+                                    child: Text('Release · 正式'),
+                                  ),
+                                ],
+                                onChanged: controller.selectedTaskActive('run')
+                                    ? null
+                                    : (mode) {
+                                        if (mode != null) {
+                                          controller.selectProjectRunMode(mode);
+                                        }
+                                      },
                               ),
-                              DropdownMenuItem(
-                                value: ProjectRunMode.release,
-                                child: Text('Release · 正式'),
-                              ),
-                            ],
-                            onChanged: controller.selectedTaskActive('run')
-                                ? null
-                                : (mode) {
-                                    if (mode != null) {
-                                      controller.selectProjectRunMode(mode);
-                                    }
-                                  },
-                          ),
-                        ),
-                      ],
+                            ),
+                          ],
+                        );
+                      },
                     ),
                   ),
                   Padding(
@@ -1553,7 +1621,11 @@ class _ProjectDetail extends ConsumerWidget {
                             state.selectedAndroidFlavors.isEmpty
                                 ? '未选择时构建默认渠道'
                                 : '已选择 ${state.selectedAndroidFlavors.length} 个',
-                            style: const TextStyle(color: Colors.black54),
+                            style: TextStyle(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
                           ),
                         ],
                       ),
@@ -1587,7 +1659,9 @@ class _ProjectDetail extends ConsumerWidget {
                       Text(
                         '检测到 Build Types：${project.androidBuildTypes.join(', ')}'
                         '${project.androidFlavors.isEmpty ? '；未检测到 Product Flavors' : ''}',
-                        style: const TextStyle(color: Colors.black54),
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
+                        ),
                       ),
                       const SizedBox(height: 14),
                       Row(
@@ -1810,7 +1884,12 @@ class _ProjectDetail extends ConsumerWidget {
           if (state.consoleTabs.isNotEmpty ||
               state.showMainWindowConsole ||
               controller.selectedProjectBuildConsoleVisible)
-            _RevealOnMount(child: _CommandConsole(state: state)),
+            _RevealOnMount(
+              reveal:
+                  state.commandRunning ||
+                  controller.selectedProjectBuildConsoleVisible,
+              child: _CommandConsole(state: state),
+            ),
         ],
       ),
     );
@@ -1993,7 +2072,8 @@ Future<String?> _showInnoCompilerPickerDialog(BuildContext context) {
           child: const Text('取消'),
         ),
         TextButton.icon(
-          onPressed: () => unawaited(_openExternalUrl(downloadUrl)),
+          onPressed: () =>
+              unawaited(_openExternalUrl(downloadUrl, context: context)),
           icon: const Icon(Icons.open_in_new),
           label: const Text('打开下载页'),
         ),
@@ -2064,12 +2144,12 @@ class _ProjectFvmSelector extends StatelessWidget {
       height: 40,
       padding: const EdgeInsets.only(left: 10, right: 6),
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Theme.of(context).colorScheme.surface,
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: warning
               ? Colors.orange.withValues(alpha: .65)
-              : const Color(0xffd8dee4),
+              : Theme.of(context).colorScheme.outlineVariant,
         ),
       ),
       child: Row(
@@ -2077,7 +2157,9 @@ class _ProjectFvmSelector extends StatelessWidget {
           Icon(
             Icons.flutter_dash,
             size: 18,
-            color: disabled ? Colors.black38 : const Color(0xff087ea4),
+            color: disabled
+                ? Theme.of(context).colorScheme.onSurfaceVariant
+                : Theme.of(context).colorScheme.primary,
           ),
           const SizedBox(width: 8),
           Expanded(
@@ -2087,11 +2169,13 @@ class _ProjectFvmSelector extends StatelessWidget {
                 isExpanded: true,
                 isDense: true,
                 menuMaxHeight: 300,
-                borderRadius: BorderRadius.circular(10),
+                borderRadius: BorderRadius.circular(6),
                 iconSize: 20,
                 style: TextStyle(
                   fontSize: 13,
-                  color: disabled ? Colors.black38 : Colors.black87,
+                  color: disabled
+                      ? Theme.of(context).colorScheme.onSurfaceVariant
+                      : Theme.of(context).colorScheme.onSurface,
                 ),
                 items: [
                   const DropdownMenuItem(
@@ -2159,7 +2243,9 @@ class _ProjectFvmSelector extends StatelessWidget {
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
             fontSize: 11,
-            color: warning ? Colors.orange.shade800 : Colors.black54,
+            color: warning
+                ? AppPalette.of(context).warningText
+                : Theme.of(context).colorScheme.onSurfaceVariant,
           ),
         ),
       ],
@@ -2168,9 +2254,9 @@ class _ProjectFvmSelector extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: const Color(0xfff7f9fb),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: const Color(0xffe4e8ec)),
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
@@ -2229,9 +2315,12 @@ Future<bool> _confirmProjectFvmChange(
             const SizedBox(height: 6),
             Text('切换为：${displayVersion(targetVersion)}'),
             const SizedBox(height: 14),
-            const Text(
+            Text(
               '确认后将修改项目的 .fvmrc；不会自动执行 Pub Get、Clean 或构建。',
-              style: TextStyle(color: Colors.black54, height: 1.45),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                height: 1.45,
+              ),
             ),
           ],
         ),
@@ -2320,9 +2409,10 @@ class _CollapsibleProjectSectionState
 }
 
 class _RevealOnMount extends StatefulWidget {
-  const _RevealOnMount({required this.child});
+  const _RevealOnMount({required this.child, required this.reveal});
 
   final Widget child;
+  final bool reveal;
 
   @override
   State<_RevealOnMount> createState() => _RevealOnMountState();
@@ -2334,7 +2424,13 @@ class _RevealOnMountState extends State<_RevealOnMount> {
   @override
   void initState() {
     super.initState();
-    _revealAfterLayout(_key);
+    if (widget.reveal) _revealAfterLayout(_key);
+  }
+
+  @override
+  void didUpdateWidget(covariant _RevealOnMount oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.reveal && !oldWidget.reveal) _revealAfterLayout(_key);
   }
 
   @override
@@ -2407,9 +2503,11 @@ class _ProjectVersionSettingsState
             style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
           ),
           const SizedBox(height: 4),
-          const Text(
+          Text(
             '保存后修改项目 pubspec.yaml；Android 若写死版本号，也会同步对应 Gradle 配置。',
-            style: TextStyle(color: Colors.black54),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 14),
           Wrap(
@@ -2487,7 +2585,10 @@ class _PackageGuideContent extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   step.$2,
-                  style: const TextStyle(fontSize: 13, color: Colors.black87),
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Theme.of(context).colorScheme.onSurface,
+                  ),
                 ),
               ],
             ),
@@ -2576,9 +2677,11 @@ await runCommand('flutter', [
             ),
           ),
           const SizedBox(height: 10),
-          const Text(
+          Text(
             r'占位符：{flavor}、${flavor}、{version}、{buildNo}、{bundleId}、{projectPath}、{targetPlatform}',
-            style: TextStyle(color: Colors.black54),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
           const SizedBox(height: 12),
           Row(
@@ -2724,10 +2827,12 @@ class _BuglySettings extends ConsumerWidget {
           const SizedBox(height: 12),
           Row(
             children: [
-              const Expanded(
+              Expanded(
                 child: Text(
                   '配置会保存在本机项目记录中；命令日志不会显示 App Key。',
-                  style: TextStyle(color: Colors.black54),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ),
               FilledButton.tonalIcon(
@@ -2820,7 +2925,7 @@ class _CommandStopButton extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
         decoration: BoxDecoration(
           border: Border.all(color: Theme.of(context).colorScheme.outline),
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(6),
         ),
         child: const Row(
           mainAxisSize: MainAxisSize.min,
@@ -3023,7 +3128,7 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
         TextSpan(
           text: text.substring(match.start, match.end),
           style: TextStyle(
-            color: const Color(0xff101820),
+            color: AppColors.consoleBackground,
             fontWeight: index == _currentMatch
                 ? FontWeight.w700
                 : FontWeight.w500,
@@ -3050,7 +3155,7 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
     final unlockProjectPath =
         consoleTab?.projectPath ?? widget.state.selectedManagedProjectPath;
     return Card(
-      color: const Color(0xff101820),
+      color: AppColors.consoleBackground,
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -3142,7 +3247,7 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
                             color: Color(0xff9fb0c2),
                           ),
                           filled: true,
-                          fillColor: Color(0xff1b2733),
+                          fillColor: AppColors.consoleSurface,
                           border: OutlineInputBorder(),
                           isDense: true,
                         ),
@@ -3230,8 +3335,8 @@ class _ConsoleTabBar extends StatefulWidget {
   const _ConsoleTabBar({required this.state, required this.controller});
 
   // 深色打印台专用配色，保证标签文字对比度。
-  static const _bg = Color(0xff0d141c);
-  static const _tabIdle = Color(0xff1b2733);
+  static const _bg = AppColors.consoleBackground;
+  static const _tabIdle = AppColors.consoleSurface;
   static const _tabActive = Color(0xff1f4f8a);
   static const _borderIdle = Color(0xff2f3d4c);
   static const _borderActive = Color(0xff4c9aed);

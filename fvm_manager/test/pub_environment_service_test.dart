@@ -6,6 +6,18 @@ import 'package:flutter_manager/src/data/process_runner.dart';
 import 'package:flutter_manager/src/data/pub_environment_service.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+class _SearchPathEnvironment extends PubEnvironmentService {
+  _SearchPathEnvironment({
+    required super.settingsFile,
+    required this.searchPath,
+  });
+
+  final String searchPath;
+
+  @override
+  List<String> get executableSearchPaths => [searchPath];
+}
+
 void main() {
   test('adds GUI command paths required by FVM', () {
     final service = PubEnvironmentService();
@@ -142,6 +154,48 @@ void main() {
     // 用户选到 Pub\\Cache 这一级即可，不必点进 bin。
     final version = await fvm.useLocalDirectory(cacheDir.path);
     expect(version, '6.6.6');
+  });
+
+  test('finds FVM executable when user selects an SDK cache folder', () async {
+    final root = await Directory.systemTemp.createTemp(
+      'flutter_manager_fvm_cache_selection_',
+    );
+    addTearDown(() => root.delete(recursive: true));
+    final sdkCache = Directory('${root.path}/fvm');
+    await Directory('${sdkCache.path}/versions').create(recursive: true);
+    final pubBin = Directory('${root.path}/Pub/Cache/bin');
+    await pubBin.create(recursive: true);
+    final executable = File(
+      '${pubBin.path}/${Platform.isWindows ? 'fvm.bat' : 'fvm'}',
+    );
+    await executable.writeAsString(
+      Platform.isWindows
+          ? '@if "%1"=="--version" echo 5.5.5\r\n'
+          : '#!/bin/sh\nif [ "\$1" = "--version" ]; then echo 5.5.5; fi\n',
+    );
+    if (!Platform.isWindows) {
+      final chmod = await Process.run('chmod', ['+x', executable.path]);
+      expect(chmod.exitCode, 0);
+    }
+
+    final environment = _SearchPathEnvironment(
+      settingsFile: File('${root.path}/settings.json'),
+      searchPath: pubBin.path,
+    );
+    final fvm = FvmService(environment);
+    expect(await fvm.useLocalDirectory(sdkCache.path), '5.5.5');
+    expect(
+      _normalizedPath(environment.customFvmExecutable!),
+      _normalizedPath(executable.path),
+    );
+    final reloaded = PubEnvironmentService(
+      settingsFile: File('${root.path}/settings.json'),
+    );
+    await reloaded.load();
+    expect(
+      _normalizedPath(reloaded.customFvmExecutable!),
+      _normalizedPath(executable.path),
+    );
   });
 
   test('processEnvironment keeps Windows system dirs and PATH', () {

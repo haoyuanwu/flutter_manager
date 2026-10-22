@@ -15,8 +15,11 @@ class _DownloadStatusBar extends StatelessWidget {
         : null;
     return Container(
       width: double.infinity,
-      color: AppColors.downloadBackground,
-      padding: const EdgeInsets.symmetric(horizontal: AppSpacing.xl, vertical: AppSpacing.sm),
+      color: AppPalette.of(context).downloadBackground,
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppSpacing.xl,
+        vertical: AppSpacing.sm,
+      ),
       child: Wrap(
         spacing: AppSpacing.lg + 2,
         runSpacing: AppSpacing.xs + 2,
@@ -25,7 +28,11 @@ class _DownloadStatusBar extends StatelessWidget {
           Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Icon(Icons.downloading, size: 17, color: AppColors.primary),
+              Icon(
+                Icons.downloading,
+                size: 17,
+                color: AppPalette.of(context).primary,
+              ),
               const SizedBox(width: 7),
               Text(
                 'Flutter ${state.activeVersion} · ${state.downloadPhase}',
@@ -40,9 +47,15 @@ class _DownloadStatusBar extends StatelessWidget {
             style: AppTextStyles.bodySmall,
           ),
           if (speed > 0)
-            Text('${_formatBytes(speed.round())}/s', style: AppTextStyles.bodySmall),
+            Text(
+              '${_formatBytes(speed.round())}/s',
+              style: AppTextStyles.bodySmall,
+            ),
           if (remainingSeconds != null)
-            Text('预计剩余 ${_formatDuration(remainingSeconds)}', style: AppTextStyles.bodySmall),
+            Text(
+              '预计剩余 ${_formatDuration(remainingSeconds)}',
+              style: AppTextStyles.bodySmall,
+            ),
         ],
       ),
     );
@@ -75,10 +88,12 @@ class _MessageBar extends ConsumerStatefulWidget {
     required this.message,
     this.error = false,
     this.onDiagnosticsTap,
+    this.onMcpTap,
   });
   final String message;
   final bool error;
   final VoidCallback? onDiagnosticsTap;
+  final VoidCallback? onMcpTap;
 
   @override
   ConsumerState<_MessageBar> createState() => _MessageBarState();
@@ -136,10 +151,11 @@ class _MessageBarState extends ConsumerState<_MessageBar> {
   Widget build(BuildContext context) {
     if (!_visible) return const SizedBox.shrink();
     final foreground = widget.error
-        ? AppColors.messageErrorText
-        : AppColors.messageSuccessText;
+        ? AppPalette.of(context).messageErrorText
+        : AppPalette.of(context).messageSuccessText;
     final showDiagnosticsAction =
         widget.error && widget.onDiagnosticsTap != null;
+    final mcpError = widget.message.startsWith('MCP 控制接口');
     return TweenAnimationBuilder<double>(
       duration: AppAnimations.normal,
       tween: Tween(begin: 0, end: 1),
@@ -154,17 +170,22 @@ class _MessageBarState extends ConsumerState<_MessageBar> {
         elevation: 12,
         shadowColor: Colors.black.withValues(alpha: 0.25),
         color: widget.error
-            ? AppColors.messageErrorBackground
-            : AppColors.messageSuccessBackground,
+            ? AppPalette.of(context).messageErrorBackground
+            : AppPalette.of(context).messageSuccessBackground,
         borderRadius: AppRadius.mdAll,
         child: Container(
-          width: 460,
-          padding: const EdgeInsets.fromLTRB(AppSpacing.lg, AppSpacing.md + 1, AppSpacing.md, AppSpacing.md + 1),
+          width: (MediaQuery.sizeOf(context).width - 48).clamp(280, 560),
+          padding: const EdgeInsets.fromLTRB(
+            AppSpacing.lg,
+            AppSpacing.md + 1,
+            AppSpacing.md,
+            AppSpacing.md + 1,
+          ),
           decoration: BoxDecoration(
             border: Border.all(
               color: widget.error
-                  ? AppColors.messageErrorBorder
-                  : AppColors.messageSuccessBorder,
+                  ? AppPalette.of(context).messageErrorBorder
+                  : AppPalette.of(context).messageSuccessBorder,
             ),
             borderRadius: AppRadius.mdAll,
           ),
@@ -179,20 +200,32 @@ class _MessageBarState extends ConsumerState<_MessageBar> {
               Expanded(
                 child: Text(
                   widget.message,
-                  maxLines: 3,
+                  maxLines: 5,
                   overflow: TextOverflow.ellipsis,
-                  style: AppTextStyles.bodyMedium.copyWith(color: foreground, height: 1.35),
+                  style: AppTextStyles.bodyMedium.copyWith(
+                    color: foreground,
+                    height: 1.35,
+                  ),
                 ),
               ),
               if (showDiagnosticsAction) ...[
                 const SizedBox(width: AppSpacing.sm),
                 TextButton.icon(
                   onPressed: () {
-                    widget.onDiagnosticsTap?.call();
+                    if (mcpError) {
+                      widget.onMcpTap?.call();
+                    } else {
+                      widget.onDiagnosticsTap?.call();
+                    }
                     _dismiss();
                   },
-                  icon: const Icon(Icons.health_and_safety_outlined, size: 16),
-                  label: const Text('环境诊断'),
+                  icon: Icon(
+                    mcpError
+                        ? Icons.lan_outlined
+                        : Icons.health_and_safety_outlined,
+                    size: 16,
+                  ),
+                  label: Text(mcpError ? 'MCP 设置' : '环境诊断'),
                   style: TextButton.styleFrom(
                     foregroundColor: foreground,
                     visualDensity: VisualDensity.compact,
@@ -224,10 +257,7 @@ class _UpdateDot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     const dot = DecoratedBox(
-      decoration: BoxDecoration(
-        color: AppColors.error,
-        shape: BoxShape.circle,
-      ),
+      decoration: BoxDecoration(color: AppColors.error, shape: BoxShape.circle),
       child: SizedBox.square(dimension: 9),
     );
     if (onTap == null) return dot;

@@ -29,10 +29,7 @@ class _SigningInfoPageState extends ConsumerState<_SigningInfoPage> {
     try {
       final result = await openFile(
         acceptedTypeGroups: [
-          XTypeGroup(
-            label: 'JKS 文件',
-            extensions: ['jks', 'keystore'],
-          ),
+          XTypeGroup(label: 'JKS 文件', extensions: ['jks', 'keystore']),
         ],
       );
 
@@ -51,10 +48,7 @@ class _SigningInfoPageState extends ConsumerState<_SigningInfoPage> {
     try {
       final result = await openFile(
         acceptedTypeGroups: [
-          XTypeGroup(
-            label: 'APK 文件',
-            extensions: ['apk'],
-          ),
+          XTypeGroup(label: 'APK 文件', extensions: ['apk']),
         ],
       );
 
@@ -146,8 +140,9 @@ class _SigningInfoPageState extends ConsumerState<_SigningInfoPage> {
 
         if (apks.isNotEmpty) {
           // 按修改时间排序，获取最新的
-          apks.sort((a, b) =>
-              b.lastModifiedSync().compareTo(a.lastModifiedSync()));
+          apks.sort(
+            (a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()),
+          );
           _extractFromApk(apks.first.path);
           return;
         }
@@ -165,23 +160,18 @@ class _SigningInfoPageState extends ConsumerState<_SigningInfoPage> {
         .where((p) => p.hasAndroid)
         .toList();
 
-    return SingleChildScrollView(
-      padding: AppSpacing.pagePadding,
+    return WorkbenchScrollPage(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('应用签名', style: AppTextStyles.h1),
-          const SizedBox(height: AppSpacing.xs),
-          Text(
-            '查看 APK 或 JKS 文件的签名证书信息，包括 SHA1、SHA256、MD5 等。',
-            style: AppTextStyles.bodyMedium.copyWith(
-              color: AppColors.textSecondary,
-            ),
+          const WorkbenchPageHeader(
+            title: '应用签名',
+            subtitle: '查看 APK 或 JKS 文件的签名证书信息，包括 SHA1、SHA256、MD5 等。',
           ),
-          const SizedBox(height: AppSpacing.xl),
+          const SizedBox(height: 20),
 
           // 输入区域
-          Card(
+          WorkbenchPanel(
             child: Padding(
               padding: AppSpacing.cardPadding,
               child: Column(
@@ -236,7 +226,9 @@ class _SigningInfoPageState extends ConsumerState<_SigningInfoPage> {
                     children: [
                       Expanded(child: Divider()),
                       Padding(
-                        padding: EdgeInsets.symmetric(horizontal: AppSpacing.md),
+                        padding: EdgeInsets.symmetric(
+                          horizontal: AppSpacing.md,
+                        ),
                         child: Text('或者', style: AppTextStyles.caption),
                       ),
                       Expanded(child: Divider()),
@@ -281,9 +273,7 @@ class _SigningInfoPageState extends ConsumerState<_SigningInfoPage> {
                             ),
                             decoration: BoxDecoration(
                               border: Border.all(
-                                color: Theme.of(context)
-                                    .colorScheme
-                                    .outline,
+                                color: Theme.of(context).colorScheme.outline,
                               ),
                               borderRadius: AppRadius.mdAll,
                             ),
@@ -297,9 +287,9 @@ class _SigningInfoPageState extends ConsumerState<_SigningInfoPage> {
                                 Icon(
                                   Icons.arrow_drop_down,
                                   size: 20,
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurfaceVariant,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
                                 ),
                               ],
                             ),
@@ -333,7 +323,7 @@ class _SigningInfoPageState extends ConsumerState<_SigningInfoPage> {
           // 错误信息
           if (_error != null)
             Card(
-              color: AppColors.messageErrorBackground,
+              color: AppPalette.of(context).messageErrorBackground,
               child: Padding(
                 padding: AppSpacing.cardPadding,
                 child: Row(
@@ -344,7 +334,7 @@ class _SigningInfoPageState extends ConsumerState<_SigningInfoPage> {
                       child: Text(
                         _error!,
                         style: AppTextStyles.bodyMedium.copyWith(
-                          color: AppColors.messageErrorText,
+                          color: AppPalette.of(context).messageErrorText,
                         ),
                       ),
                     ),
@@ -365,7 +355,7 @@ class _SigningInfoPageState extends ConsumerState<_SigningInfoPage> {
   }
 
   Widget _buildSigningInfoCard(SigningInfo info) {
-    return Card(
+    return WorkbenchPanel(
       child: Padding(
         padding: AppSpacing.cardPadding,
         child: Column(
@@ -406,8 +396,7 @@ class _SigningInfoPageState extends ConsumerState<_SigningInfoPage> {
                 _buildInfoRow('使用者 (Subject)', info.subject!),
               if (info.issuer != null)
                 _buildInfoRow('颁发者 (Issuer)', info.issuer!),
-              if (info.version != null)
-                _buildInfoRow('证书版本', info.version!),
+              if (info.version != null) _buildInfoRow('证书版本', info.version!),
               if (info.serialNumber != null)
                 _buildInfoRow('序列号', info.serialNumber!),
             ]),
@@ -417,8 +406,7 @@ class _SigningInfoPageState extends ConsumerState<_SigningInfoPage> {
               _buildInfoSection('有效期', [
                 if (info.validFrom != null)
                   _buildInfoRow('生效时间', info.validFrom!),
-                if (info.validTo != null)
-                  _buildInfoRow('过期时间', info.validTo!),
+                if (info.validTo != null) _buildInfoRow('过期时间', info.validTo!),
               ]),
             ],
 
@@ -437,7 +425,7 @@ class _SigningInfoPageState extends ConsumerState<_SigningInfoPage> {
             Container(
               padding: const EdgeInsets.all(AppSpacing.md),
               decoration: BoxDecoration(
-                color: AppColors.surfaceVariant,
+                color: AppPalette.of(context).surfaceVariant,
                 borderRadius: AppRadius.smAll,
               ),
               child: Column(
@@ -446,7 +434,10 @@ class _SigningInfoPageState extends ConsumerState<_SigningInfoPage> {
                   const Text('常见用途', style: AppTextStyles.label),
                   const SizedBox(height: AppSpacing.sm),
                   _buildUsageTip('SHA-1', '用于 Google Maps API、Firebase 等服务的配置'),
-                  _buildUsageTip('SHA-256', '用于 App Bundle 签名验证、Play App Signing'),
+                  _buildUsageTip(
+                    'SHA-256',
+                    '用于 App Bundle 签名验证、Play App Signing',
+                  ),
                   _buildUsageTip('MD5', '部分第三方 SDK 集成时需要'),
                 ],
               ),
@@ -480,7 +471,7 @@ class _SigningInfoPageState extends ConsumerState<_SigningInfoPage> {
             child: Text(
               label,
               style: AppTextStyles.bodySmall.copyWith(
-                color: AppColors.textSecondary,
+                color: AppPalette.of(context).textSecondary,
               ),
             ),
           ),
@@ -520,12 +511,7 @@ class _SigningInfoPageState extends ConsumerState<_SigningInfoPage> {
               ),
             ),
           ),
-          Expanded(
-            child: Text(
-              description,
-              style: AppTextStyles.captionSmall,
-            ),
-          ),
+          Expanded(child: Text(description, style: AppTextStyles.captionSmall)),
         ],
       ),
     );
@@ -534,10 +520,7 @@ class _SigningInfoPageState extends ConsumerState<_SigningInfoPage> {
   void _copyToClipboard(String text) {
     Clipboard.setData(ClipboardData(text: text));
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('已复制到剪贴板'),
-        duration: Duration(seconds: 2),
-      ),
+      const SnackBar(content: Text('已复制到剪贴板'), duration: Duration(seconds: 2)),
     );
   }
 

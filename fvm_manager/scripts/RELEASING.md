@@ -39,6 +39,47 @@ py -3 scripts/release.py 1.2.8+14 --note "新增功能说明" --note "优化操�
 
 Windows 执行此命令会推送标签，由 GitHub 的 macOS 云端 runner 打包两个架构的 DMG，不是在 Windows 本地构建 macOS 应用。目前该发布流程不生成 Windows 安装包；`package_macos_release.py` 仍只能在 macOS 本地使用。
 
+### 为已有版本补充 Windows 安装包
+
+在 Windows 上构建当前版本后，使用 Inno Setup 6/7 打包并补传到同版本的已发布 Release：
+
+```powershell
+flutter pub get
+flutter build windows --release --no-pub
+powershell -ExecutionPolicy Bypass -File scripts/package_windows_release.ps1 -Upload
+```
+
+本地需要 Visual Studio C++ 桌面构建工具、Inno Setup、已登录的 GitHub CLI。
+脚本会核对 exe 与 pubspec 的完整版本号，自动查找 Inno Setup 和 x64 Visual C++ 运行库。
+也可用 `-IsccPath`、`-VcRuntimeDirectory` 显式指定路径。去掉 `-Upload` 则仅打包。
+产物为 `build/release/windows-X.Y.Z-Build/Flutter-Manager-X.Y.Z-windows-x64-setup.exe` 和独立的
+`SHA256SUMS-windows.txt`。脚本拒绝覆盖本地或远端已有同名文件，保留 Mac 附件与
+`SHA256SUMS.txt`；上传后会下载 Windows 两个附件并校验 SHA-256。
+
+### Windows 一条命令构建并上传
+
+先按上文用 `release.py --publish` 推送中文提交与新版本标签，再执行：
+
+```powershell
+pwsh -File scripts/package_windows_release.ps1 -Build -FlutterRoot D:\fvm\default -Upload -WaitForReleaseSeconds 3600
+```
+
+脚本使用独立的版本构建目录，不会关闭正在运行的旧程序；直接调用 Dart 和
+Flutter 工具快照，避免 `flutter.bat` 无响应。不在本地运行应用、截图或重复测试，
+GitHub Actions 仍执行既有的发布检查与 macOS 构建。
+
+`-WaitForReleaseSeconds` 会等待 Actions 发布同版本 Release，再补充 Windows 安装包。
+上传前核对当前提交与远端标签；上传后重新下载附件并校验。不会替换或删除已有附件。
+若上传被网络中断，可恢复，无需重新构建：
+
+```powershell
+pwsh -File scripts/package_windows_release.ps1 -Upload -UploadOnly -WaitForReleaseSeconds 3600
+```
+
+恢复时会校验安装包记录中的版本、源码提交和 SHA-256。远端同名附件只有在摘要
+一致时才跳过，否则停止并保留原文件。`-BundleDirectory` 可指定已经构建好的
+Release 目录，`-IsccPath` 和 `-VcRuntimeDirectory` 仍可手动指定。
+
 脚本测试可在两种系统执行：
 
 ```powershell

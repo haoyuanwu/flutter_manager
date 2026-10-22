@@ -6,6 +6,7 @@ class AppDelegate: FlutterAppDelegate {
   private var statusItem: NSStatusItem?
   private var statusMenuChannel: FlutterMethodChannel?
   private var dragDropChannel: FlutterMethodChannel?
+  private var appearanceChannel: FlutterMethodChannel?
   private var mainWindow: MainFlutterWindow?
   private var fvmVersion = "检测中…"
   private var flutterVersion = "检测中…"
@@ -139,6 +140,7 @@ class AppDelegate: FlutterAppDelegate {
     configureStatusItem()
     configureStatusMenuChannel()
     configureDragDropChannel()
+    configureAppearanceChannel()
 
     // 设置窗口支持拖放
     setupWindowDragDrop(window)
@@ -147,6 +149,32 @@ class AppDelegate: FlutterAppDelegate {
   func attachConsoleWindow(_ window: NSWindow) {
     managedWindows.add(window)
     scheduleDockVisibilityUpdate()
+  }
+
+  private func configureAppearanceChannel() {
+    guard appearanceChannel == nil,
+          let controller = mainWindow?.contentViewController as? FlutterViewController else {
+      return
+    }
+    let channel = FlutterMethodChannel(
+      name: "fvm_manager/appearance",
+      binaryMessenger: controller.engine.binaryMessenger
+    )
+    channel.setMethodCallHandler { call, result in
+      guard call.method == "setTheme",
+            let arguments = call.arguments as? [String: Any],
+            let mode = arguments["mode"] as? String else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      switch mode {
+      case "light": NSApp.appearance = NSAppearance(named: .aqua)
+      case "dark": NSApp.appearance = NSAppearance(named: .darkAqua)
+      default: NSApp.appearance = nil
+      }
+      result(nil)
+    }
+    appearanceChannel = channel
   }
 
   func mainWindowWillClose(_ window: NSWindow) {

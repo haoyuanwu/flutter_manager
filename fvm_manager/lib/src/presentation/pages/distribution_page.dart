@@ -263,30 +263,16 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '构建产物中心',
-                      style: TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.w800,
-                      ),
-                    ),
-                    SizedBox(height: 4),
-                    Text('集中查看、筛选和分发项目的最终安装包。'),
-                  ],
-                ),
-              ),
+          WorkbenchPageHeader(
+            title: '构建产物中心',
+            subtitle: '集中查看、筛选和分发项目的最终安装包。',
+            breakpoint: 760,
+            actions: [
               OutlinedButton.icon(
                 onPressed: _loading ? null : _chooseArtifact,
                 icon: const Icon(Icons.file_open_outlined),
                 label: const Text('添加本地产物'),
               ),
-              const SizedBox(width: 8),
               IconButton.filledTonal(
                 tooltip: '重新扫描构建产物',
                 onPressed: _loading || _historyLoading ? null : _refresh,
@@ -294,7 +280,7 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
               ),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 20),
           _ArtifactToolbar(
             projects: projects.toList(growable: false),
             selectedProjectPath: state.selectedManagedProjectPath,
@@ -388,7 +374,10 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
                   children: [
                     Expanded(child: artifacts),
                     const SizedBox(width: 16),
-                    SizedBox(width: 380, child: inspector),
+                    SizedBox(
+                      width: (constraints.maxWidth * .35).clamp(340.0, 480.0),
+                      child: inspector,
+                    ),
                   ],
                 );
               },
@@ -444,8 +433,7 @@ class _ArtifactToolbar extends StatelessWidget {
       0,
       (sum, artifact) => sum + artifact.size,
     );
-    return Card(
-      margin: EdgeInsets.zero,
+    return WorkbenchSection(
       child: Padding(
         padding: const EdgeInsets.all(14),
         child: LayoutBuilder(
@@ -525,9 +513,13 @@ class _ArtifactToolbar extends StatelessWidget {
                 if (narrow) ...[
                   projectField,
                   const SizedBox(height: 10),
-                  searchField,
-                  const SizedBox(height: 10),
-                  sortField,
+                  Row(
+                    children: [
+                      Expanded(child: searchField),
+                      const SizedBox(width: 10),
+                      SizedBox(width: 150, child: sortField),
+                    ],
+                  ),
                 ] else
                   Row(
                     children: [
@@ -633,9 +625,19 @@ class _ArtifactSummary extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      Icon(icon, size: 15, color: Colors.black45),
+      Icon(
+        icon,
+        size: 15,
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+      ),
       const SizedBox(width: 5),
-      Text(text, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+      Text(
+        text,
+        style: TextStyle(
+          fontSize: 12,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
     ],
   );
 }
@@ -663,12 +665,14 @@ class _SelectedArtifactCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             if (artifact == null)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.symmetric(vertical: 30),
                 child: Center(
                   child: Text(
                     '请从左侧选择一个产物',
-                    style: TextStyle(color: Colors.black54),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
               )
@@ -700,7 +704,10 @@ class _SelectedArtifactCard extends StatelessWidget {
               const SizedBox(height: 6),
               SelectableText(
                 artifact.path,
-                style: const TextStyle(fontSize: 12, color: Colors.black54),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
               const SizedBox(height: 14),
               Wrap(
@@ -744,7 +751,10 @@ class _ArtifactInfoRow extends StatelessWidget {
           width: 54,
           child: Text(
             label,
-            style: const TextStyle(fontSize: 12, color: Colors.black54),
+            style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
         Expanded(
@@ -797,9 +807,7 @@ class _ArtifactInspector extends StatelessWidget {
   @override
   Widget build(BuildContext context) => DefaultTabController(
     length: 3,
-    child: Card(
-      margin: EdgeInsets.zero,
-      clipBehavior: Clip.antiAlias,
+    child: WorkbenchPanel(
       child: Column(
         children: [
           TabBar(
@@ -843,19 +851,27 @@ class _BuildHistoryView extends StatelessWidget {
     if (loading) return const Center(child: CircularProgressIndicator());
     final path = projectPath;
     if (path == null) {
-      return const Center(
-        child: Text('请先选择项目', style: TextStyle(color: Colors.black54)),
+      return Center(
+        child: Text(
+          '请先选择项目',
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
+        ),
       );
     }
     final sessions = snapshot.sessionsForProject(path);
     if (sessions.isEmpty) {
-      return const Center(
+      return Center(
         child: Padding(
           padding: EdgeInsets.all(24),
           child: Text(
             '尚无构建历史\n从项目详情执行一次标准 Build 后会自动记录。',
             textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.black54, height: 1.5),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              height: 1.5,
+            ),
           ),
         ),
       );
@@ -870,7 +886,9 @@ class _BuildHistoryView extends StatelessWidget {
         final color = _buildStatusColor(session.status);
         return Card(
           margin: EdgeInsets.zero,
-          color: index == 0 ? const Color(0xfffbfdff) : null,
+          color: index == 0
+              ? Theme.of(context).colorScheme.surfaceContainerLow
+              : null,
           child: ExpansionTile(
             initiallyExpanded: index == 0,
             leading: Icon(_buildStatusIcon(session.status), color: color),
@@ -915,9 +933,9 @@ class _BuildHistoryView extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: SelectableText(
                     command,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 11,
-                      color: Colors.black54,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                       fontFamily: 'monospace',
                     ),
                   ),
@@ -935,11 +953,14 @@ class _BuildHistoryView extends StatelessWidget {
               ),
               const SizedBox(height: 5),
               if (artifacts.isEmpty)
-                const Align(
+                Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
                     '本次构建未发现新的最终安装包',
-                    style: TextStyle(fontSize: 11, color: Colors.black54),
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 )
               else
@@ -998,7 +1019,10 @@ class _HistoryInfoLine extends StatelessWidget {
           width: 52,
           child: Text(
             label,
-            style: const TextStyle(fontSize: 11, color: Colors.black54),
+            style: TextStyle(
+              fontSize: 11,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
         Expanded(child: Text(value, style: const TextStyle(fontSize: 11))),
@@ -1068,8 +1092,7 @@ class _ArtifactsPanel extends StatelessWidget {
   final bool compact;
 
   @override
-  Widget build(BuildContext context) => Card(
-    margin: EdgeInsets.zero,
+  Widget build(BuildContext context) => WorkbenchPanel(
     child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1095,7 +1118,7 @@ class _ArtifactsPanel extends StatelessWidget {
                   '(${artifacts.length})',
                   style: TextStyle(
                     fontSize: compact ? 13 : 14,
-                    color: Colors.black54,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                   ),
                 ),
               ],
@@ -1114,7 +1137,9 @@ class _ArtifactsPanel extends StatelessWidget {
                         : hasProject
                         ? '尚未找到最终安装包'
                         : '请先选择项目',
-                    style: const TextStyle(color: Colors.black54),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 )
               : ListView.separated(
@@ -1128,7 +1153,9 @@ class _ArtifactsPanel extends StatelessWidget {
                       return ListTile(
                         dense: true,
                         selected: selected,
-                        selectedTileColor: const Color(0xffeef8ff),
+                        selectedTileColor: Theme.of(
+                          context,
+                        ).colorScheme.primaryContainer,
                         leading: _ArtifactFileIcon(
                           artifact: artifact,
                           compact: true,
@@ -1147,9 +1174,9 @@ class _ArtifactsPanel extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             if (selected)
-                              const Icon(
+                              Icon(
                                 Icons.check_circle,
-                                color: Color(0xff087ea4),
+                                color: Theme.of(context).colorScheme.primary,
                                 size: 18,
                               ),
                             IconButton(
@@ -1174,7 +1201,9 @@ class _ArtifactsPanel extends StatelessWidget {
                     }
                     return ListTile(
                       selected: selected,
-                      selectedTileColor: const Color(0xffeef8ff),
+                      selectedTileColor: Theme.of(
+                        context,
+                      ).colorScheme.primaryContainer,
                       leading: _ArtifactFileIcon(artifact: artifact),
                       title: Text(
                         artifact.name,
@@ -1190,9 +1219,9 @@ class _ArtifactsPanel extends StatelessWidget {
                         mainAxisSize: MainAxisSize.min,
                         children: [
                           if (selected)
-                            const Icon(
+                            Icon(
                               Icons.check_circle,
-                              color: Color(0xff087ea4),
+                              color: Theme.of(context).colorScheme.primary,
                               size: 20,
                             ),
                           IconButton(
@@ -1276,9 +1305,11 @@ class _DistributionPlatforms extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (artifact == null) ...[
-              const Text(
+              Text(
                 '请先选择一个产物，再选择分发渠道。',
-                style: TextStyle(color: Colors.black54),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
               SizedBox(height: compact ? 8 : 12),
             ],
@@ -1300,7 +1331,7 @@ class _DistributionPlatforms extends ConsumerWidget {
               style: TextStyle(
                 fontSize: compact ? 12 : 13,
                 fontWeight: FontWeight.w600,
-                color: Colors.black54,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
             ),
             const SizedBox(height: 8),
@@ -1377,9 +1408,11 @@ class _PgyerTile extends ConsumerWidget {
       padding: EdgeInsets.only(bottom: compact ? 8 : 12),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: const Color(0xfff7f9fb),
+          color: Theme.of(context).colorScheme.surfaceContainerLow,
           borderRadius: BorderRadius.circular(compact ? 8 : 10),
-          border: Border.all(color: const Color(0xffe4e8ec)),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
         ),
         child: Padding(
           padding: EdgeInsets.all(compact ? 8 : 12),
@@ -1410,7 +1443,7 @@ class _PgyerTile extends ConsumerWidget {
                   ),
                   if (downloadUrl != null)
                     TextButton.icon(
-                      onPressed: () => _openUrl(downloadUrl),
+                      onPressed: () => _openUrl(context, downloadUrl),
                       icon: const Icon(Icons.open_in_browser, size: 16),
                       label: const Text('打开下载页'),
                     ),
@@ -1421,7 +1454,7 @@ class _PgyerTile extends ConsumerWidget {
                 Text(
                   'API Key: ${hasProjectKey ? pgyerConfig.apiKey.substring(0, 8) : env.globalPgyerApiKey.substring(0, 8)}... ($keySource)',
                   style: TextStyle(
-                    color: Colors.black54,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontSize: compact ? 12 : null,
                   ),
                 )
@@ -1442,7 +1475,7 @@ class _PgyerTile extends ConsumerWidget {
                         '请在设置页面配置全局 API Key，或点击右侧齿轮为当前项目配置',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey.shade600,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                       const SizedBox(height: 4),
@@ -1467,7 +1500,10 @@ class _PgyerTile extends ConsumerWidget {
                 const SizedBox(height: 4),
                 Text(
                   state.pgyerUploadPhase,
-                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
               if (hasResult) ...[
@@ -1475,7 +1511,7 @@ class _PgyerTile extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.green.shade50,
+                    color: Theme.of(context).colorScheme.secondaryContainer,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Row(
@@ -1489,7 +1525,9 @@ class _PgyerTile extends ConsumerWidget {
                       Expanded(
                         child: Text(
                           '上传完成',
-                          style: TextStyle(color: Colors.green.shade700),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.secondary,
+                          ),
                         ),
                       ),
                     ],
@@ -1528,8 +1566,8 @@ class _PgyerTile extends ConsumerWidget {
     );
   }
 
-  Future<void> _openUrl(String url) async {
-    await _openExternalUrl(url);
+  Future<void> _openUrl(BuildContext context, String url) async {
+    await _openExternalUrl(url, context: context);
   }
 }
 
@@ -1698,9 +1736,11 @@ class _FirTile extends ConsumerWidget {
       padding: EdgeInsets.only(bottom: compact ? 8 : 12),
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: const Color(0xfff7f9fb),
+          color: Theme.of(context).colorScheme.surfaceContainerLow,
           borderRadius: BorderRadius.circular(compact ? 8 : 10),
-          border: Border.all(color: const Color(0xffe4e8ec)),
+          border: Border.all(
+            color: Theme.of(context).colorScheme.outlineVariant,
+          ),
         ),
         child: Padding(
           padding: EdgeInsets.all(compact ? 8 : 12),
@@ -1731,7 +1771,7 @@ class _FirTile extends ConsumerWidget {
                   ),
                   if (downloadUrl != null)
                     TextButton.icon(
-                      onPressed: () => _openUrl(downloadUrl),
+                      onPressed: () => _openUrl(context, downloadUrl),
                       icon: const Icon(Icons.open_in_browser, size: 16),
                       label: const Text('打开下载页'),
                     ),
@@ -1742,7 +1782,7 @@ class _FirTile extends ConsumerWidget {
                 Text(
                   'API Token: ${hasProjectToken ? firConfig.apiToken.substring(0, 8) : env.globalFirApiToken.substring(0, 8)}... ($tokenSource)',
                   style: TextStyle(
-                    color: Colors.black54,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
                     fontSize: compact ? 12 : null,
                   ),
                 )
@@ -1763,7 +1803,7 @@ class _FirTile extends ConsumerWidget {
                         '请在设置页面配置全局 API Token，或点击右侧齿轮为当前项目配置',
                         style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey.shade600,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                     ],
@@ -1775,7 +1815,10 @@ class _FirTile extends ConsumerWidget {
                 const SizedBox(height: 4),
                 Text(
                   state.firUploadPhase,
-                  style: const TextStyle(fontSize: 12, color: Colors.black54),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
               if (hasResult) ...[
@@ -1783,7 +1826,7 @@ class _FirTile extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(8),
                   decoration: BoxDecoration(
-                    color: Colors.green.shade50,
+                    color: Theme.of(context).colorScheme.secondaryContainer,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Row(
@@ -1797,7 +1840,9 @@ class _FirTile extends ConsumerWidget {
                       Expanded(
                         child: Text(
                           '上传完成',
-                          style: TextStyle(color: Colors.green.shade700),
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.secondary,
+                          ),
                         ),
                       ),
                     ],
@@ -1836,27 +1881,21 @@ class _FirTile extends ConsumerWidget {
     );
   }
 
-  Future<void> _openUrl(String url) async {
-    await _openExternalUrl(url);
+  Future<void> _openUrl(BuildContext context, String url) async {
+    await _openExternalUrl(url, context: context);
   }
 }
 
-Future<void> _openExternalUrl(String url) async {
-  late final ProcessResult result;
-  if (Platform.isWindows) {
-    result = await Process.run('cmd.exe', [
-      '/c',
-      'start',
-      '',
-      url,
-    ], runInShell: true);
-  } else if (Platform.isMacOS) {
-    result = await Process.run('open', [url]);
-  } else {
-    result = await Process.run('xdg-open', [url]);
-  }
-  if (result.exitCode != 0) {
-    throw Exception('无法打开页面：$url');
+Future<void> _openExternalUrl(String url, {BuildContext? context}) async {
+  try {
+    await const ExternalOpener().openUrl(url);
+  } catch (error) {
+    if (context == null) rethrow;
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('$error')));
+    }
   }
 }
 
@@ -1994,10 +2033,10 @@ class _PlatformActionChip extends StatelessWidget {
     avatar: Icon(icon, size: 16),
     label: Text(label),
     onPressed: onPressed,
-    backgroundColor: const Color(0xfff7f9fb),
+    backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
     shape: RoundedRectangleBorder(
       borderRadius: BorderRadius.circular(8),
-      side: const BorderSide(color: Color(0xffe4e8ec)),
+      side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
     ),
   );
 }

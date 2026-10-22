@@ -61,54 +61,54 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
     }
 
     return Padding(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text(
-            'APK 签名',
-            style: TextStyle(fontSize: 26, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            '选择 APK 和密钥库文件进行签名',
-            style: TextStyle(fontSize: 14, color: Colors.black54),
-          ),
-          const SizedBox(height: 16),
-          _buildConfigSection(),
-          const SizedBox(height: 12),
-          Expanded(
-            child: LayoutBuilder(
-              builder: (context, constraints) {
-                final compact = constraints.maxWidth < 980;
-                if (compact) {
-                  return Column(
-                    children: [
-                      Expanded(child: _buildUnsignedPanel(state, controller)),
-                      const SizedBox(height: 12),
-                      Expanded(child: _buildSignedPanel(state)),
-                    ],
-                  );
-                }
-                return Row(
+      padding: AppSpacing.pagePadding,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final sideBySide = constraints.maxWidth >= 900;
+          final scrollPage = !sideBySide || constraints.maxHeight < 760;
+          final panels = sideBySide
+              ? Row(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     Expanded(child: _buildUnsignedPanel(state, controller)),
-                    const SizedBox(width: 12),
+                    const SizedBox(width: 16),
+                    Expanded(child: _buildSignedPanel(state)),
+                  ],
+                )
+              : Column(
+                  children: [
+                    Expanded(child: _buildUnsignedPanel(state, controller)),
+                    const SizedBox(height: 16),
                     Expanded(child: _buildSignedPanel(state)),
                   ],
                 );
-              },
-            ),
-          ),
-        ],
+          final content = Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: scrollPage ? MainAxisSize.min : MainAxisSize.max,
+            children: [
+              const WorkbenchPageHeader(
+                title: 'APK 签名',
+                subtitle: '选择 APK 和密钥库文件进行签名',
+              ),
+              const SizedBox(height: 20),
+              _buildConfigSection(),
+              const SizedBox(height: 16),
+              if (scrollPage)
+                SizedBox(height: sideBySide ? 360 : 656, child: panels)
+              else
+                Expanded(child: panels),
+            ],
+          );
+          return scrollPage
+              ? SingleChildScrollView(primary: false, child: content)
+              : content;
+        },
       ),
     );
   }
 
   Widget _buildConfigSection() {
-    return Card(
-      margin: EdgeInsets.zero,
+    return WorkbenchPanel(
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
@@ -123,20 +123,27 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                 ),
                 const Spacer(),
-                SizedBox(
-                  height: 34,
-                  child: OutlinedButton.icon(
-                    onPressed: _pickJksFile,
-                    icon: const Icon(Icons.folder_open, size: 18),
-                    label: Text(
-                      _config.jksPath.isEmpty
-                          ? '选择 JKS 文件'
-                          : _config.jksPath.split('/').last,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(fontSize: 13),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                Flexible(
+                  child: SizedBox(
+                    height: 34,
+                    child: OutlinedButton.icon(
+                      onPressed: _pickJksFile,
+                      icon: const Icon(Icons.folder_open, size: 18),
+                      label: Text(
+                        _config.jksPath.isEmpty
+                            ? '选择 JKS 文件'
+                            : Uri.file(
+                                _config.jksPath,
+                                windows:
+                                    Platform.isWindows ||
+                                    _config.jksPath.contains('\\'),
+                              ).pathSegments.last,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
                     ),
                   ),
                 ),
@@ -147,23 +154,23 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: Colors.grey.shade100,
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Row(
                   children: [
-                    const Icon(
+                    Icon(
                       Icons.insert_drive_file_outlined,
                       size: 14,
-                      color: Colors.grey,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
                     ),
                     const SizedBox(width: 6),
                     Expanded(
                       child: Text(
                         _config.jksPath,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 12,
-                          color: Colors.grey,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                         overflow: TextOverflow.ellipsis,
                       ),
@@ -197,6 +204,8 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                         )
                       : DropdownMenu<String>(
                           controller: _keyAliasController,
+                          expandedInsets: EdgeInsets.zero,
+                          menuHeight: 280,
                           label: const Text('Key Alias'),
                           trailingIcon: const Icon(
                             Icons.arrow_drop_down,
@@ -254,6 +263,8 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                         )
                       : DropdownMenu<String>(
                           controller: _passwordController,
+                          expandedInsets: EdgeInsets.zero,
+                          menuHeight: 280,
                           label: const Text('密码'),
                           trailingIcon: const Icon(
                             Icons.arrow_drop_down,
@@ -303,9 +314,9 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
   Widget _buildOutputDirectoryField() {
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: const Color(0xfff7f9fb),
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: const Color(0xffe4e8ec)),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
@@ -323,7 +334,10 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                 _config.outputDirectory,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(fontSize: 12, color: Colors.black54),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
             ),
             const SizedBox(width: 8),
@@ -370,11 +384,14 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
             onChanged: (_) => _saveConfig(),
           ),
         ),
-        const Padding(
+        Padding(
           padding: EdgeInsets.symmetric(horizontal: 7),
           child: Text(
             '原文件名',
-            style: TextStyle(fontSize: 12, color: Colors.black54),
+            style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ),
         Expanded(
@@ -395,9 +412,13 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
           ),
         ),
         const SizedBox(width: 8),
-        const Tooltip(
+        Tooltip(
           message: '本次选中的所有 APK 都使用这组前缀和后缀',
-          child: Icon(Icons.info_outline, size: 18, color: Colors.black45),
+          child: Icon(
+            Icons.info_outline,
+            size: 18,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
     );
@@ -413,13 +434,13 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
         ? _parseSigningProgress(state.signingStatus, state.unsignedApks.length)
         : 0.0;
 
-    return Card(
-      margin: EdgeInsets.zero,
+    return WorkbenchPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
+          Container(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            color: Theme.of(context).colorScheme.surfaceContainerLow,
             child: Row(
               children: [
                 const Icon(Icons.inbox_outlined, size: 20),
@@ -437,7 +458,7 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                     ),
                     decoration: BoxDecoration(
                       color: Theme.of(context).colorScheme.primaryContainer,
-                      borderRadius: BorderRadius.circular(10),
+                      borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
                       '${state.unsignedApks.length}',
@@ -516,7 +537,10 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                   const SizedBox(height: 4),
                   Text(
                     state.signingStatus,
-                    style: const TextStyle(fontSize: 12, color: Colors.orange),
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Theme.of(context).colorScheme.tertiary,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
@@ -542,19 +566,24 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                       );
                     },
                   )
-                : const Center(
+                : Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
                           Icons.inbox_outlined,
                           size: 48,
-                          color: Colors.black26,
+                          color: Theme.of(context).colorScheme.outlineVariant,
                         ),
                         SizedBox(height: 12),
                         Text(
                           '点击上方添加 APK',
-                          style: TextStyle(fontSize: 14, color: Colors.black38),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
@@ -668,13 +697,13 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
     final hasApks = state.signedApks.isNotEmpty;
     final successCount = state.signedApks.where((a) => a.success).length;
 
-    return Card(
-      margin: EdgeInsets.zero,
+    return WorkbenchPanel(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
+          Container(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+            color: Theme.of(context).colorScheme.surfaceContainerLow,
             child: Row(
               children: [
                 const Icon(Icons.check_circle_outline, size: 20),
@@ -692,17 +721,17 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                     ),
                     decoration: BoxDecoration(
                       color: successCount == state.signedApks.length
-                          ? Colors.green.shade50
-                          : Colors.orange.shade50,
-                      borderRadius: BorderRadius.circular(10),
+                          ? Theme.of(context).colorScheme.secondaryContainer
+                          : AppPalette.of(context).warningBackground,
+                      borderRadius: BorderRadius.circular(6),
                     ),
                     child: Text(
                       '$successCount/${state.signedApks.length}',
                       style: TextStyle(
                         fontSize: 12,
                         color: successCount == state.signedApks.length
-                            ? Colors.green
-                            : Colors.orange,
+                            ? Theme.of(context).colorScheme.onSecondaryContainer
+                            : AppPalette.of(context).warningText,
                       ),
                     ),
                   ),
@@ -750,8 +779,8 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                 style: TextStyle(
                   fontSize: 12,
                   color: successCount == state.signedApks.length
-                      ? Colors.green
-                      : Colors.orange,
+                      ? Theme.of(context).colorScheme.secondary
+                      : Theme.of(context).colorScheme.tertiary,
                 ),
               ),
             ),
@@ -766,19 +795,24 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                       return _buildSignedApkTile(apk);
                     },
                   )
-                : const Center(
+                : Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Icon(
                           Icons.check_circle_outline,
                           size: 48,
-                          color: Colors.black26,
+                          color: Theme.of(context).colorScheme.outlineVariant,
                         ),
                         SizedBox(height: 12),
                         Text(
                           '签名完成后显示结果',
-                          style: TextStyle(fontSize: 14, color: Colors.black38),
+                          style: TextStyle(
+                            fontSize: 14,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ],
                     ),
@@ -807,7 +841,9 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
             child: Icon(
               apk.success ? Icons.check_circle : Icons.error,
               size: 22,
-              color: apk.success ? Colors.green : Colors.red,
+              color: apk.success
+                  ? Theme.of(context).colorScheme.secondary
+                  : Theme.of(context).colorScheme.error,
             ),
           ),
           const SizedBox(width: 4),
@@ -832,7 +868,10 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                         subtitle,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(fontSize: 12, color: Colors.red),
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Theme.of(context).colorScheme.error,
+                        ),
                       ),
               ],
             ),
@@ -879,24 +918,30 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
         spans.add(
           TextSpan(
             text: ' · ',
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade400),
+            style: TextStyle(
+              fontSize: 12,
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         );
       }
 
       Color? color;
       if (segment.startsWith('渠道:') || segment.startsWith('渠道 :')) {
-        color = Colors.blue;
+        color = Theme.of(context).colorScheme.primary;
       } else if (segment.startsWith('GDT:') || segment.startsWith('GDT :')) {
-        color = Colors.purple;
+        color = Theme.of(context).colorScheme.secondary;
       } else if (segment.startsWith('版本:') || segment.startsWith('版本 :')) {
-        color = Colors.orange;
+        color = Theme.of(context).colorScheme.tertiary;
       }
 
       spans.add(
         TextSpan(
           text: segment,
-          style: TextStyle(fontSize: 12, color: color ?? Colors.grey.shade600),
+          style: TextStyle(
+            fontSize: 12,
+            color: color ?? Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
       );
     }
@@ -1044,27 +1089,26 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
   }
 
   Future<void> _openSignedOutputDir() async {
-    final dir = Directory(_config.outputDirectory);
-    if (!await dir.exists()) {
-      await dir.create(recursive: true);
-    }
-    if (Platform.isMacOS) {
-      await Process.run('open', [dir.path]);
-    } else if (Platform.isWindows) {
-      await Process.run('explorer', [dir.path]);
-    } else {
-      await Process.run('xdg-open', [dir.path]);
+    try {
+      final dir = Directory(_config.outputDirectory);
+      if (!await dir.exists()) {
+        await dir.create(recursive: true);
+      }
+      await const ExternalOpener().openDirectory(
+        dir.path,
+        description: '签名输出目录',
+      );
+    } catch (error) {
+      if (mounted) ref.read(fvmControllerProvider.notifier).showError(error);
     }
   }
 
   Future<void> _revealFile(String path) async {
     if (path.isEmpty) return;
-    if (Platform.isMacOS) {
-      await Process.run('open', ['-R', path]);
-    } else if (Platform.isWindows) {
-      await Process.run('explorer', ['/select,', path]);
-    } else {
-      await Process.run('xdg-open', [File(path).parent.path]);
+    try {
+      await const ExternalOpener().revealFile(path);
+    } catch (error) {
+      if (mounted) ref.read(fvmControllerProvider.notifier).showError(error);
     }
   }
 }
@@ -1115,7 +1159,10 @@ class _OutputNameFieldState extends State<_OutputNameField> {
         controller: _controller,
         decoration: InputDecoration(
           hintText: '替换原文件名（可选）',
-          hintStyle: TextStyle(fontSize: 11, color: Colors.grey.shade400),
+          hintStyle: TextStyle(
+            fontSize: 11,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
           border: const OutlineInputBorder(),
           isDense: true,
           contentPadding: const EdgeInsets.symmetric(

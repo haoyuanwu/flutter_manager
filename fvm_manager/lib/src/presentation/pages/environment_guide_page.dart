@@ -9,17 +9,14 @@ class _EnvironmentGuide extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final windows = Platform.isWindows;
     final controller = ref.read(fvmControllerProvider.notifier);
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(28),
+    return WorkbenchScrollPage(
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            '环境配置',
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
+          const WorkbenchPageHeader(
+            title: '环境配置',
+            subtitle: '配置 Dart Pub 与 Flutter SDK 下载源。',
           ),
-          const SizedBox(height: 8),
-          const Text('配置 Dart Pub 与 Flutter SDK 下载源。'),
           const SizedBox(height: 20),
           Card(
             child: Padding(
@@ -27,9 +24,9 @@ class _EnvironmentGuide extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Text(
-                    'Pub 下载源',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+                  const WorkbenchSectionHeading(
+                    title: 'Pub 下载源',
+                    icon: Icons.cloud_download_outlined,
                   ),
                   const SizedBox(height: 16),
                   Row(
@@ -94,7 +91,9 @@ class _EnvironmentGuide extends ConsumerWidget {
                               : Icon(
                                   ms < 0 ? Icons.close : Icons.check,
                                   size: 18,
-                                  color: ms < 0 ? Colors.red : Colors.green,
+                                  color: ms < 0
+                                      ? Theme.of(context).colorScheme.error
+                                      : Theme.of(context).colorScheme.secondary,
                                 ),
                           label: Text(
                             ms == null
@@ -112,9 +111,11 @@ class _EnvironmentGuide extends ConsumerWidget {
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xfff6f8fa),
+                      color: Theme.of(context).colorScheme.surfaceContainerLow,
                       borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: const Color(0xffe1e4e8)),
+                      border: Border.all(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
                     ),
                     child: Builder(
                       builder: (context) {
@@ -122,20 +123,26 @@ class _EnvironmentGuide extends ConsumerWidget {
                             .where((m) => m.id == state.mirrorId)
                             .firstOrNull;
                         if (current == null || current.pubUrl == null) {
-                          return const Text(
+                          return Text(
                             '使用官方默认源：pub.dev + storage.googleapis.com',
-                            style: TextStyle(color: Colors.black54),
+                            style: TextStyle(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onSurfaceVariant,
+                            ),
                           );
                         }
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               '当前生效地址',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
-                                color: Colors.black54,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                             ),
                             const SizedBox(height: 6),
@@ -151,20 +158,22 @@ class _EnvironmentGuide extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  const Text(
+                  Text(
                     '设置会持久化，并立即用于本工具启动的 FVM、Dart、Flutter 命令。新终端或其他应用需重新启动后读取系统环境。',
-                    style: TextStyle(color: Colors.black54),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
             ),
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 24),
           _FlutterPathSettings(state: state),
-          const SizedBox(height: 28),
-          const Text(
-            '手动配置说明',
-            style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+          const SizedBox(height: 24),
+          const WorkbenchSectionHeading(
+            title: '手动配置说明',
+            icon: Icons.menu_book_outlined,
           ),
           const SizedBox(height: 8),
           Text(
@@ -233,10 +242,10 @@ class _MirrorUrl extends StatelessWidget {
       Expanded(
         child: SelectableText(
           url,
-          style: const TextStyle(
+          style: TextStyle(
             fontFamily: 'monospace',
             fontSize: 12,
-            color: Color(0xff087ea4),
+            color: Theme.of(context).colorScheme.primary,
           ),
         ),
       ),
@@ -283,7 +292,7 @@ class _GuideStep extends StatelessWidget {
                     width: double.infinity,
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: const Color(0xff101820),
+                      color: AppColors.consoleBackground,
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: SelectableText(
@@ -403,9 +412,11 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
             ),
             const SizedBox(height: 8),
-            const Text(
+            Text(
               '将 Flutter SDK 的 bin 目录添加到系统 PATH，使终端和其他应用可以直接使用 flutter 命令。',
-              style: TextStyle(color: Colors.black54),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
@@ -448,9 +459,11 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
+                  color: Theme.of(context).colorScheme.primaryContainer,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.blue.shade200),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -460,14 +473,14 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
                         Icon(
                           Icons.info_outline,
                           size: 16,
-                          color: Colors.blue.shade700,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                         const SizedBox(width: 8),
                         Text(
                           'Default 模式说明',
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
-                            color: Colors.blue.shade700,
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                         ),
                       ],
@@ -478,7 +491,7 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
                       '例如执行 fvm use 3.22.0 --global 后，终端的 flutter 命令也会切换到 3.22.0。',
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.blue.shade700,
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
                     if (globalVersion != null) ...[
@@ -488,7 +501,7 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
                         style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w600,
-                          color: Colors.blue.shade700,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
                     ],
@@ -500,19 +513,21 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: const Color(0xfff6f8fa),
+                  color: Theme.of(context).colorScheme.surfaceContainerLow,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: const Color(0xffe1e4e8)),
+                  border: Border.all(
+                    color: Theme.of(context).colorScheme.outlineVariant,
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       '将要设置的路径',
                       style: TextStyle(
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: Colors.black54,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                     const SizedBox(height: 4),
@@ -520,10 +535,10 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
                       globalVersion != null
                           ? '~/.fvm/default/bin（当前指向 $globalVersion）'
                           : '~/.fvm/default/bin（未设置全局版本）',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontFamily: 'monospace',
                         fontSize: 13,
-                        color: Color(0xff087ea4),
+                        color: Theme.of(context).colorScheme.primary,
                       ),
                     ),
                   ],
@@ -560,9 +575,11 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Colors.orange.shade50,
+                  color: AppPalette.of(context).warningBackground,
                   borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: Colors.orange.shade200),
+                  border: Border.all(
+                    color: AppPalette.of(context).warningBorder,
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -572,14 +589,14 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
                         Icon(
                           Icons.warning_amber_rounded,
                           size: 16,
-                          color: Colors.orange.shade700,
+                          color: AppPalette.of(context).warningText,
                         ),
                         const SizedBox(width: 8),
                         Text(
                           '固定版本说明',
                           style: TextStyle(
                             fontWeight: FontWeight.w600,
-                            color: Colors.orange.shade700,
+                            color: AppPalette.of(context).warningText,
                           ),
                         ),
                       ],
@@ -590,7 +607,7 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
                       '如需切换版本，需要重新执行此操作。',
                       style: TextStyle(
                         fontSize: 13,
-                        color: Colors.orange.shade700,
+                        color: AppPalette.of(context).warningText,
                       ),
                     ),
                   ],
@@ -602,28 +619,30 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
                   width: double.infinity,
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: const Color(0xfff6f8fa),
+                    color: Theme.of(context).colorScheme.surfaceContainerLow,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xffe1e4e8)),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text(
+                      Text(
                         '将要设置的路径',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
-                          color: Colors.black54,
+                          color: Theme.of(context).colorScheme.onSurfaceVariant,
                         ),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         '~/.fvm/versions/$_selectedVersion/bin',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontFamily: 'monospace',
                           fontSize: 13,
-                          color: Color(0xff087ea4),
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
                     ],
@@ -669,7 +688,10 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
                 Expanded(
                   child: Text(
                     '设置后需要重新打开终端才能生效。macOS 会同时写入 ~/.zshrc。',
-                    style: TextStyle(color: Colors.black54, fontSize: 13),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 13,
+                    ),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -698,17 +720,21 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
                 tilePadding: EdgeInsets.zero,
                 title: Row(
                   children: [
-                    const Icon(Icons.list_alt, size: 18, color: Colors.black54),
+                    Icon(
+                      Icons.list_alt,
+                      size: 18,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
                         _configFilePath != null
                             ? '配置文件: $_configFilePath'
                             : '当前系统环境变量',
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 14,
                           fontWeight: FontWeight.w600,
-                          color: Colors.black87,
+                          color: Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
                     ),
@@ -761,7 +787,7 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: const Color(0xff101820),
+                          color: AppColors.consoleBackground,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: SelectableText.rich(
@@ -778,7 +804,7 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: const Color(0xff101820),
+                          color: AppColors.consoleBackground,
                           borderRadius: BorderRadius.circular(8),
                         ),
                         child: SelectableText.rich(
@@ -790,11 +816,15 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
                         ),
                       ),
                     ] else ...[
-                      const Padding(
+                      Padding(
                         padding: EdgeInsets.all(16),
                         child: Text(
                           '未获取到配置文件或系统 PATH',
-                          style: TextStyle(color: Colors.black54),
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
                         ),
                       ),
                     ],
@@ -805,19 +835,25 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
                         width: double.infinity,
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: const Color(0xfff6f8fa),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.surfaceContainerLow,
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: const Color(0xffe1e4e8)),
+                          border: Border.all(
+                            color: Theme.of(context).colorScheme.outlineVariant,
+                          ),
                         ),
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               'PATH 路径统计',
                               style: TextStyle(
                                 fontSize: 12,
                                 fontWeight: FontWeight.w600,
-                                color: Colors.black54,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
                               ),
                             ),
                             const SizedBox(height: 8),
@@ -899,7 +935,9 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
       spans.add(
         TextSpan(
           text: '${(i + 1).toString().padLeft(3)}  ',
-          style: const TextStyle(color: Color(0xff616161)),
+          style: TextStyle(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
       );
 
@@ -1012,9 +1050,11 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
 
       if (i > 0) {
         spans.add(
-          const TextSpan(
+          TextSpan(
             text: ':',
-            style: TextStyle(color: Color(0xff616161)),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         );
       }
@@ -1075,9 +1115,11 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
 
       if (i > 0) {
         spans.add(
-          const TextSpan(
+          TextSpan(
             text: ':',
-            style: TextStyle(color: Color(0xff616161)),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         );
       }
@@ -1207,13 +1249,14 @@ class _FlutterPathSettingsState extends ConsumerState<_FlutterPathSettings> {
       return;
     }
 
-    final result = Platform.isWindows
-        ? await Process.run('notepad.exe', [fileToOpen])
-        : await Process.run('open', [fileToOpen]);
-    if (result.exitCode != 0 && mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('无法打开配置文件：${result.stderr}')));
+    try {
+      await const ExternalOpener().openTextFile(fileToOpen);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('$error')));
+      }
     }
   }
 }
@@ -1237,7 +1280,13 @@ class _LegendItem extends StatelessWidget {
         ),
       ),
       const SizedBox(width: 4),
-      Text(label, style: const TextStyle(fontSize: 12, color: Colors.black54)),
+      Text(
+        label,
+        style: TextStyle(
+          fontSize: 12,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
+      ),
     ],
   );
 }

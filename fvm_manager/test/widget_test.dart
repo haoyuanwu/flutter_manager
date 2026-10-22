@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -141,6 +142,12 @@ class _McpSetupController extends _TestController {
   @override
   Future<void> setMcpServerEnabled(bool enabled) async {
     state = state.copyWith(mcpServerEnabled: enabled);
+  }
+
+  @override
+  Future<bool> ensureMcpServerRunning() async {
+    await setMcpServerEnabled(true);
+    return true;
   }
 }
 
@@ -402,122 +409,154 @@ class _SearchConsoleController extends FvmController {
 }
 
 void main() {
-  testWidgets('MCP quick setup copies working paths and the command guide', (
-    tester,
-  ) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1400, 1000);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    addTearDown(tester.view.resetPhysicalSize);
-    final temp = Directory.systemTemp.createTempSync('mcp_setup_widget_');
-    addTearDown(() => temp.deleteSync(recursive: true));
-    String? copied;
-    final messenger =
-        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
-    messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
-      if (call.method == 'Clipboard.setData') {
-        copied = (call.arguments as Map)['text'] as String;
-      }
-      return null;
-    });
-    addTearDown(
-      () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
-    );
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          fvmControllerProvider.overrideWith(_McpSetupController.new),
-          pubEnvironmentServiceProvider.overrideWithValue(
-            _McpSetupEnvironment(),
-          ),
-          mcpAiSetupServiceProvider.overrideWithValue(
-            _TempMcpSetupService(temp.path),
-          ),
-        ],
-        child: const FvmManagerApp(),
-      ),
-    );
-    await tester.ensureVisible(find.text('MCP 服务'));
-    await tester.tap(find.text('MCP 服务'));
-    await tester.pumpAndSettle();
-    expect(find.text('test-only-token'), findsNothing);
-    expect(find.text('配置内容'), findsNothing);
-    await tester.tap(find.byKey(const ValueKey('copy-mcp-ai-setup')));
-    await tester.pumpAndSettle();
-    expect(copied, contains('http://127.0.0.1:18999'));
-    expect(copied, contains('test-only-token'));
-    expect(
-      copied,
-      contains('${temp.path}${Platform.pathSeparator}flutter-manager-mcp.mjs'),
-    );
-    expect(
-      File(
-        '${temp.path}/flutter-manager-mcp/references/command-guide.md',
-      ).existsSync(),
-      isTrue,
-    );
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(FvmManagerApp)),
-    );
-    expect(container.read(fvmControllerProvider).mcpServerEnabled, isTrue);
-    expect(find.text('命令指南 已就绪'), findsOneWidget);
-    await tester.ensureVisible(find.text('手动配置'));
-    await tester.tap(find.text('手动配置'));
-    await tester.pumpAndSettle();
-    expect(find.text('配置内容'), findsOneWidget);
-  });
+  testWidgets(
+    'MCP quick setup copies working paths and the command guide',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1400, 1000);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      final temp = Directory.systemTemp.createTempSync('mcp_setup_widget_');
+      addTearDown(() => temp.deleteSync(recursive: true));
+      String? copied;
+      final messenger =
+          TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+      messenger.setMockMethodCallHandler(SystemChannels.platform, (call) async {
+        if (call.method == 'Clipboard.setData') {
+          copied = (call.arguments as Map)['text'] as String;
+        }
+        return null;
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(SystemChannels.platform, null),
+      );
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            fvmControllerProvider.overrideWith(_McpSetupController.new),
+            pubEnvironmentServiceProvider.overrideWithValue(
+              _McpSetupEnvironment(),
+            ),
+            mcpAiSetupServiceProvider.overrideWithValue(
+              _TempMcpSetupService(temp.path),
+            ),
+          ],
+          child: const FvmManagerApp(),
+        ),
+      );
+      await tester.ensureVisible(find.text('MCP 服务'));
+      await tester.tap(find.text('MCP 服务'));
+      await tester.pumpAndSettle();
+      expect(find.text('test-only-token'), findsNothing);
+      expect(find.text('配置内容'), findsNothing);
+      await tester.tap(find.byKey(const ValueKey('copy-mcp-ai-setup')));
+      await tester.pumpAndSettle();
+      expect(copied, contains('http://127.0.0.1:18999'));
+      expect(copied, contains('test-only-token'));
+      final configJson = RegExp(
+        r'```json\s*([\s\S]*?)```',
+      ).firstMatch(copied!)!.group(1)!;
+      final config = jsonDecode(configJson) as Map<String, dynamic>;
+      final serverPath =
+          (config['mcpServers']['flutter_manager']['args'] as List).single
+              as String;
+      expect(File(serverPath).existsSync(), isTrue);
+      expect(
+        File(
+          '${temp.path}/flutter-manager-mcp/references/command-guide.md',
+        ).existsSync(),
+        isTrue,
+      );
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(FvmManagerApp)),
+      );
+      expect(container.read(fvmControllerProvider).mcpServerEnabled, isTrue);
+      expect(find.text('命令指南 已就绪'), findsOneWidget);
+      await tester.ensureVisible(find.text('手动配置'));
+      await tester.tap(find.text('手动配置'));
+      await tester.pumpAndSettle();
+      expect(find.text('配置内容'), findsOneWidget);
+    },
+    variant: TargetPlatformVariant({
+      TargetPlatform.macOS,
+      TargetPlatform.windows,
+    }),
+  );
 
-  testWidgets('collapsed project logos switch projects without a popup', (
-    tester,
-  ) async {
-    tester.view.devicePixelRatio = 1;
-    tester.view.physicalSize = const Size(1400, 900);
-    addTearDown(tester.view.resetDevicePixelRatio);
-    addTearDown(tester.view.resetPhysicalSize);
-    await tester.pumpWidget(
-      ProviderScope(
-        overrides: [
-          fvmControllerProvider.overrideWith(_LogoListController.new),
-        ],
-        child: const FvmManagerApp(),
-      ),
-    );
-    await tester.tap(find.text('项目管理'));
-    await tester.pump();
-    await tester.tap(find.byTooltip('收起项目列表'));
-    await tester.pump();
-    final rail = find.byKey(const ValueKey('collapsed-project-list'));
-    expect(
-      find.descendant(of: rail, matching: find.byType(PopupMenuButton<String>)),
-      findsNothing,
-    );
-    expect(
-      find.byKey(const ValueKey('project-logo-/tmp/project-a')),
-      findsOneWidget,
-    );
-    await tester.tap(find.byKey(const ValueKey('project-logo-/tmp/project-b')));
-    await tester.pump();
-    final container = ProviderScope.containerOf(
-      tester.element(find.byType(FvmManagerApp)),
-    );
-    expect(
-      container.read(fvmControllerProvider).selectedManagedProjectPath,
-      '/tmp/project-b',
-    );
-    final selected = find.descendant(
-      of: rail,
-      matching: find.byWidgetPredicate(
-        (widget) =>
-            widget is Semantics &&
-            widget.properties.label == '项目 B' &&
-            widget.properties.selected == true,
-      ),
-    );
-    expect(selected, findsOneWidget);
-    await tester.tap(find.byTooltip('展开项目列表'));
-    await tester.pump();
-    expect(find.byKey(const ValueKey('expanded-project-list')), findsOneWidget);
-  });
+  testWidgets(
+    'collapsed project logos switch projects without a popup',
+    (tester) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(1400, 900);
+      addTearDown(tester.view.resetDevicePixelRatio);
+      addTearDown(tester.view.resetPhysicalSize);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            fvmControllerProvider.overrideWith(_LogoListController.new),
+          ],
+          child: const FvmManagerApp(),
+        ),
+      );
+      await tester.tap(find.text('项目管理'));
+      await tester.pump();
+      final expanded = find.byKey(const ValueKey('expanded-project-list'));
+      expect(expanded, findsOneWidget);
+      expect(
+        find.descendant(of: expanded, matching: find.text('项目 A')),
+        findsOneWidget,
+      );
+      expect(
+        find.descendant(of: expanded, matching: find.text('项目 B')),
+        findsOneWidget,
+      );
+      await tester.tap(find.byTooltip('收起项目列表'));
+      await tester.pump();
+      final rail = find.byKey(const ValueKey('collapsed-project-list'));
+      expect(
+        find.descendant(
+          of: rail,
+          matching: find.byType(PopupMenuButton<String>),
+        ),
+        findsNothing,
+      );
+      expect(
+        find.byKey(const ValueKey('project-logo-/tmp/project-a')),
+        findsOneWidget,
+      );
+      await tester.tap(
+        find.byKey(const ValueKey('project-logo-/tmp/project-b')),
+      );
+      await tester.pump();
+      final container = ProviderScope.containerOf(
+        tester.element(find.byType(FvmManagerApp)),
+      );
+      expect(
+        container.read(fvmControllerProvider).selectedManagedProjectPath,
+        '/tmp/project-b',
+      );
+      final selected = find.descendant(
+        of: rail,
+        matching: find.byWidgetPredicate(
+          (widget) =>
+              widget is Semantics &&
+              widget.properties.label == '项目 B' &&
+              widget.properties.selected == true,
+        ),
+      );
+      expect(selected, findsOneWidget);
+      await tester.tap(find.byTooltip('展开项目列表'));
+      await tester.pump();
+      expect(
+        find.byKey(const ValueKey('expanded-project-list')),
+        findsOneWidget,
+      );
+    },
+    variant: TargetPlatformVariant({
+      TargetPlatform.macOS,
+      TargetPlatform.windows,
+    }),
+  );
 
   testWidgets('APK install page lists only online devices for selection', (
     tester,
@@ -609,16 +648,18 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     addTearDown(tester.view.resetPhysicalSize);
     await tester.pumpWidget(
-      ConsoleWindowApp(
-        windowId: 'search',
-        projectTitle: 'search',
-        projectPath: '/tmp/search',
-        initialCommandLog: _searchLog,
-        initialTasks: const [],
-        initialShowQuickCommands: false,
-        initialConsoleMode: 'run',
-        initialBuildTarget: 'apk',
-        initialActionChannelName: 'fvm_manager/console_commands',
+      ProviderScope(
+        child: ConsoleWindowApp(
+          windowId: 'search',
+          projectTitle: 'search',
+          projectPath: '/tmp/search',
+          initialCommandLog: _searchLog,
+          initialTasks: const [],
+          initialShowQuickCommands: false,
+          initialConsoleMode: 'run',
+          initialBuildTarget: 'apk',
+          initialActionChannelName: 'fvm_manager/console_commands',
+        ),
       ),
     );
     await tester.tap(find.byTooltip('搜索输出'));
@@ -807,7 +848,8 @@ void main() {
 
     expect(find.text('未检测到 FVM'), findsOneWidget);
     expect(find.text('安装 FVM'), findsWidgets);
-    expect(find.text('选择本地 FVM'), findsWidgets);
+    expect(find.text('选择文件夹'), findsOneWidget);
+    expect(find.text('选择程序文件'), findsOneWidget);
   });
 
   testWidgets('collapses project list when window is narrow', (tester) async {

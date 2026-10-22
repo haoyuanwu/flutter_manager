@@ -51,6 +51,7 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
   @override
   Widget build(BuildContext context) {
     final controller = ref.read(fvmControllerProvider.notifier);
+    final runtime = ref.watch(mcpServerRuntimeProvider);
     final endpoint = 'http://127.0.0.1:${widget.state.mcpServerPort}';
     final sourcePath =
         '${Directory.current.path}${Platform.pathSeparator}mcp_server'
@@ -90,163 +91,237 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
       'Xiaomi MiMo' => '$home/.config/mimocode/mimocode.jsonc',
       _ => '$home/.codex/config.toml',
     };
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+    return WorkbenchScrollPage(
+      maxWidth: 1040,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('MCP 服务', style: AppTextStyles.h1),
-          const SizedBox(height: 6),
-          const Text(
-            '连接 AI 工具，在本机管理项目、运行命令和查看控制台。',
-            style: TextStyle(color: Colors.black54),
+          const WorkbenchPageHeader(
+            title: 'MCP 服务',
+            subtitle: '连接 AI 工具，在本机管理项目、运行命令和查看控制台。',
           ),
           const SizedBox(height: 20),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    secondary: const Icon(Icons.lan_outlined),
-                    title: const Text(
-                      '本机服务',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    subtitle: Text(endpoint),
-                    value: widget.state.mcpServerEnabled,
-                    onChanged: busy ? null : controller.setMcpServerEnabled,
-                  ),
-                  ExpansionTile(
-                    tilePadding: EdgeInsets.zero,
-                    title: const Text(
-                      '端口与 Token',
-                      style: TextStyle(fontSize: 14),
-                    ),
-                    childrenPadding: const EdgeInsets.only(top: 8, bottom: 8),
-                    children: [
-                      Wrap(
-                        spacing: 12,
-                        runSpacing: 12,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          SizedBox(
-                            width: 150,
-                            child: TextField(
-                              controller: _portController,
-                              enabled: !busy,
-                              keyboardType: TextInputType.number,
-                              decoration: const InputDecoration(
-                                labelText: 'HTTP 端口',
-                                isDense: true,
-                                border: OutlineInputBorder(),
-                              ),
-                              onSubmitted: _savePort,
-                            ),
-                          ),
-                          OutlinedButton(
-                            onPressed: busy
-                                ? null
-                                : () => _savePort(_portController.text.trim()),
-                            child: const Text('保存端口'),
-                          ),
-                        ],
+          WorkbenchSplitSections(
+            breakpoint: 1000,
+            leading: WorkbenchPanel(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SwitchListTile(
+                      contentPadding: EdgeInsets.zero,
+                      secondary: Icon(
+                        Icons.lan_outlined,
+                        color: runtime.running
+                            ? Theme.of(context).colorScheme.secondary
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
+                      title: const Text(
+                        '本机服务',
+                        style: TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      subtitle: Text(
+                        runtime.starting
+                            ? '正在启动…'
+                            : runtime.running
+                            ? '运行中 · 127.0.0.1:${runtime.port}'
+                            : widget.state.mcpServerEnabled
+                            ? '未启动 · $endpoint'
+                            : '已关闭 · $endpoint',
+                      ),
+                      value: widget.state.mcpServerEnabled,
+                      onChanged: busy || runtime.starting
+                          ? null
+                          : controller.setMcpServerEnabled,
+                    ),
+                    if (runtime.error != null) ...[
                       const SizedBox(height: 12),
-                      Row(
-                        children: [
-                          const Text('Token'),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: SelectableText(
-                              _showToken
-                                  ? widget.state.mcpServerToken
-                                  : '••••••••••••••••',
-                              style: const TextStyle(
-                                fontFamily: 'monospace',
-                                fontSize: 12,
+                      Semantics(
+                        liveRegion: true,
+                        child: Container(
+                          key: const ValueKey('mcp-service-error'),
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.errorContainer,
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                runtime.error!,
+                                style: TextStyle(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onErrorContainer,
+                                ),
                               ),
-                            ),
+                              if (runtime.running)
+                                Text(
+                                  '原有服务仍在 127.0.0.1:${runtime.port} 运行。',
+                                  style: TextStyle(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.onErrorContainer,
+                                  ),
+                                ),
+                              const SizedBox(height: 8),
+                              OutlinedButton.icon(
+                                key: const ValueKey('retry-mcp-service'),
+                                onPressed: runtime.starting
+                                    ? null
+                                    : controller.retryMcpServer,
+                                icon: const Icon(Icons.refresh, size: 18),
+                                label: const Text('重试启动'),
+                              ),
+                            ],
                           ),
-                          IconButton(
-                            tooltip: _showToken ? '隐藏 Token' : '显示 Token',
-                            onPressed: () =>
-                                setState(() => _showToken = !_showToken),
-                            icon: Icon(
-                              _showToken
-                                  ? Icons.visibility_off_outlined
-                                  : Icons.visibility_outlined,
-                            ),
-                          ),
-                          IconButton(
-                            tooltip: '复制 Token',
-                            onPressed: () =>
-                                _copy(widget.state.mcpServerToken, 'Token 已复制'),
-                            icon: const Icon(Icons.copy_outlined, size: 20),
-                          ),
-                          IconButton(
-                            tooltip: '重置 Token',
-                            onPressed: busy ? null : _resetToken,
-                            icon: const Icon(Icons.refresh, size: 20),
-                          ),
-                        ],
+                        ),
                       ),
                     ],
-                  ),
-                ],
+                    ExpansionTile(
+                      key: ValueKey(
+                        'mcp-port-settings-${runtime.error != null}',
+                      ),
+                      initiallyExpanded: runtime.error != null,
+                      tilePadding: EdgeInsets.zero,
+                      title: const Text(
+                        '端口与 Token',
+                        style: TextStyle(fontSize: 14),
+                      ),
+                      childrenPadding: const EdgeInsets.only(top: 8, bottom: 8),
+                      children: [
+                        Wrap(
+                          spacing: 12,
+                          runSpacing: 12,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            SizedBox(
+                              width: 150,
+                              child: TextField(
+                                controller: _portController,
+                                enabled: !busy,
+                                keyboardType: TextInputType.number,
+                                decoration: const InputDecoration(
+                                  labelText: 'HTTP 端口',
+                                  isDense: true,
+                                  border: OutlineInputBorder(),
+                                ),
+                                onSubmitted: _savePort,
+                              ),
+                            ),
+                            OutlinedButton(
+                              onPressed: busy
+                                  ? null
+                                  : () =>
+                                        _savePort(_portController.text.trim()),
+                              child: const Text('保存端口'),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            const Text('Token'),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: SelectableText(
+                                _showToken
+                                    ? widget.state.mcpServerToken
+                                    : '••••••••••••••••',
+                                style: const TextStyle(
+                                  fontFamily: 'monospace',
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: _showToken ? '隐藏 Token' : '显示 Token',
+                              onPressed: () =>
+                                  setState(() => _showToken = !_showToken),
+                              icon: Icon(
+                                _showToken
+                                    ? Icons.visibility_off_outlined
+                                    : Icons.visibility_outlined,
+                              ),
+                            ),
+                            IconButton(
+                              tooltip: '复制 Token',
+                              onPressed: () => _copy(
+                                widget.state.mcpServerToken,
+                                'Token 已复制',
+                              ),
+                              icon: const Icon(Icons.copy_outlined, size: 20),
+                            ),
+                            IconButton(
+                              tooltip: '重置 Token',
+                              onPressed: busy ? null : _resetToken,
+                              icon: const Icon(Icons.refresh, size: 20),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            trailing: WorkbenchPanel(
+              child: Padding(
+                padding: const EdgeInsets.all(20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const WorkbenchSectionHeading(
+                      title: '一键接入 AI',
+                      icon: Icons.auto_awesome_outlined,
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      '准备 MCP、Skill 与命令选择指南。复制后粘贴给 AI，完成本机连接并学习何时热重载、热重启或重新运行。',
+                    ),
+                    const SizedBox(height: 16),
+                    FilledButton.icon(
+                      key: const ValueKey('copy-mcp-ai-setup'),
+                      onPressed: busy ? null : _copyAiSetupInstructions,
+                      icon: _copyingAiSetup
+                          ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.copy_all_outlined),
+                      label: Text(_copyingAiSetup ? '正在准备…' : '一键复制接入说明'),
+                    ),
+                    const SizedBox(height: 12),
+                    Wrap(
+                      spacing: 16,
+                      runSpacing: 8,
+                      children: [
+                        _setupStatus('MCP Server', serverPath.isNotEmpty),
+                        _setupStatus('Skill', skillReady),
+                        _setupStatus('命令指南', guideReady),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      '点击时自动启用本机服务。需 Node.js 18+ 和本机 AI 工具；部分客户端配置后需重启。',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
           const SizedBox(height: 16),
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(20),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('一键接入 AI', style: AppTextStyles.h3),
-                  const SizedBox(height: 8),
-                  const Text(
-                    '准备 MCP、Skill 与命令选择指南。复制后粘贴给 AI，完成本机连接并学习何时热重载、热重启或重新运行。',
-                  ),
-                  const SizedBox(height: 16),
-                  FilledButton.icon(
-                    key: const ValueKey('copy-mcp-ai-setup'),
-                    onPressed: busy ? null : _copyAiSetupInstructions,
-                    icon: _copyingAiSetup
-                        ? const SizedBox(
-                            width: 18,
-                            height: 18,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.copy_all_outlined),
-                    label: Text(_copyingAiSetup ? '正在准备…' : '一键复制接入说明'),
-                  ),
-                  const SizedBox(height: 12),
-                  Wrap(
-                    spacing: 16,
-                    runSpacing: 8,
-                    children: [
-                      _setupStatus('MCP Server', serverPath.isNotEmpty),
-                      _setupStatus('Skill', skillReady),
-                      _setupStatus('命令指南', guideReady),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    '点击时自动启用本机服务。需 Node.js 18+ 和本机 AI 工具；部分客户端配置后需重启。',
-                    style: TextStyle(fontSize: 12, color: Colors.black54),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Card(
+          WorkbenchPanel(
             child: ExpansionTile(
               key: const ValueKey('mcp-manual-setup'),
+              leading: const Icon(Icons.tune, size: 20),
               title: const Text('手动配置', style: AppTextStyles.h3),
               subtitle: const Text(
                 '按需下载文件、安装 Skill 或复制配置',
@@ -273,9 +348,18 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
                     ),
                     if (serverPath.isNotEmpty)
                       TextButton.icon(
-                        onPressed: () => ref
-                            .read(localProjectServiceProvider)
-                            .revealFile(serverPath),
+                        onPressed: () async {
+                          try {
+                            await ref
+                                .read(localProjectServiceProvider)
+                                .revealFile(serverPath);
+                          } catch (error) {
+                            if (mounted)
+                              ref
+                                  .read(fvmControllerProvider.notifier)
+                                  .showError(error);
+                          }
+                        },
                         icon: const Icon(Icons.folder_open_outlined, size: 18),
                         label: const Text('打开文件'),
                       ),
@@ -286,9 +370,9 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
                     padding: const EdgeInsets.only(top: 8),
                     child: SelectableText(
                       serverPath,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: Colors.black54,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ),
@@ -338,9 +422,9 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
                     padding: const EdgeInsets.only(top: 8),
                     child: SelectableText(
                       _installedMcpSkillPath,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: Colors.black54,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
                       ),
                     ),
                   ),
@@ -370,9 +454,12 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
                 else
                   const Text('先下载 MCP Server，或点击上方“一键复制接入说明”自动准备文件。'),
                 const SizedBox(height: 12),
-                const Text(
+                Text(
                   '将配置合并到现有文件，安装 Skill 后重新加载或重启 AI 工具。',
-                  style: TextStyle(fontSize: 12, color: Colors.black54),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
               ],
             ),
@@ -388,12 +475,17 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
       Icon(
         ready ? Icons.check_circle_outline : Icons.radio_button_unchecked,
         size: 16,
-        color: ready ? Colors.green.shade700 : Colors.black38,
+        color: ready
+            ? Theme.of(context).colorScheme.secondary
+            : Theme.of(context).colorScheme.onSurfaceVariant,
       ),
       const SizedBox(width: 5),
       Text(
         '$title ${ready ? '已就绪' : '待准备'}',
-        style: const TextStyle(fontSize: 12, color: Colors.black54),
+        style: TextStyle(
+          fontSize: 12,
+          color: Theme.of(context).colorScheme.onSurfaceVariant,
+        ),
       ),
     ],
   );
@@ -428,13 +520,13 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
         await controller.resetMcpServerToken();
       }
       if (!mounted) return;
-      if (!ref.read(fvmControllerProvider).mcpServerEnabled) {
-        await controller.setMcpServerEnabled(true);
-      }
+      final running = await controller.ensureMcpServerRunning();
       if (!mounted) return;
       final state = ref.read(fvmControllerProvider);
-      if (state.errorMessage?.startsWith('MCP 控制接口启动失败') == true) {
-        throw Exception(state.errorMessage);
+      if (!running) {
+        throw Exception(
+          ref.read(mcpServerRuntimeProvider).error ?? 'MCP 本机服务尚未启动，请先解决服务错误。',
+        );
       }
       final text = buildMcpAiSetupInstructions(
         port: state.mcpServerPort,
@@ -678,7 +770,7 @@ class _CodeBlock extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Padding(
         padding: const EdgeInsets.all(12),

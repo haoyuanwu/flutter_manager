@@ -32,6 +32,7 @@ class FlutterWindow : public Win32Window {
   void HideToTray();
   void ShowFromTray();
   void ShowTrayContextMenu();
+  void HandleTrayCommand(UINT command);
   void HandleTrayCallback(LPARAM lparam);
 
   flutter::DartProject project_;

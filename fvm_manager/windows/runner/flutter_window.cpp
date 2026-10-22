@@ -1,6 +1,7 @@
 #include "flutter_window.h"
 
 #include <shellapi.h>
+#include <dwmapi.h>
 
 #include <cwchar>
 #include <optional>
@@ -14,6 +15,42 @@
 namespace {
 constexpr UINT kTrayIconId = 1;
 constexpr UINT kTrayCallbackMessage = WM_APP + 1;
+
+void ConfigureAppearanceChannel(flutter::FlutterViewController* controller) {
+  flutter::MethodChannel<flutter::EncodableValue> channel(
+      controller->engine()->messenger(), "fvm_manager/appearance",
+      &flutter::StandardMethodCodec::GetInstance());
+  channel.SetMethodCallHandler([controller](const auto& call, auto result) {
+    if (call.method_name() != "setTheme") {
+      result->NotImplemented();
+      return;
+    }
+    const auto* arguments = std::get_if<flutter::EncodableMap>(call.arguments());
+    if (arguments == nullptr) {
+      result->Error("invalid_arguments", "Expected appearance settings.");
+      return;
+    }
+    const auto dark = arguments->find(flutter::EncodableValue("dark"));
+    const auto mode = arguments->find(flutter::EncodableValue("mode"));
+    if (dark == arguments->end() || !std::holds_alternative<bool>(dark->second)) {
+      result->Error("invalid_arguments", "Expected dark appearance flag.");
+      return;
+    }
+    HWND window = GetAncestor(controller->view()->GetNativeWindow(), GA_ROOT);
+    const BOOL enabled = std::get<bool>(dark->second);
+    const bool system = mode != arguments->end() &&
+        std::get_if<std::string>(&mode->second) != nullptr &&
+        std::get<std::string>(mode->second) == "system";
+    if (system) {
+      RemovePropW(window, L"FvmManager.DarkAppearance");
+    } else {
+      SetPropW(window, L"FvmManager.DarkAppearance",
+               reinterpret_cast<HANDLE>(static_cast<INT_PTR>(enabled ? 2 : 1)));
+    }
+    DwmSetWindowAttribute(window, 20, &enabled, sizeof(enabled));
+    result->Success();
+  });
+}
 }  // namespace
 
 FlutterWindow::FlutterWindow(const flutter::DartProject& project)
@@ -46,8 +83,10 @@ bool FlutterWindow::OnCreate() {
         reinterpret_cast<flutter::FlutterViewController *>(controller);
     auto *registry = flutter_view_controller->engine();
     RegisterPlugins(registry);
+    ConfigureAppearanceChannel(flutter_view_controller);
   });
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
+  ConfigureAppearanceChannel(flutter_controller_.get());
   if (GetHandle() != nullptr) {
     DragAcceptFiles(GetHandle(), TRUE);
     SetupTrayIcon();
@@ -89,7 +128,7 @@ void FlutterWindow::SetupTrayIcon() {
   nid.cbSize = sizeof(nid);
   nid.hWnd = hwnd;
   nid.uID = kTrayIconId;
-  nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP;
+  nid.uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP | NIF_SHOWTIP;
   nid.uCallbackMessage = kTrayCallbackMessage;
   nid.hIcon = static_cast<HICON>(LoadImageW(
       GetModuleHandleW(nullptr), MAKEINTRESOURCEW(IDI_APP_ICON), IMAGE_ICON,
@@ -125,7 +164,9 @@ void FlutterWindow::HideToTray() {
     return;
   }
   SetupTrayIcon();
-  ShowWindow(hwnd, SW_HIDE);
+  if (tray_icon_added_) {
+    ShowWindow(hwnd, SW_HIDE);
+  }
 }
 
 void FlutterWindow::ShowFromTray() {
@@ -163,10 +204,15 @@ void FlutterWindow::ShowTrayContextMenu() {
       menu, TPM_RETURNCMD | TPM_RIGHTBUTTON, cursor.x, cursor.y, 0, hwnd,
       nullptr);
   DestroyMenu(menu);
+  PostMessageW(hwnd, WM_NULL, 0, 0);
   if (command == 0) {
     return;
   }
 
+  PostMessageW(hwnd, WM_COMMAND, MAKEWPARAM(command, 0), 0);
+}
+
+void FlutterWindow::HandleTrayCommand(UINT command) {
   switch (command) {
     case IDM_TRAY_SHOW:
       ShowFromTray();
@@ -174,7 +220,7 @@ void FlutterWindow::ShowTrayContextMenu() {
     case IDM_TRAY_EXIT:
       allow_quit_ = true;
       RemoveTrayIcon();
-      DestroyWindow(hwnd);
+      DestroyWindow(GetHandle());
       break;
     default:
       break;
@@ -182,7 +228,8 @@ void FlutterWindow::ShowTrayContextMenu() {
 }
 
 void FlutterWindow::HandleTrayCallback(LPARAM lparam) {
-  const UINT event = static_cast<UINT>(lparam);
+  // Version 4 packs the icon ID in the high word and the event in the low word.
+  const UINT event = LOWORD(lparam);
   switch (event) {
     case WM_LBUTTONUP:
     case WM_LBUTTONDBLCLK:
@@ -202,6 +249,16 @@ void FlutterWindow::HandleTrayCallback(LPARAM lparam) {
 LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam, LPARAM const lparam) noexcept {
+  if (message == kTrayCallbackMessage) {
+    HandleTrayCallback(lparam);
+    return 0;
+  }
+  if (message == WM_COMMAND && lparam == 0 &&
+      (LOWORD(wparam) == IDM_TRAY_SHOW || LOWORD(wparam) == IDM_TRAY_EXIT)) {
+    HandleTrayCommand(LOWORD(wparam));
+    return 0;
+  }
+
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =
@@ -220,10 +277,6 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
         return 0;
       }
       break;
-
-    case kTrayCallbackMessage:
-      HandleTrayCallback(lparam);
-      return 0;
 
     case WM_DROPFILES:
       HandleDropFiles(reinterpret_cast<void*>(wparam));

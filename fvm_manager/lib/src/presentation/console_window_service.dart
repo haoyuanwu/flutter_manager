@@ -24,6 +24,22 @@ class ConsoleWindowService {
   final Map<String, Completer<void>> _readySignals = {};
   Future<dynamic> Function(MethodCall call)? _mainHandler;
   bool _mainHandlerRegistered = false;
+  String _themeMode = 'system';
+  set themeMode(String mode) => _themeMode = mode;
+
+  Future<void> syncThemeMode(String mode) async {
+    _themeMode = mode;
+    for (final payload in _latestPayloads.values) {
+      payload['themeMode'] = mode;
+    }
+    for (final window in _windows.values.toList()) {
+      try {
+        await window.invokeMethod<void>('themeSync', {'themeMode': mode});
+      } on Object {
+        // Closed windows do not need appearance updates.
+      }
+    }
+  }
 
   Future<void> registerMainHandler(
     Future<dynamic> Function(MethodCall call) handler,
@@ -274,6 +290,7 @@ class ConsoleWindowService {
     required String actionChannelName,
   }) => {
     'windowType': 'console',
+    'themeMode': _themeMode,
     'projectPath': projectPath,
     'projectTitle': projectTitle,
     'commandLog': commandLog,

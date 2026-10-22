@@ -11,6 +11,10 @@ import 'package:pub_semver/pub_semver.dart';
 
 import '../data/flutter_release_service.dart';
 import '../data/fvm_service.dart';
+import '../data/flutter_project_creation_service.dart';
+import '../data/pub_package_service.dart';
+import '../data/project_dependency_service.dart';
+import '../domain/project_dependency.dart';
 import '../data/flutter_startup_lock_service.dart';
 import '../data/flutter_command_service.dart';
 import '../data/flutter_device_monitor.dart';
@@ -54,6 +58,36 @@ final pubEnvironmentServiceProvider = Provider<PubEnvironmentService>(
   (ref) => PubEnvironmentService(),
 );
 
+final mcpControlServerProvider = Provider<McpControlServer>((ref) {
+  final server = McpControlServer();
+  ref.onDispose(() => unawaited(server.stop()));
+  return server;
+});
+
+class McpServerRuntime {
+  const McpServerRuntime({
+    this.starting = false,
+    this.running = false,
+    this.port,
+    this.error,
+  });
+  final bool starting;
+  final bool running;
+  final int? port;
+  final String? error;
+}
+
+class McpServerRuntimeController extends Notifier<McpServerRuntime> {
+  @override
+  McpServerRuntime build() => const McpServerRuntime();
+  void update(McpServerRuntime value) => state = value;
+}
+
+final mcpServerRuntimeProvider =
+    NotifierProvider<McpServerRuntimeController, McpServerRuntime>(
+      McpServerRuntimeController.new,
+    );
+
 final processRunnerProvider = Provider<ProcessRunner>((ref) {
   final runner = ProcessRunner();
   ref.onDispose(() => unawaited(runner.stopAll()));
@@ -79,6 +113,23 @@ final flutterStartupLockServiceProvider = Provider<FlutterStartupLockService>(
 final localProjectServiceProvider = Provider<LocalProjectService>(
   (ref) => LocalProjectService(),
 );
+
+final pubPackageServiceProvider = Provider<PubPackageService>(
+  (ref) => PubPackageService(ref.watch(dioProvider)),
+);
+
+final projectDependencyServiceProvider = Provider<ProjectDependencyService>(
+  (ref) => const ProjectDependencyService(),
+);
+
+final flutterProjectCreationServiceProvider =
+    Provider<FlutterProjectCreationService>(
+      (ref) => FlutterProjectCreationService(
+        ref.watch(fvmServiceProvider),
+        ref.watch(processRunnerProvider),
+        ref.watch(localProjectServiceProvider),
+      ),
+    );
 
 final mcpAiSetupServiceProvider = Provider<McpAiSetupService>(
   (ref) => McpAiSetupService(),
@@ -312,7 +363,8 @@ class FvmController extends Notifier<FvmState> {
   final Map<String, ProjectRunMode> _activeRunModes = {};
   final Map<String, Object> _activeRunSessions = {};
   final Map<String, int> _mcpRuntimeCursors = {};
-  final McpControlServer _mcpControlServer = McpControlServer();
+  McpControlServer get _mcpControlServer => ref.read(mcpControlServerProvider);
+  Future<void> _mcpSyncOperations = Future.value();
   String? _mainBuildConsoleProjectPath;
 
   bool get selectedProjectCommandRunning =>
@@ -554,9 +606,20 @@ class FvmController extends Notifier<FvmState> {
     }
   }
 
-  Future<void> selectLocalFvmDirectory() async {
+  Future<void> selectLocalFvmDirectory({bool chooseFile = false}) async {
     try {
-      final directory = await _pickLocalFvmPath();
+      final directory = chooseFile
+          ? (await openFile(
+              confirmButtonText: '选择 fvm 程序',
+              acceptedTypeGroups: [
+                const XTypeGroup(
+                  label: 'FVM 可执行文件',
+                  extensions: ['exe', 'bat', 'cmd'],
+                ),
+                const XTypeGroup(label: '全部文件'),
+              ],
+            ))?.path
+          : await getDirectoryPath(confirmButtonText: '使用此文件夹');
       if (directory == null) return;
       state = state.copyWith(
         loading: true,
@@ -593,26 +656,6 @@ class FvmController extends Notifier<FvmState> {
     } finally {
       state = state.copyWith(loading: false);
     }
-  }
-
-  /// 优先让用户直接选中 fvm 可执行文件，取消后再选目录。
-  Future<String?> _pickLocalFvmPath() async {
-    try {
-      final file = await openFile(
-        confirmButtonText: '选择 fvm 程序',
-        acceptedTypeGroups: [
-          const XTypeGroup(
-            label: 'FVM 可执行文件',
-            extensions: ['exe', 'bat', 'cmd'],
-          ),
-          const XTypeGroup(label: '全部文件'),
-        ],
-      );
-      if (file != null && file.path.isNotEmpty) return file.path;
-    } on Object {
-      // 某些平台不支持选文件时回退到目录选择。
-    }
-    return getDirectoryPath(confirmButtonText: '使用此目录');
   }
 
   Future<void> updateFvm() async {
@@ -718,6 +761,34 @@ class FvmController extends Notifier<FvmState> {
     if (installed != null && state.globalVersion == null) {
       await setGlobal(installed.name);
     }
+  }
+
+  Future<void> registerCreatedProject(FlutterProject inspected) async {
+    final project = inspected.copyWith(
+      lastBuildTarget: _defaultBuildTarget(inspected),
+    );
+    final projects = await ref
+        .read(projectRepositoryProvider)
+        .upsert(state.managedProjects, project);
+    state = state.copyWith(
+      managedProjects: projects,
+      selectedManagedProjectPath: project.path,
+      selectedAndroidFlavors: project.selectedFlavors,
+      projectBuildTarget: project.lastBuildTarget,
+      projectBuildMode: project.lastBuildMode,
+      cleanBeforeBuild: project.cleanBeforeBuild,
+      androidTargetPlatform: project.androidTargetPlatform,
+      selectedConsoleTabId: null,
+      commandLog: '',
+      commandRunning: false,
+      activeCommand: null,
+      devices: const [],
+      selectedDeviceId: null,
+      errorMessage: null,
+      statusMessage: '已创建并添加项目 ${project.displayName}',
+    );
+    _publishStatusMenu();
+    unawaited(_startDeviceMonitoring());
   }
 
   Future<void> addManagedProject() async {
@@ -1428,6 +1499,47 @@ class FvmController extends Notifier<FvmState> {
     String taskKind = 'operation',
   }) => _runProjectCommands([arguments], label: label, taskKind: taskKind);
 
+  Future<ProjectDependencySnapshot> updateProjectDependencies(
+    ProjectDependencySnapshot snapshot, {
+    required List<ProjectDependency> additions,
+    required Set<String> removals,
+  }) async {
+    final path = snapshot.projectPath;
+    if (_activeCommandTasks.entries.any(
+      (entry) =>
+          entry.value.projectPath == path && entry.key != _taskId('run', path),
+    )) {
+      throw StateError('该项目有命令正在执行，请等待完成后再保存依赖');
+    }
+    ProjectDependencySnapshot? saved;
+    try {
+      await _runProjectCommands(
+        const [
+          ['pub', 'get'],
+        ],
+        label: '依赖管理 · Pub Get',
+        projectPath: path,
+        rethrowErrors: true,
+        beforeRun: () async {
+          saved = await ref
+              .read(projectDependencyServiceProvider)
+              .save(snapshot, additions: additions, removals: removals);
+        },
+      );
+      return saved!;
+    } catch (error) {
+      if (saved != null) throw DependencySyncException(saved!, _message(error));
+      rethrow;
+    }
+  }
+
+  Future<void> stopDependencySync(String projectPath) async {
+    final taskId = _taskId('operation', projectPath);
+    if (_activeCommandTasks.containsKey(taskId)) {
+      await stopProjectCommand(taskId);
+    }
+  }
+
   Future<void> _publishVersionedArtifacts(
     String taskId,
     String projectPath,
@@ -1450,14 +1562,29 @@ class FvmController extends Notifier<FvmState> {
     required String label,
     String taskKind = 'operation',
     Future<void> Function(int index)? afterEach,
+    String? projectPath,
+    Future<void> Function()? beforeRun,
+    bool rethrowErrors = false,
   }) async {
-    if (!_ensureFlutterReady(label)) return;
-    final path = state.selectedManagedProjectPath;
-    if (path == null || _selectedManagedProject?.pathExists != true) {
+    final path = projectPath ?? state.selectedManagedProjectPath;
+    final project = state.managedProjects
+        .where((item) => item.path == path)
+        .firstOrNull;
+    if (!_ensureFlutterReady(label, project: project)) {
+      if (rethrowErrors) {
+        throw StateError(state.errorMessage ?? 'Flutter 环境未就绪');
+      }
+      return;
+    }
+    if (path == null || project?.pathExists != true) {
+      if (rethrowErrors) throw StateError('项目不存在或未加入项目管理');
       return;
     }
     final taskId = _taskId(taskKind, path);
-    if (_activeCommandTasks.containsKey(taskId)) return;
+    if (_activeCommandTasks.containsKey(taskId)) {
+      if (rethrowErrors) throw StateError('该项目有命令正在执行');
+      return;
+    }
     if (taskKind == 'build') _clearCommandLogFor(taskId);
     final buildSession = taskKind == 'build'
         ? BuildSession(
@@ -1472,8 +1599,7 @@ class FvmController extends Notifier<FvmState> {
             mode: state.projectBuildMode.name,
             flavors: [...state.selectedAndroidFlavors],
             startedAt: DateTime.now(),
-            flutterVersion:
-                _selectedManagedProject?.fvmVersion ?? state.globalVersion,
+            flutterVersion: project?.fvmVersion ?? state.globalVersion,
             status: BuildSessionStatus.running,
           )
         : null;
@@ -1486,12 +1612,25 @@ class FvmController extends Notifier<FvmState> {
         _appendCommandLog(taskId, '\n[构建历史记录启动失败：${_message(error)}]\n');
       }
     }
+    final previousConsoleTab = state.selectedConsoleTabId;
+    final previousConsoleLog = state.commandLog;
     _startCommandTask(taskId, path, label);
+    if (projectPath != null && state.selectedManagedProjectPath != path) {
+      state = state.copyWith(
+        selectedConsoleTabId: previousConsoleTab,
+        commandLog: previousConsoleLog,
+      );
+    }
     var stoppedByUser = false;
     var failed = false;
     int? lastExitCode;
     try {
+      if (beforeRun != null) await beforeRun();
       for (var index = 0; index < commands.length; index++) {
+        if (_stoppingCommandTasks.contains(taskId)) {
+          stoppedByUser = true;
+          break;
+        }
         _updateCommandTaskLabel(
           taskId,
           commands.length == 1
@@ -1534,12 +1673,14 @@ class FvmController extends Notifier<FvmState> {
           _appendCommandLog(taskId, '\n${List.filled(72, '─').join()}\n\n');
         }
       }
+      if (stoppedByUser && rethrowErrors) throw StateError('$label 已停止');
       if (!stoppedByUser) {
         state = state.copyWith(statusMessage: '$label 完成');
       }
     } catch (error) {
       failed = true;
       state = state.copyWith(errorMessage: _message(error));
+      if (rethrowErrors) rethrow;
     } finally {
       if (buildSession != null) {
         await _completeBuildSession(
@@ -1624,7 +1765,7 @@ class FvmController extends Notifier<FvmState> {
     return false;
   }
 
-  bool _ensureFlutterReady(String action) {
+  bool _ensureFlutterReady(String action, {FlutterProject? project}) {
     if (!_ensureFvmReady(action)) return false;
     if (state.installed.isEmpty) {
       state = state.copyWith(
@@ -1632,7 +1773,8 @@ class FvmController extends Notifier<FvmState> {
       );
       return false;
     }
-    final requiredVersion = _selectedManagedProject?.fvmVersion?.trim();
+    final requiredVersion = (project ?? _selectedManagedProject)?.fvmVersion
+        ?.trim();
     if (requiredVersion != null &&
         requiredVersion.isNotEmpty &&
         !state.installed.any(
@@ -2025,22 +2167,68 @@ class FvmController extends Notifier<FvmState> {
     return Directory.current;
   }
 
-  Future<void> _syncMcpControlServer() async {
+  Future<bool> ensureMcpServerRunning() async {
     if (!state.mcpServerEnabled) {
-      await _mcpControlServer.stop();
+      await setMcpServerEnabled(true);
+    } else {
+      await _syncMcpControlServer();
+    }
+    final runtime = ref.read(mcpServerRuntimeProvider);
+    return runtime.running &&
+        runtime.port == state.mcpServerPort &&
+        runtime.error == null;
+  }
+
+  Future<void> retryMcpServer() => _syncMcpControlServer();
+
+  Future<void> _syncMcpControlServer() {
+    final result = _mcpSyncOperations.then((_) => _applyMcpControlServer());
+    _mcpSyncOperations = result.then((_) {}, onError: (Object error) {});
+    return result;
+  }
+
+  Future<void> _applyMcpControlServer() async {
+    if (!ref.mounted) return;
+    final runtime = ref.read(mcpServerRuntimeProvider.notifier);
+    final server = _mcpControlServer;
+    if (!state.mcpServerEnabled) {
+      await server.stop();
+      if (ref.mounted) runtime.update(const McpServerRuntime());
       return;
     }
+    final port = state.mcpServerPort;
+    runtime.update(
+      McpServerRuntime(
+        starting: true,
+        running: server.isRunning,
+        port: server.activePort,
+      ),
+    );
     try {
-      await _mcpControlServer.start(
-        port: state.mcpServerPort,
+      await server.start(
+        port: port,
         token: state.mcpServerToken,
         onToolCall: _handleMcpToolCall,
       );
+      if (!ref.mounted) return;
+      runtime.update(McpServerRuntime(running: true, port: server.activePort));
       state = state.copyWith(
-        statusMessage: 'MCP 控制接口已启动：127.0.0.1:${state.mcpServerPort}',
+        statusMessage: 'MCP 控制接口已启动：127.0.0.1:$port',
+        errorMessage: state.errorMessage?.startsWith('MCP 控制接口') == true
+            ? null
+            : state.errorMessage,
       );
     } catch (error) {
-      state = state.copyWith(errorMessage: 'MCP 控制接口启动失败：${_message(error)}');
+      if (!ref.mounted) return;
+      final message = McpControlServer.describeStartFailure(error, port);
+      runtime.update(
+        McpServerRuntime(
+          running: server.isRunning,
+          port: server.activePort,
+          error: message,
+        ),
+      );
+      state = state.copyWith(errorMessage: 'MCP 控制接口：$message');
     }
   }
 

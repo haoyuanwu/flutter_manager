@@ -3,14 +3,18 @@ import 'dart:async';
 import 'package:desktop_multi_window/desktop_multi_window.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../confirm_dialog.dart';
 import '../console_search.dart';
 import '../console_window_service.dart';
 import '../../data/flutter_startup_lock_service.dart';
 import '../widgets/flutter_startup_lock_button.dart';
+import '../theme/app_theme.dart';
+import '../theme/theme_controller.dart';
+import '../theme/window_appearance.dart';
 
-class ConsoleWindowApp extends StatelessWidget {
+class ConsoleWindowApp extends ConsumerWidget {
   const ConsoleWindowApp({
     super.key,
     required this.windowId,
@@ -35,13 +39,14 @@ class ConsoleWindowApp extends StatelessWidget {
   final String initialActionChannelName;
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
+  Widget build(BuildContext context, WidgetRef ref) => MaterialApp(
     title: '$projectTitle - 控制台',
     debugShowCheckedModeBanner: false,
-    theme: ThemeData(
-      colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xff087ea4)),
-      useMaterial3: true,
-    ),
+    theme: AppTheme.light,
+    darkTheme: AppTheme.dark,
+    themeMode: ref.watch(appThemeModeProvider),
+    builder: (context, child) =>
+        WindowAppearance(mode: ref.watch(appThemeModeProvider), child: child!),
     home: ConsoleWindowPage(
       projectTitle: projectTitle,
       projectPath: projectPath,
@@ -51,6 +56,8 @@ class ConsoleWindowApp extends StatelessWidget {
       initialConsoleMode: initialConsoleMode,
       initialBuildTarget: initialBuildTarget,
       initialActionChannelName: initialActionChannelName,
+      onThemeModeChanged: (mode) =>
+          ref.read(appThemeModeProvider.notifier).applyFromHost(mode),
     ),
   );
 }
@@ -66,6 +73,7 @@ class ConsoleWindowPage extends StatefulWidget {
     required this.initialConsoleMode,
     required this.initialBuildTarget,
     required this.initialActionChannelName,
+    this.onThemeModeChanged,
   });
 
   final String projectTitle;
@@ -76,6 +84,7 @@ class ConsoleWindowPage extends StatefulWidget {
   final String initialConsoleMode;
   final String initialBuildTarget;
   final String initialActionChannelName;
+  final ValueChanged<String>? onThemeModeChanged;
 
   @override
   State<ConsoleWindowPage> createState() => _ConsoleWindowPageState();
@@ -118,8 +127,17 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
   Future<void> _registerChannel() async {
     final controller = await WindowController.fromCurrentEngine();
     await controller.setWindowMethodHandler((call) async {
+      if (!mounted) return;
+      if (call.method == 'themeSync') {
+        final data = call.arguments as Map<dynamic, dynamic>? ?? const {};
+        widget.onThemeModeChanged?.call('${data['themeMode'] ?? 'system'}');
+        return;
+      }
       if (call.method != 'consoleSync' || !mounted) return;
       final data = call.arguments as Map<dynamic, dynamic>? ?? const {};
+      if (data['themeMode'] case final String mode) {
+        widget.onThemeModeChanged?.call(mode);
+      }
       final tasks = (data['tasks'] as List<dynamic>? ?? const [])
           .whereType<Map<dynamic, dynamic>>()
           .map(
@@ -263,7 +281,7 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    backgroundColor: const Color(0xfff5f7fa),
+    backgroundColor: Theme.of(context).colorScheme.surfaceContainerLow,
     body: Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -299,7 +317,9 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
             ),
             Text(
               _tasks.isEmpty ? '当前没有运行中的命令' : '正在运行 ${_tasks.length} 个命令',
-              style: const TextStyle(color: Colors.black54),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           ],
         ),
@@ -454,7 +474,7 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
   }
 
   Widget _console() => Card(
-    color: const Color(0xff101820),
+    color: AppColors.consoleBackground,
     child: Padding(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -630,7 +650,7 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
         TextSpan(
           text: text.substring(match.start, match.end),
           style: TextStyle(
-            color: const Color(0xff101820),
+            color: AppColors.consoleBackground,
             backgroundColor: index == _currentMatch
                 ? const Color(0xffffc857)
                 : const Color(0xfffff3a3),

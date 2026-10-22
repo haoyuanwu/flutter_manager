@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:yaml/yaml.dart';
+import 'external_opener.dart';
 
 enum DistributionArtifactType { apk, aab, ipa, hap, dmg, pkg, msix, exe, zip }
 
@@ -350,20 +351,7 @@ class DistributionService {
   }
 
   Future<void> _openUrl(String url) async {
-    late final ProcessResult result;
-    if (Platform.isWindows) {
-      result = await Process.run('cmd.exe', [
-        '/c',
-        'start',
-        '',
-        url,
-      ], runInShell: true);
-    } else if (Platform.isMacOS) {
-      result = await Process.run('open', [url]);
-    } else {
-      result = await Process.run('xdg-open', [url]);
-    }
-    if (result.exitCode != 0) throw Exception('无法打开页面：$url');
+    await const ExternalOpener().openUrl(url);
   }
 
   String _fileName(String path) => path

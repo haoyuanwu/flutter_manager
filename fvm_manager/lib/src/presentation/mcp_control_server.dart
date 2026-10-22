@@ -10,6 +10,9 @@ typedef McpToolHandler =
 
 class McpControlServer {
   HttpServer? _server;
+  Future<void> _operations = Future.value();
+  String _token = '';
+  McpToolHandler? _onToolCall;
 
   bool get isRunning => _server != null;
   int? get activePort => _server?.port;
@@ -18,26 +21,54 @@ class McpControlServer {
     required int port,
     required String token,
     required McpToolHandler onToolCall,
-  }) async {
-    await stop();
+  }) => _serialize(() async {
+    if (_server?.port == port) {
+      _token = token;
+      _onToolCall = onToolCall;
+      return;
+    }
+    // Bind before replacing a working listener so failed reconfiguration is safe.
     final server = await HttpServer.bind(InternetAddress.loopbackIPv4, port);
+    final previous = _server;
     _server = server;
-    unawaited(_serve(server, token, onToolCall));
-  }
+    _token = token;
+    _onToolCall = onToolCall;
+    unawaited(_serve(server));
+    await previous?.close(force: true);
+  });
 
-  Future<void> stop() async {
+  Future<void> stop() => _serialize(() async {
     final server = _server;
     _server = null;
     await server?.close(force: true);
+  });
+
+  Future<void> _serialize(Future<void> Function() operation) {
+    final result = _operations.then((_) => operation());
+    _operations = result.then((_) {}, onError: (Object error) {});
+    return result;
   }
 
-  Future<void> _serve(
-    HttpServer server,
-    String token,
-    McpToolHandler onToolCall,
-  ) async {
+  static String describeStartFailure(Object error, int port) {
+    if (error is SocketException) {
+      final code = error.osError?.errorCode;
+      if (const [48, 98, 10048].contains(code) ||
+          error.osError?.message.startsWith('The shared flag to bind()') ==
+              true) {
+        return '端口 $port 已被占用，本窗口未能启动 MCP。'
+            '请退出其他 Flutter Manager 实例后重试，或修改 MCP 端口并更新 AI 客户端配置。';
+      }
+      if (const [13, 10013].contains(code)) {
+        return '系统拒绝绑定 MCP 端口 $port。请换一个未被保留的端口，'
+            '并检查防火墙或安全软件的限制。';
+      }
+    }
+    return 'MCP 端口 $port 启动失败：$error';
+  }
+
+  Future<void> _serve(HttpServer server) async {
     await for (final request in server) {
-      unawaited(_handleRequest(request, token, onToolCall));
+      unawaited(_handleRequest(request, _token, _onToolCall!));
     }
   }
 
@@ -60,7 +91,11 @@ class McpControlServer {
         return;
       }
       if (request.method == 'GET' && request.uri.path == '/health') {
-        await _json(request.response, {'ok': true});
+        await _json(request.response, {
+          'ok': true,
+          'service': 'flutter-manager',
+          'processId': pid,
+        });
         return;
       }
       if (request.method != 'POST' || !request.uri.path.startsWith('/tools/')) {

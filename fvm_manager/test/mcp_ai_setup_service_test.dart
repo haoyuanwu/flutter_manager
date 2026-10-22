@@ -39,7 +39,7 @@ void main() {
         skillPath: result.skillPath,
         operatingSystem: 'test',
       );
-      expect(instructions, contains(result.serverPath));
+      expect(instructions, contains(jsonEncode(result.serverPath)));
       expect(instructions, contains('references/command-guide.md'));
     },
   );

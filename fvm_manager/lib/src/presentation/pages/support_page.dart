@@ -15,117 +15,113 @@ class _SupportPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(28),
-      child: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 920),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const Text('请我喝个茶', style: AppTextStyles.h1),
-              const SizedBox(height: 8),
-              const Text(
-                '如果 Flutter Manager 帮你省了一点时间，欢迎请我喝杯茶。',
-                style: TextStyle(fontSize: 15, color: Colors.black54),
-              ),
-              const SizedBox(height: 20),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: const Color(0xffe7f3f5),
-                  borderRadius: BorderRadius.circular(16),
+    return WorkbenchScrollPage(
+      maxWidth: 920,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const WorkbenchPageHeader(
+            title: '请我喝个茶',
+            subtitle: '如果 Flutter Manager 帮你省了一点时间，欢迎请我喝杯茶。',
+          ),
+          const SizedBox(height: 20),
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(6),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.emoji_food_beverage_outlined,
+                  size: 32,
+                  color: Theme.of(context).colorScheme.primary,
                 ),
-                child: const Row(
-                  children: [
-                    Icon(
-                      Icons.emoji_food_beverage_outlined,
-                      size: 32,
-                      color: Color(0xff176b80),
+                SizedBox(width: 16),
+                Expanded(
+                  child: Text(
+                    '谢谢你的支持\n打赏随心，反馈和建议也一样珍贵。',
+                    style: TextStyle(
+                      fontSize: 15,
+                      height: 1.7,
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
                     ),
-                    SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        '谢谢你的支持\n打赏随心，反馈和建议也一样珍贵。',
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 24),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final width = constraints.maxWidth >= 650
+                  ? (constraints.maxWidth - 20) / 2
+                  : constraints.maxWidth;
+              return Wrap(
+                spacing: 20,
+                runSpacing: 20,
+                children: [
+                  _SupportPaymentCard(
+                    width: width,
+                    title: '微信支付',
+                    asset: 'assets/images/support/wechat-pay.png',
+                    color: const Color(0xff07a85a),
+                  ),
+                  _SupportPaymentCard(
+                    width: width,
+                    title: '支付宝',
+                    asset: 'assets/images/support/alipay.jpg',
+                    color: const Color(0xff1677ff),
+                  ),
+                ],
+              );
+            },
+          ),
+          const SizedBox(height: 24),
+          Card(
+            margin: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('用户反馈', style: AppTextStyles.h3),
+                  const SizedBox(height: 8),
+                  const Text('遇到问题或有功能建议，欢迎邮件联系。'),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 16,
+                    runSpacing: 12,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      SelectableText(
+                        _email,
                         style: TextStyle(
-                          fontSize: 15,
-                          height: 1.7,
-                          color: Color(0xff225365),
+                          fontSize: 16,
+                          color: Theme.of(context).colorScheme.primary,
                         ),
                       ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              LayoutBuilder(
-                builder: (context, constraints) {
-                  final width = constraints.maxWidth >= 650
-                      ? (constraints.maxWidth - 20) / 2
-                      : constraints.maxWidth;
-                  return Wrap(
-                    spacing: 20,
-                    runSpacing: 20,
-                    children: [
-                      _SupportPaymentCard(
-                        width: width,
-                        title: '微信支付',
-                        asset: 'assets/images/support/wechat-pay.png',
-                        color: const Color(0xff07a85a),
-                      ),
-                      _SupportPaymentCard(
-                        width: width,
-                        title: '支付宝',
-                        asset: 'assets/images/support/alipay.jpg',
-                        color: const Color(0xff1677ff),
-                      ),
-                    ],
-                  );
-                },
-              ),
-              const SizedBox(height: 24),
-              Card(
-                margin: EdgeInsets.zero,
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('用户反馈', style: AppTextStyles.h3),
-                      const SizedBox(height: 8),
-                      const Text('遇到问题或有功能建议，欢迎邮件联系。'),
-                      const SizedBox(height: 12),
-                      Wrap(
-                        spacing: 16,
-                        runSpacing: 12,
-                        crossAxisAlignment: WrapCrossAlignment.center,
-                        children: [
-                          const SelectableText(
-                            _email,
-                            style: TextStyle(
-                              fontSize: 16,
-                              color: Color(0xff176b80),
-                            ),
-                          ),
-                          OutlinedButton.icon(
-                            onPressed: () => _copyEmail(context),
-                            icon: const Icon(Icons.copy_outlined, size: 18),
-                            label: const Text('复制邮箱'),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 8),
-                      const Text(
-                        '反馈问题时，可以附上系统版本、操作步骤和相关截图。',
-                        style: TextStyle(color: Colors.black54, fontSize: 13),
+                      OutlinedButton.icon(
+                        onPressed: () => _copyEmail(context),
+                        icon: const Icon(Icons.copy_outlined, size: 18),
+                        label: const Text('复制邮箱'),
                       ),
                     ],
                   ),
-                ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '反馈问题时，可以附上系统版本、操作步骤和相关截图。',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
+        ],
       ),
     );
   }

@@ -166,75 +166,89 @@ class _LogPageState extends State<_LogPage> {
   }
 
   @override
-  Widget build(BuildContext context) => LayoutBuilder(
-    builder: (context, constraints) {
-      final showHistory = constraints.maxWidth >= 900;
-      return Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          if (showHistory) ...[
-            SizedBox(
-              width: 260,
-              child: _LoggerHistory(
-                history: _history,
-                selectedPath: _selectedPath,
-                onOpen: _openFile,
-                onClear: _clearHistory,
-              ),
-            ),
-            const VerticalDivider(width: 1),
-          ],
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                _LoggerToolbar(
-                  encrypted: _encrypted,
-                  loading: _loading,
-                  selectedPath: _selectedPath,
-                  compactHistory: showHistory ? null : _history,
-                  onEncryptedChanged: (value) async {
-                    setState(() => _encrypted = value);
-                    await _reload();
-                  },
-                  onPickFile: _pickFile,
-                  onReload: _reload,
-                  onOpenHistory: _openFile,
-                  onClearHistory: _clearHistory,
-                ),
-                _LoggerPathInput(
-                  controller: _pathController,
-                  onSubmit: _openManualPath,
-                ),
-                _LoggerSearchPanel(
-                  controller: _searchController,
-                  enabled: !_loading && _logs.isNotEmpty,
-                  query: _query,
-                  current: _currentMatch < 0 ? 0 : _currentMatch + 1,
-                  total: _matches.length,
-                  onSearch: _search,
-                  onPrevious: _previousMatch,
-                  onNext: _nextMatch,
-                  onClear: _clearSearch,
-                ),
-                Expanded(
-                  child: _LoggerContent(
-                    logs: _logs,
-                    keys: _logKeys,
-                    controller: _scrollController,
-                    matches: _matches,
-                    currentMatch: _currentMatch,
-                    selectedPath: _selectedPath,
-                    loading: _loading,
-                    error: _error,
-                  ),
-                ),
-              ],
+  Widget build(BuildContext context) => Padding(
+    padding: AppSpacing.pagePadding,
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const WorkbenchPageHeader(title: '日志'),
+        const SizedBox(height: 20),
+        Expanded(
+          child: WorkbenchPanel(
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final showHistory = constraints.maxWidth >= 900;
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (showHistory) ...[
+                      SizedBox(
+                        width: 260,
+                        child: _LoggerHistory(
+                          history: _history,
+                          selectedPath: _selectedPath,
+                          onOpen: _openFile,
+                          onClear: _clearHistory,
+                        ),
+                      ),
+                      const VerticalDivider(width: 1),
+                    ],
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          _LoggerToolbar(
+                            encrypted: _encrypted,
+                            loading: _loading,
+                            selectedPath: _selectedPath,
+                            compactHistory: showHistory ? null : _history,
+                            onEncryptedChanged: (value) async {
+                              setState(() => _encrypted = value);
+                              await _reload();
+                            },
+                            onPickFile: _pickFile,
+                            onReload: _reload,
+                            onOpenHistory: _openFile,
+                            onClearHistory: _clearHistory,
+                          ),
+                          _LoggerPathInput(
+                            controller: _pathController,
+                            onSubmit: _openManualPath,
+                          ),
+                          _LoggerSearchPanel(
+                            controller: _searchController,
+                            enabled: !_loading && _logs.isNotEmpty,
+                            query: _query,
+                            current: _currentMatch < 0 ? 0 : _currentMatch + 1,
+                            total: _matches.length,
+                            onSearch: _search,
+                            onPrevious: _previousMatch,
+                            onNext: _nextMatch,
+                            onClear: _clearSearch,
+                          ),
+                          Expanded(
+                            child: _LoggerContent(
+                              logs: _logs,
+                              keys: _logKeys,
+                              controller: _scrollController,
+                              matches: _matches,
+                              currentMatch: _currentMatch,
+                              selectedPath: _selectedPath,
+                              loading: _loading,
+                              error: _error,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
-        ],
-      );
-    },
+        ),
+      ],
+    ),
   );
 }
 
@@ -296,19 +310,17 @@ class _LoggerToolbar extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-    decoration: const BoxDecoration(
-      color: Color(0xfff9fafb),
-      border: Border(bottom: BorderSide(color: Color(0xffd8dee4))),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surfaceContainerLow,
+      border: Border(
+        bottom: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
     ),
     child: Wrap(
       spacing: 10,
       runSpacing: 8,
       crossAxisAlignment: WrapCrossAlignment.center,
       children: [
-        const Text(
-          '日志',
-          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
-        ),
         Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -466,7 +478,7 @@ class _LoggerHistory extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => ColoredBox(
-    color: const Color(0xfff3f4f6),
+    color: Theme.of(context).colorScheme.surfaceContainerLow,
     child: Column(
       children: [
         ListTile(
@@ -481,11 +493,13 @@ class _LoggerHistory extends StatelessWidget {
           ),
         ),
         if (history.isEmpty)
-          const Padding(
+          Padding(
             padding: EdgeInsets.all(18),
             child: Text(
               '选择过的日志会显示在这里。',
-              style: TextStyle(color: Colors.black54),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
           )
         else
@@ -569,8 +583,8 @@ class _LoggerContent extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(20, 4, 20, 10),
           child: Text(
             '${logFileName(selectedPath!)} · ${logs.length} 条日志',
-            style: const TextStyle(
-              color: Colors.black54,
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
               fontWeight: FontWeight.w600,
             ),
           ),
@@ -587,9 +601,11 @@ class _LoggerContent extends StatelessWidget {
                   margin: const EdgeInsets.only(bottom: 8),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: Colors.white,
+                    color: Theme.of(context).colorScheme.surface,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: const Color(0xffe5e7eb)),
+                    border: Border.all(
+                      color: Theme.of(context).colorScheme.outlineVariant,
+                    ),
                   ),
                   child: SelectableText.rich(
                     TextSpan(
@@ -599,11 +615,11 @@ class _LoggerContent extends StatelessWidget {
                         currentMatch,
                       ),
                     ),
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontFamily: 'Menlo',
                       fontSize: 13,
                       height: 1.45,
-                      color: Color(0xff1d1d1f),
+                      color: Theme.of(context).colorScheme.onSurface,
                     ),
                   ),
                 );
@@ -636,6 +652,7 @@ List<TextSpan> _loggerSpans(
           fontWeight: indexed.$1 == currentMatch
               ? FontWeight.w700
               : FontWeight.w500,
+          color: const Color(0xff20242a),
           backgroundColor: indexed.$1 == currentMatch
               ? const Color(0xffffc857)
               : const Color(0xfffff3a3),
@@ -661,12 +678,18 @@ class _LoggerMessage extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 44, color: Colors.black38),
+          Icon(
+            icon,
+            size: 44,
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
           const SizedBox(height: 12),
           Text(
             text,
             textAlign: TextAlign.center,
-            style: const TextStyle(color: Colors.black54),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
           ),
         ],
       ),

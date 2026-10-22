@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:yaml/yaml.dart';
 
 import '../domain/project_models.dart';
+import 'external_opener.dart';
 
 class InnoCompilerNotFoundException implements Exception {
   const InnoCompilerNotFoundException();
@@ -63,7 +64,20 @@ class LocalProjectService {
     final pubspec = loadYaml(await pubspecFile.readAsString()) as YamlMap;
     final dependencies = pubspec['dependencies'];
     if (dependencies is! YamlMap || !dependencies.containsKey('flutter')) {
-      throw Exception('所选目录不是 Flutter 项目：pubspec.yaml 中未声明 Flutter');
+      final metadata = File('$path$separator.metadata');
+      final nativeHook = File('$path${separator}hook${separator}build.dart');
+      final ffiPackage =
+          dependencies is YamlMap &&
+          dependencies.containsKey('code_assets') &&
+          dependencies.containsKey('hooks') &&
+          await metadata.exists() &&
+          await nativeHook.exists() &&
+          (loadYaml(await metadata.readAsString())
+                  as YamlMap?)?['project_type'] ==
+              'package_ffi';
+      if (!ffiPackage) {
+        throw Exception('所选目录不是 Flutter 项目：pubspec.yaml 中未声明 Flutter');
+      }
     }
 
     final android = Directory('$path${separator}android');
@@ -103,21 +117,17 @@ class LocalProjectService {
     if (!await output.exists()) {
       throw Exception('APK 输出目录尚不存在，请先完成一次 APK 构建');
     }
-    final result = Platform.isWindows
-        ? await Process.run('explorer.exe', [output.path])
-        : await Process.run('open', [output.path]);
-    if (result.exitCode != 0) {
-      throw Exception('无法打开 APK 输出目录：${result.stderr}');
-    }
+    await const ExternalOpener().openDirectory(
+      output.path,
+      description: 'APK 输出目录',
+    );
   }
 
   Future<void> openProjectFolder(String projectPath) async {
-    final result = Platform.isWindows
-        ? await Process.run('explorer.exe', [projectPath])
-        : await Process.run('open', [projectPath]);
-    if (result.exitCode != 0) {
-      throw Exception('无法打开项目目录：${result.stderr}');
-    }
+    await const ExternalOpener().openDirectory(
+      projectPath,
+      description: '项目目录',
+    );
   }
 
   Future<bool> clearBuildDirectory(String projectPath) async {
@@ -132,17 +142,7 @@ class LocalProjectService {
 
   /// 在系统文件管理器中显示并选中文件。
   Future<void> revealFile(String filePath) async {
-    late final ProcessResult result;
-    if (Platform.isMacOS) {
-      result = await Process.run('open', ['-R', filePath]);
-    } else if (Platform.isWindows) {
-      result = await Process.run('explorer.exe', ['/select,', filePath]);
-    } else {
-      result = await Process.run('xdg-open', [File(filePath).parent.path]);
-    }
-    if (result.exitCode != 0) {
-      throw Exception('无法打开文件所在目录：${result.stderr}');
-    }
+    await const ExternalOpener().revealFile(filePath);
   }
 
   Future<void> openInAndroidStudio(String projectPath) async {
@@ -329,12 +329,10 @@ class LocalProjectService {
     if (!await dir.exists()) {
       throw Exception('构建产物目录不存在，请先完成一次构建');
     }
-    final result = Platform.isWindows
-        ? await Process.run('explorer.exe', [outputPath])
-        : await Process.run('open', [outputPath]);
-    if (result.exitCode != 0) {
-      throw Exception('无法打开目录：${result.stderr}');
-    }
+    await const ExternalOpener().openDirectory(
+      outputPath,
+      description: '构建产物目录',
+    );
   }
 
   Future<String> packageWindowsInnoSetup({

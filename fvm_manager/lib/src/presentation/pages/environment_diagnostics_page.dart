@@ -80,18 +80,17 @@ class _EnvironmentDiagnosticsPageState
               item.level == EnvironmentDiagnosticLevel.error,
         ) ??
         false;
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(28),
+    return WorkbenchScrollPage(
+      maxWidth: 1280,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Row(
-            children: [
-              const Text(
-                '环境诊断',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
-              ),
-              const Spacer(),
+          WorkbenchPageHeader(
+            title: '环境诊断',
+            subtitle:
+                '检查 FVM、Flutter SDK、Flutter Doctor、镜像网络、项目配置、设备、平台工具和 MCP 服务。',
+            breakpoint: 900,
+            actions: [
               FilledButton.icon(
                 onPressed: _running ? null : _run,
                 icon: _running
@@ -104,16 +103,14 @@ class _EnvironmentDiagnosticsPageState
               ),
             ],
           ),
-          const SizedBox(height: 6),
-          const Text(
-            '检查 FVM、Flutter SDK、Flutter Doctor、镜像网络、项目配置、设备、平台工具和 MCP 服务。',
-            style: TextStyle(color: Colors.black54),
-          ),
           if (report != null) ...[
             const SizedBox(height: 6),
             Text(
               '最近诊断：${_formatTime(report.finishedAt)}',
-              style: const TextStyle(color: Colors.black45, fontSize: 12),
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontSize: 12,
+              ),
             ),
           ],
           const SizedBox(height: 20),
@@ -130,6 +127,7 @@ class _EnvironmentDiagnosticsPageState
                 loading: widget.state.loading || _running,
                 onInstall: _installFvm,
                 onSelectLocal: _selectLocalFvm,
+                onSelectFile: () => _selectLocalFvm(chooseFile: true),
               ),
               const SizedBox(height: 16),
             ],
@@ -207,8 +205,10 @@ class _EnvironmentDiagnosticsPageState
     if (mounted) await _run();
   }
 
-  Future<void> _selectLocalFvm() async {
-    await ref.read(fvmControllerProvider.notifier).selectLocalFvmDirectory();
+  Future<void> _selectLocalFvm({bool chooseFile = false}) async {
+    await ref
+        .read(fvmControllerProvider.notifier)
+        .selectLocalFvmDirectory(chooseFile: chooseFile);
     if (!mounted) return;
     setState(() {});
     await _run();
@@ -253,21 +253,27 @@ class _FvmRequiredCard extends StatelessWidget {
     required this.loading,
     required this.onInstall,
     required this.onSelectLocal,
+    required this.onSelectFile,
   });
 
   final bool loading;
   final VoidCallback onInstall;
   final VoidCallback onSelectLocal;
+  final VoidCallback onSelectFile;
 
   @override
   Widget build(BuildContext context) => Card(
-    color: const Color(0xfffffbeb),
+    color: AppPalette.of(context).warningBackground,
     child: Padding(
       padding: const EdgeInsets.all(18),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.lock_outline, color: Colors.orange.shade800, size: 28),
+          Icon(
+            Icons.lock_outline,
+            color: AppPalette.of(context).warningText,
+            size: 28,
+          ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -283,8 +289,11 @@ class _FvmRequiredCard extends StatelessWidget {
                   '点击“安装 FVM”可自动安装，也可选择本地 FVM。'
                   '路径选到「fvm.exe / fvm.bat 所在目录」或其上一级即可'
                   '（Windows 通常是 C:\\Users\\<用户名>\\AppData\\Local\\Pub\\Cache\\bin）。'
-                  '不要选择 D:\\fvm 这类 Flutter SDK 缓存目录。',
-                  style: TextStyle(color: Colors.orange.shade900, height: 1.45),
+                  '也可选择 D:\\fvm 这类 Flutter SDK 缓存目录，软件会尝试寻找 FVM 程序。',
+                  style: TextStyle(
+                    color: AppPalette.of(context).warningText,
+                    height: 1.45,
+                  ),
                 ),
                 const SizedBox(height: 14),
                 Wrap(
@@ -299,7 +308,12 @@ class _FvmRequiredCard extends StatelessWidget {
                     OutlinedButton.icon(
                       onPressed: loading ? null : onSelectLocal,
                       icon: const Icon(Icons.folder_open_outlined),
-                      label: const Text('选择本地 FVM'),
+                      label: const Text('选择文件夹'),
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: loading ? null : onSelectFile,
+                      icon: const Icon(Icons.insert_drive_file_outlined),
+                      label: const Text('选择程序文件'),
                     ),
                   ],
                 ),
@@ -329,13 +343,17 @@ class _FlutterRequiredCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final targetVersion = version ?? recommendedVersion;
     return Card(
-      color: const Color(0xffeff6ff),
+      color: Theme.of(context).colorScheme.primaryContainer,
       child: Padding(
         padding: const EdgeInsets.all(18),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Icon(Icons.flutter_dash, color: Color(0xff087ea4), size: 30),
+            Icon(
+              Icons.flutter_dash,
+              color: Theme.of(context).colorScheme.primary,
+              size: 30,
+            ),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -353,8 +371,8 @@ class _FlutterRequiredCard extends StatelessWidget {
                     version == null
                         ? '安装推荐的 Stable 版本后，软件会在首次安装时自动将它设为全局版本。'
                         : '当前项目需要 Flutter $version，安装完成后即可继续运行和构建。',
-                    style: const TextStyle(
-                      color: Color(0xff075985),
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onPrimaryContainer,
                       height: 1.45,
                     ),
                   ),
@@ -391,13 +409,17 @@ class _NetworkRepairCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Card(
-    color: const Color(0xfffff7ed),
+    color: AppPalette.of(context).warningBackground,
     child: Padding(
       padding: const EdgeInsets.all(18),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.wifi_find, color: Color(0xffc2410c), size: 28),
+          Icon(
+            Icons.wifi_find,
+            color: AppPalette.of(context).warningText,
+            size: 28,
+          ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -408,9 +430,12 @@ class _NetworkRepairCard extends StatelessWidget {
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
                 ),
                 const SizedBox(height: 6),
-                const Text(
+                Text(
                   '可以并行测试全部已配置下载源，自动切换到当前可访问且延迟最低的一个。',
-                  style: TextStyle(color: Color(0xff9a3412), height: 1.45),
+                  style: TextStyle(
+                    color: AppPalette.of(context).warningText,
+                    height: 1.45,
+                  ),
                 ),
                 const SizedBox(height: 14),
                 FilledButton.icon(
@@ -554,13 +579,15 @@ class _DiagnosticItemTile extends StatelessWidget {
                 const SizedBox(height: 3),
                 SelectableText(
                   item.detail,
-                  style: const TextStyle(color: Colors.black54),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
                 ),
                 if (item.suggestion case final suggestion?) ...[
                   const SizedBox(height: 5),
                   Text(
                     '建议：$suggestion',
-                    style: TextStyle(color: Colors.orange.shade800),
+                    style: TextStyle(color: AppPalette.of(context).warningText),
                   ),
                 ],
                 if (item.documentationUrl case final url?) ...[

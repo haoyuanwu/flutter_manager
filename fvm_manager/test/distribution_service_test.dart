@@ -59,7 +59,9 @@ void main() {
     tearDown(() => project.delete(recursive: true));
 
     Future<File> file(String path, List<int> bytes) async {
-      final file = File('${project.path}/build/$path');
+      final file = File(
+        '${project.path}${Platform.pathSeparator}build${Platform.pathSeparator}${path.replaceAll('/', Platform.pathSeparator)}',
+      );
       await file.parent.create(recursive: true);
       return file.writeAsBytes(bytes);
     }
@@ -113,14 +115,16 @@ void main() {
           DateTime.now(),
         );
         expect(
-          published.single,
+          published.single.replaceAll('\\', '/'),
           endsWith('/build/outputs/release/apk/demo_app-v1.2.6+12-release.apk'),
         );
         expect(await File(published.single).readAsBytes(), [1, 2, 3]);
         expect(await original.exists(), isTrue);
         expect(
-          (await service.scanArtifacts(project.path)).single.path,
-          published.single,
+          (await service.scanArtifacts(
+            project.path,
+          )).single.path.replaceAll('\\', '/'),
+          published.single.replaceAll('\\', '/'),
         );
       },
     );

@@ -17,14 +17,20 @@ import '../domain/project_models.dart';
 import '../data/log_service.dart';
 import '../data/flutter_startup_lock_service.dart';
 import '../data/distribution_service.dart';
+import '../data/external_opener.dart';
 import '../data/local_project_service.dart';
 import '../data/mcp_ai_setup_service.dart';
 import '../data/pub_environment_service.dart';
 import 'confirm_dialog.dart';
+import 'create_project_dialog.dart';
+import 'project_dependencies_dialog.dart';
 import 'console_search.dart';
 import 'widgets/flutter_startup_lock_button.dart';
+import 'widgets/workbench_panel.dart';
+import 'widgets/workbench_layout.dart';
 import 'providers.dart';
 import 'theme/app_theme.dart';
+import 'theme/theme_controller.dart';
 
 part 'pages/environment_guide_page.dart';
 part 'pages/environment_diagnostics_page.dart';
@@ -147,7 +153,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         children: [
           Positioned.fill(
             child: state.loading && state.fvmVersion == null
-                ? const Center(
+                ? Center(
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -157,7 +163,14 @@ class _HomePageState extends ConsumerState<HomePage> {
                           child: CircularProgressIndicator(strokeWidth: 3),
                         ),
                         SizedBox(height: 16),
-                        Text('正在初始化…', style: TextStyle(color: Colors.black54)),
+                        Text(
+                          '正在初始化…',
+                          style: TextStyle(
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
+                          ),
+                        ),
                       ],
                     ),
                   )
@@ -175,6 +188,10 @@ class _HomePageState extends ConsumerState<HomePage> {
                             .ignoreFlutterUpdate,
                         onSelected: (value) => setState(() => _page = value),
                       ),
+                      VerticalDivider(
+                        width: 1,
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                      ),
                       Expanded(
                         child: Column(
                           children: [
@@ -187,7 +204,11 @@ class _HomePageState extends ConsumerState<HomePage> {
                               _DownloadStatusBar(state: state),
                             Expanded(
                               child: switch (_page) {
-                                0 => _Overview(state: state),
+                                0 => _Overview(
+                                  state: state,
+                                  onNavigate: (page) =>
+                                      setState(() => _page = page),
+                                ),
                                 1 => _EnvironmentDiagnosticsPage(
                                   state: state,
                                   refreshToken: _diagnosticsRunSeed,
@@ -226,6 +247,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                 message: state.errorMessage!,
                 error: true,
                 onDiagnosticsTap: _openDiagnostics,
+                onMcpTap: () => setState(() => _page = 9),
               ),
             )
           else if (state.statusMessage != null)
@@ -269,7 +291,9 @@ class _HomePageState extends ConsumerState<HomePage> {
           width: 430,
           child: Text(
             '点击“安装 FVM”可由软件自动选择当前系统可用的安装方式；如果已经安装但应用没有识别到，'
-            '请选择包含 fvm 可执行文件的目录，例如 ~/.pub-cache/bin 或 /opt/homebrew/bin。',
+            '可以选择 FVM 文件夹，或直接选择 fvm 程序文件。Windows 常见程序目录：'
+            'C:\\Users\\<用户名>\\AppData\\Local\\Pub\\Cache\\bin。'
+            'D:\\fvm 这类 Flutter SDK 缓存也可选择，软件会尝试定位对应程序。',
           ),
         ),
         actions: [
@@ -283,7 +307,15 @@ class _HomePageState extends ConsumerState<HomePage> {
               controller.selectLocalFvmDirectory();
             },
             icon: const Icon(Icons.folder_open),
-            label: const Text('选择本地 FVM'),
+            label: const Text('选择文件夹'),
+          ),
+          OutlinedButton.icon(
+            onPressed: () {
+              Navigator.pop(dialogContext);
+              controller.selectLocalFvmDirectory(chooseFile: true);
+            },
+            icon: const Icon(Icons.insert_drive_file_outlined),
+            label: const Text('选择程序文件'),
           ),
           FilledButton.icon(
             onPressed: () {

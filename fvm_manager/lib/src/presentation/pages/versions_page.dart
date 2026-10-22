@@ -16,31 +16,27 @@ class _Versions extends ConsumerWidget {
         .expand((sdk) => [sdk.name, sdk.flutterVersion])
         .toSet();
     return Padding(
-      padding: const EdgeInsets.all(28),
+      padding: AppSpacing.pagePadding,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              const Text(
-                'Flutter 版本',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
-              ),
+          WorkbenchPageHeader(
+            title: 'Flutter 版本',
+            breakpoint: 1000,
+            actions: [
               if (state.hasFlutterUpdate) ...[
-                const SizedBox(width: 10),
                 _UpdateDot(onTap: controller.ignoreFlutterUpdate),
-                const SizedBox(width: 8),
                 Text(
                   'Stable ${state.latestFlutterVersion}',
-                  style: const TextStyle(color: Colors.red),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                  ),
                 ),
-                const SizedBox(width: 4),
                 TextButton(
                   onPressed: controller.ignoreFlutterUpdate,
                   child: const Text('忽略'),
                 ),
               ],
-              const Spacer(),
               OutlinedButton.icon(
                 onPressed: state.fvmInstalled
                     ? controller.openFvmDirectory
@@ -48,7 +44,6 @@ class _Versions extends ConsumerWidget {
                 icon: const Icon(Icons.folder_open),
                 label: const Text('FVM 目录'),
               ),
-              const SizedBox(width: 8),
               OutlinedButton.icon(
                 onPressed: state.globalVersion != null
                     ? controller.openGlobalFlutterDirectory
@@ -58,7 +53,7 @@ class _Versions extends ConsumerWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 20),
           SegmentedButton<ReleaseChannel>(
             segments: const [
               ButtonSegment(
@@ -77,7 +72,7 @@ class _Versions extends ConsumerWidget {
           ),
           const SizedBox(height: 16),
           Expanded(
-            child: Card(
+            child: WorkbenchPanel(
               child: releases.isEmpty
                   ? const Center(child: Text('该通道暂无可用版本'))
                   : ListView.separated(
@@ -122,9 +117,9 @@ class _Versions extends ConsumerWidget {
                             horizontal: 20,
                             vertical: 6,
                           ),
-                          leading: const Icon(
+                          leading: Icon(
                             Icons.flutter_dash,
-                            color: Color(0xff087ea4),
+                            color: Theme.of(context).colorScheme.primary,
                           ),
                           title: Text(
                             'Flutter ${release.version}',

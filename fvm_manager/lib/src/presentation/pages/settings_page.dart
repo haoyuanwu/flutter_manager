@@ -32,19 +32,87 @@ class _SettingsPageState extends ConsumerState<_SettingsPage> {
   Widget build(BuildContext context) {
     final controller = ref.read(fvmControllerProvider.notifier);
     final packageInfoAsync = ref.watch(packageInfoProvider);
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(24),
+    final themeMode = ref.watch(appThemeModeProvider);
+    return WorkbenchScrollPage(
+      maxWidth: 960,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text(
-            '设置',
-            style: TextStyle(fontSize: 28, fontWeight: FontWeight.w800),
-          ),
-          const SizedBox(height: 4),
-          const Text('配置窗口、打印台和命令操作习惯。'),
+          const WorkbenchPageHeader(title: '设置'),
           const SizedBox(height: 20),
-          Card(
+          const WorkbenchSectionHeading(
+            title: '外观',
+            icon: Icons.palette_outlined,
+          ),
+          const SizedBox(height: 12),
+          WorkbenchSection(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final selection = SegmentedButton<ThemeMode>(
+                    key: const ValueKey('theme-mode-selector'),
+                    segments: const [
+                      ButtonSegment(
+                        value: ThemeMode.system,
+                        icon: Icon(Icons.brightness_auto_outlined),
+                        label: Text('跟随系统'),
+                      ),
+                      ButtonSegment(
+                        value: ThemeMode.light,
+                        icon: Icon(Icons.light_mode_outlined),
+                        label: Text('浅色'),
+                      ),
+                      ButtonSegment(
+                        value: ThemeMode.dark,
+                        icon: Icon(Icons.dark_mode_outlined),
+                        label: Text('深色'),
+                      ),
+                    ],
+                    selected: {themeMode},
+                    onSelectionChanged: (value) async {
+                      try {
+                        await ref
+                            .read(appThemeModeProvider.notifier)
+                            .setMode(value.single);
+                      } catch (error) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('无法保存主题设置：$error')),
+                          );
+                        }
+                      }
+                    },
+                  );
+                  return Wrap(
+                    spacing: 24,
+                    runSpacing: 12,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      const SizedBox(
+                        width: 180,
+                        child: Row(
+                          children: [
+                            Icon(Icons.palette_outlined),
+                            SizedBox(width: 16),
+                            Text('应用主题', style: AppTextStyles.bodyMedium),
+                          ],
+                        ),
+                      ),
+                      selection,
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          const WorkbenchSectionHeading(
+            title: '窗口与控制台',
+            icon: Icons.terminal_outlined,
+          ),
+          const SizedBox(height: 12),
+          WorkbenchSection(
             child: Column(
               children: [
                 SwitchListTile(
@@ -83,101 +151,117 @@ class _SettingsPageState extends ConsumerState<_SettingsPage> {
               ],
             ),
           ),
-          const SizedBox(height: 20),
-          Card(
+          const SizedBox(height: 24),
+          WorkbenchSectionHeading(
+            title: '分发平台配置',
+            icon: Icons.cloud_upload_outlined,
+            color: Theme.of(context).colorScheme.secondary,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            '配置全局的分发平台 API Key，所有项目共享。项目中配置的 Key 优先级更高。',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+              fontSize: 13,
+            ),
+          ),
+          const SizedBox(height: 12),
+          WorkbenchSection(
             child: Padding(
               padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    '分发平台配置',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    '配置全局的分发平台 API Key，所有项目共享。项目中配置的 Key 优先级更高。',
-                    style: TextStyle(color: Colors.black54, fontSize: 13),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _pgyerApiKeyController,
-                    decoration: InputDecoration(
-                      labelText: '蒲公英 API Key',
-                      hintText: '在蒲公英官网获取',
-                      border: const OutlineInputBorder(),
-                      prefixIcon: const Icon(Icons.cloud_upload_outlined),
-                      suffixIcon: IconButton(
-                        tooltip: '如何获取蒲公英 API Key',
-                        onPressed: () => _showPgyerApiKeyHelp(context, ref),
-                        icon: const Icon(Icons.help_outline),
+              child: WorkbenchSplitSections(
+                breakpoint: 840,
+                leading: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextField(
+                      controller: _pgyerApiKeyController,
+                      decoration: InputDecoration(
+                        labelText: '蒲公英 API Key',
+                        hintText: '在蒲公英官网获取',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.cloud_upload_outlined),
+                        suffixIcon: IconButton(
+                          tooltip: '如何获取蒲公英 API Key',
+                          onPressed: () => _showPgyerApiKeyHelp(context, ref),
+                          icon: const Icon(Icons.help_outline),
+                        ),
+                      ),
+                      onSubmitted: (value) => _savePgyerApiKey(value.trim()),
+                    ),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () => _savePgyerApiKey(
+                          _pgyerApiKeyController.text.trim(),
+                        ),
+                        child: const Text('保存蒲公英 Key'),
                       ),
                     ),
-                    onSubmitted: (value) => _savePgyerApiKey(value.trim()),
-                  ),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () =>
-                          _savePgyerApiKey(_pgyerApiKeyController.text.trim()),
-                      child: const Text('保存蒲公英 Key'),
+                  ],
+                ),
+                trailing: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextField(
+                      controller: _firApiTokenController,
+                      decoration: InputDecoration(
+                        labelText: 'fir.im API Token',
+                        hintText: '在 fir.im 个人设置中获取',
+                        border: const OutlineInputBorder(),
+                        prefixIcon: const Icon(Icons.rocket_launch_outlined),
+                        suffixIcon: IconButton(
+                          tooltip: '如何获取 fir.im API Token',
+                          onPressed: () => _showFirApiTokenHelp(context, ref),
+                          icon: const Icon(Icons.help_outline),
+                        ),
+                      ),
+                      onSubmitted: (value) => _saveFirApiToken(value.trim()),
                     ),
-                  ),
-                  const SizedBox(height: 16),
-                  TextField(
-                    controller: _firApiTokenController,
-                    decoration: InputDecoration(
-                      labelText: 'fir.im API Token',
-                      hintText: '在 fir.im 个人设置中获取',
-                      border: const OutlineInputBorder(),
-                      prefixIcon: const Icon(Icons.rocket_launch_outlined),
-                      suffixIcon: IconButton(
-                        tooltip: '如何获取 fir.im API Token',
-                        onPressed: () => _showFirApiTokenHelp(context, ref),
-                        icon: const Icon(Icons.help_outline),
+                    const SizedBox(height: 8),
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: TextButton(
+                        onPressed: () => _saveFirApiToken(
+                          _firApiTokenController.text.trim(),
+                        ),
+                        child: const Text('保存 fir.im Token'),
                       ),
                     ),
-                    onSubmitted: (value) => _saveFirApiToken(value.trim()),
-                  ),
-                  const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: TextButton(
-                      onPressed: () =>
-                          _saveFirApiToken(_firApiTokenController.text.trim()),
-                      child: const Text('保存 fir.im Token'),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ),
-          const SizedBox(height: 20),
-          Card(
+          const SizedBox(height: 24),
+          const WorkbenchSectionHeading(
+            title: '应用信息',
+            icon: Icons.info_outline,
+          ),
+          const SizedBox(height: 12),
+          WorkbenchSection(
             child: Padding(
               padding: const EdgeInsets.all(16),
               child: packageInfoAsync.when(
-                data: (packageInfo) => Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                data: (packageInfo) => Row(
                   children: [
-                    const Text(
-                      '应用信息',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.w600,
+                    Expanded(
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.info_outline),
+                        title: const Text('版本号'),
+                        subtitle: Text(packageInfo.version),
                       ),
                     ),
-                    const SizedBox(height: 12),
-                    ListTile(
-                      leading: const Icon(Icons.info_outline),
-                      title: const Text('版本号'),
-                      subtitle: Text(packageInfo.version),
-                    ),
-                    ListTile(
-                      leading: const Icon(Icons.build_outlined),
-                      title: const Text('版本编码'),
-                      subtitle: Text(packageInfo.buildNumber),
+                    const SizedBox(width: 24),
+                    Expanded(
+                      child: ListTile(
+                        contentPadding: EdgeInsets.zero,
+                        leading: const Icon(Icons.build_outlined),
+                        title: const Text('版本编码'),
+                        subtitle: Text(packageInfo.buildNumber),
+                      ),
                     ),
                   ],
                 ),

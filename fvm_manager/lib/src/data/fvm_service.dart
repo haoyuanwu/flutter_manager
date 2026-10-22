@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import '../domain/models.dart';
+import 'external_opener.dart';
 import 'pub_environment_service.dart';
 
 class FvmService {
@@ -220,15 +221,26 @@ class FvmService {
         Directory('$normalized${separator}default').existsSync() ||
         File('$normalized${separator}flutter.version').existsSync() ||
         File('$normalized${separator}version').existsSync();
+    if (!foundAny && looksLikeCache) {
+      for (final candidate in _candidates()) {
+        if (!await File(candidate).exists()) continue;
+        final probe = await _runVersionProbe(candidate);
+        if (probe.exitCode != 0) continue;
+        final version = _extractVersion(probe.output) ?? '';
+        await _environment.setCustomFvmExecutable(candidate);
+        await _environment.setCachedFvmExecutable(candidate);
+        _executable = candidate;
+        return version;
+      }
+    }
     final names = _fvmExecutableNames.join(' / ');
     final example =
         '示例：C:\\Users\\<用户名>\\AppData\\Local\\Pub\\Cache\\bin'
-        '（或其上级 Pub\\Cache，也可直接选中 fvm.bat）。'
-        '不要选择 D:\\fvm 这类 Flutter SDK 缓存目录。';
+        '（或其上级 Pub\\Cache，也可直接选中 fvm.bat）。';
     if (!foundAny && looksLikeCache) {
       throw Exception(
-        '所选目录是 FVM/Flutter SDK 缓存，不是 FVM 程序目录。\n'
-        '请改为选择 fvm.exe / fvm.bat 所在位置，通常是 '
+        '已识别到 Flutter SDK 缓存，但没有找到可运行的 FVM 程序。\n'
+        '请改为选择 fvm.exe / fvm.bat 所在文件夹，通常是 '
         '%LOCALAPPDATA%\\Pub\\Cache\\bin。\n$example',
       );
     }
@@ -498,15 +510,7 @@ class FvmService {
   }
 
   Future<void> _openDirectory(String path, String label) async {
-    if (!await Directory(path).exists()) {
-      throw Exception('$label 目录不存在：$path');
-    }
-    final result = Platform.isWindows
-        ? await Process.run('explorer.exe', [path])
-        : await Process.run('open', [path]);
-    if (result.exitCode != 0) {
-      throw Exception('无法打开 $label 目录：${result.stderr}');
-    }
+    await const ExternalOpener().openDirectory(path, description: '$label 目录');
   }
 
   Future<void> setGlobal(String version) async {
@@ -535,6 +539,27 @@ class FvmService {
     if (fvmrc.existsSync()) await fvmrc.delete();
     final fvmDir = Directory('$projectPath$separator.fvm');
     if (fvmDir.existsSync()) await fvmDir.delete(recursive: true);
+  }
+
+  Future<Process> startProjectCreationCommand({
+    required String parentDirectory,
+    required List<String> arguments,
+    String? sdkDirectory,
+  }) async {
+    final executable = sdkDirectory == null
+        ? _findExecutable('flutter')
+        : '${await _validatedFlutterSdk(Directory(sdkDirectory))}${Platform.pathSeparator}bin${Platform.pathSeparator}${Platform.isWindows ? 'flutter.bat' : 'flutter'}';
+    if (executable == null || !await File(executable).exists()) {
+      throw Exception('未找到 Flutter，请安装 SDK 或选择已安装版本');
+    }
+    return Process.start(
+      executable,
+      arguments,
+      workingDirectory: parentDirectory,
+      environment: _environment.processEnvironment,
+      includeParentEnvironment: false,
+      runInShell: Platform.isWindows,
+    );
   }
 
   Future<Process> startFlutterCommand({
