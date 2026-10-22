@@ -241,8 +241,9 @@ void main() {
         .first;
     tester.state<ScrollableState>(scroll).position.jumpTo(0);
     await tester.pumpAndSettle();
-    final item = find.text(title).first;
+    final item = find.descendant(of: navigation, matching: find.text(title));
     await tester.scrollUntilVisible(item, 120, scrollable: scroll);
+    await tester.pumpAndSettle();
     await tester.tap(item);
     await tester.pumpAndSettle();
   }
