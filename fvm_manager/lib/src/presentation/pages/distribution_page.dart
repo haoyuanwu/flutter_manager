@@ -3,9 +3,10 @@ part of '../home_page.dart';
 enum _ArtifactSort { newest, largest, name }
 
 class _DistributionPage extends ConsumerStatefulWidget {
-  const _DistributionPage({required this.state});
+  const _DistributionPage({required this.state, this.onSignApk});
 
   final FvmState state;
+  final ValueChanged<DistributionArtifact>? onSignApk;
 
   @override
   ConsumerState<_DistributionPage> createState() => _DistributionPageState();
@@ -265,6 +266,7 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
         children: [
           WorkbenchPageHeader(
             title: '构建产物中心',
+            accentColor: Theme.of(context).colorScheme.tertiary,
             subtitle: '集中查看、筛选和分发项目的最终安装包。',
             breakpoint: 760,
             actions: [
@@ -328,6 +330,11 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
                 );
                 final details = _SelectedArtifactCard(
                   artifact: _selectedArtifact,
+                  onSignApk:
+                      _selectedArtifact?.type == DistributionArtifactType.apk &&
+                          widget.onSignApk != null
+                      ? () => widget.onSignApk!(_selectedArtifact!)
+                      : null,
                   onCopyPath: _selectedArtifact == null
                       ? null
                       : () => _copyArtifactPath(_selectedArtifact!),
@@ -648,12 +655,14 @@ class _SelectedArtifactCard extends StatelessWidget {
     required this.onCopyPath,
     required this.onReveal,
     this.embedded = false,
+    this.onSignApk,
   });
 
   final DistributionArtifact? artifact;
   final VoidCallback? onCopyPath;
   final VoidCallback? onReveal;
   final bool embedded;
+  final VoidCallback? onSignApk;
 
   @override
   Widget build(BuildContext context) {
@@ -719,6 +728,13 @@ class _SelectedArtifactCard extends StatelessWidget {
                     icon: const Icon(Icons.copy_outlined, size: 17),
                     label: const Text('复制路径'),
                   ),
+                  if (onSignApk != null)
+                    FilledButton.icon(
+                      key: const ValueKey('artifact-use-for-signing'),
+                      onPressed: onSignApk,
+                      icon: const Icon(Icons.key_outlined, size: 17),
+                      label: const Text('使用此 APK 签名'),
+                    ),
                   OutlinedButton.icon(
                     onPressed: onReveal,
                     icon: const Icon(Icons.folder_open_outlined, size: 17),

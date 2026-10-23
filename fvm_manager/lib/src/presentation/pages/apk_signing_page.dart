@@ -1,7 +1,9 @@
 part of '../home_page.dart';
 
 class _ApkSigningPage extends ConsumerStatefulWidget {
-  const _ApkSigningPage();
+  const _ApkSigningPage({required this.onOpenSettings, this.initialApkPath});
+  final VoidCallback onOpenSettings;
+  final String? initialApkPath;
 
   @override
   ConsumerState<_ApkSigningPage> createState() => _ApkSigningPageState();
@@ -21,7 +23,19 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
   @override
   void initState() {
     super.initState();
+    if (widget.initialApkPath != null) {
+      _selectedApkPaths.add(widget.initialApkPath!);
+    }
     _loadConfig();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ApkSigningPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.initialApkPath != null &&
+        widget.initialApkPath != oldWidget.initialApkPath) {
+      _selectedApkPaths.add(widget.initialApkPath!);
+    }
   }
 
   Future<void> _loadConfig() async {
@@ -86,9 +100,22 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             mainAxisSize: scrollPage ? MainAxisSize.min : MainAxisSize.max,
             children: [
-              const WorkbenchPageHeader(
+              WorkbenchPageHeader(
                 title: 'APK 签名',
-                subtitle: '选择 APK 和密钥库文件进行签名',
+                subtitle: '配置签名凭据与输出规则，添加 APK 后批量签名。',
+                actions: [
+                  OutlinedButton.icon(
+                    onPressed: state.signingInProgress ? null : _addProjectApk,
+                    icon: const Icon(Icons.folder_copy_outlined, size: 18),
+                    label: const Text('从项目获取 APK'),
+                  ),
+                  IconButton(
+                    key: const ValueKey('apk-signing-settings'),
+                    tooltip: '签名后的源文件处理设置',
+                    onPressed: widget.onOpenSettings,
+                    icon: const Icon(Icons.settings_outlined),
+                  ),
+                ],
               ),
               const SizedBox(height: 20),
               _buildConfigSection(),
@@ -109,209 +136,184 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
 
   Widget _buildConfigSection() {
     return WorkbenchPanel(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+      key: const ValueKey('apk-signing-config'),
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const WorkbenchSectionHeading(
+            title: '签名配置',
+            icon: Icons.tune_outlined,
+          ),
+          const SizedBox(height: 16),
+          WorkbenchSplitSections(
+            breakpoint: 900,
+            leading: Column(
+              key: const ValueKey('apk-signing-credentials'),
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                const Icon(Icons.vpn_key_outlined, size: 20),
-                const SizedBox(width: 8),
-                const Text(
-                  '签名配置',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+                Text('签名凭据', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 12),
+                _buildPathPicker(
+                  buttonKey: const ValueKey('apk-signing-select-jks'),
+                  label: 'JKS / Keystore 文件',
+                  path: _config.jksPath,
+                  placeholder: '尚未选择密钥库',
+                  icon: Icons.key_outlined,
+                  actionLabel: _config.jksPath.isEmpty ? '选择文件' : '更换文件',
+                  onPressed: _pickJksFile,
                 ),
-                const Spacer(),
-                Flexible(
-                  child: SizedBox(
-                    height: 34,
-                    child: OutlinedButton.icon(
-                      onPressed: _pickJksFile,
-                      icon: const Icon(Icons.folder_open, size: 18),
-                      label: Text(
-                        _config.jksPath.isEmpty
-                            ? '选择 JKS 文件'
-                            : Uri.file(
-                                _config.jksPath,
-                                windows:
-                                    Platform.isWindows ||
-                                    _config.jksPath.contains('\\'),
-                              ).pathSegments.last,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                      style: OutlinedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                      ),
-                    ),
-                  ),
-                ),
+                const SizedBox(height: 12),
+                _buildCredentialFields(),
               ],
             ),
-            if (_config.jksPath.isNotEmpty) ...[
-              const SizedBox(height: 8),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerLow,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      Icons.insert_drive_file_outlined,
-                      size: 14,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 6),
-                    Expanded(
-                      child: Text(
-                        _config.jksPath,
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Theme.of(context).colorScheme.onSurfaceVariant,
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-            const SizedBox(height: 8),
-            _buildOutputDirectoryField(),
-            const SizedBox(height: 8),
-            _buildOutputNameFields(),
-            const SizedBox(height: 12),
-            Row(
+            trailing: Column(
+              key: const ValueKey('apk-signing-output-settings'),
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: _config.keyAliasHistory.isEmpty
-                      ? TextField(
-                          controller: _keyAliasController,
-                          decoration: const InputDecoration(
-                            labelText: 'Key Alias',
-                            border: OutlineInputBorder(),
-                            isDense: true,
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                          ),
-                          style: const TextStyle(fontSize: 14),
-                          onChanged: (_) => _saveConfig(),
-                        )
-                      : DropdownMenu<String>(
-                          controller: _keyAliasController,
-                          expandedInsets: EdgeInsets.zero,
-                          menuHeight: 280,
-                          label: const Text('Key Alias'),
-                          trailingIcon: const Icon(
-                            Icons.arrow_drop_down,
-                            size: 20,
-                          ),
-                          selectedTrailingIcon: const Icon(
-                            Icons.arrow_drop_up,
-                            size: 20,
-                          ),
-                          inputDecorationTheme: const InputDecorationTheme(
-                            isDense: true,
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            border: OutlineInputBorder(),
-                          ),
-                          textStyle: const TextStyle(fontSize: 14),
-                          dropdownMenuEntries: _config.keyAliasHistory.map((
-                            item,
-                          ) {
-                            return DropdownMenuEntry<String>(
-                              value: item,
-                              label: item,
-                              trailingIcon: GestureDetector(
-                                onTap: () => _removeKeyAliasHistory(item),
-                                child: const Icon(Icons.close, size: 14),
-                              ),
-                            );
-                          }).toList(),
-                          onSelected: (value) {
-                            if (value != null) {
-                              _keyAliasController.text = value;
-                              _saveConfig();
-                            }
-                          },
-                        ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _config.passwordHistory.isEmpty
-                      ? TextField(
-                          controller: _passwordController,
-                          decoration: const InputDecoration(
-                            labelText: '密码',
-                            border: OutlineInputBorder(),
-                            isDense: true,
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                          ),
-                          style: const TextStyle(fontSize: 14),
-                          onChanged: (_) => _saveConfig(),
-                        )
-                      : DropdownMenu<String>(
-                          controller: _passwordController,
-                          expandedInsets: EdgeInsets.zero,
-                          menuHeight: 280,
-                          label: const Text('密码'),
-                          trailingIcon: const Icon(
-                            Icons.arrow_drop_down,
-                            size: 20,
-                          ),
-                          selectedTrailingIcon: const Icon(
-                            Icons.arrow_drop_up,
-                            size: 20,
-                          ),
-                          inputDecorationTheme: const InputDecorationTheme(
-                            isDense: true,
-                            contentPadding: EdgeInsets.symmetric(
-                              horizontal: 12,
-                              vertical: 10,
-                            ),
-                            border: OutlineInputBorder(),
-                          ),
-                          textStyle: const TextStyle(fontSize: 14),
-                          dropdownMenuEntries: _config.passwordHistory.map((
-                            item,
-                          ) {
-                            return DropdownMenuEntry<String>(
-                              value: item,
-                              label: item,
-                              trailingIcon: GestureDetector(
-                                onTap: () => _removePasswordHistory(item),
-                                child: const Icon(Icons.close, size: 14),
-                              ),
-                            );
-                          }).toList(),
-                          onSelected: (value) {
-                            if (value != null) {
-                              _passwordController.text = value;
-                              _saveConfig();
-                            }
-                          },
-                        ),
-                ),
+                Text('输出设置', style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 12),
+                _buildOutputDirectoryField(),
+                const SizedBox(height: 12),
+                _buildOutputNameFields(),
               ],
             ),
-          ],
-        ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            '配置修改后自动保存；命名前缀和后缀应用于本次选中的所有 APK。',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildOutputDirectoryField() {
+  Widget _buildCredentialFields() => Row(
+    children: [
+      Expanded(
+        child: _config.keyAliasHistory.isEmpty
+            ? TextField(
+                controller: _keyAliasController,
+                decoration: const InputDecoration(
+                  labelText: 'Key Alias',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                ),
+                style: Theme.of(context).textTheme.bodyLarge,
+                onChanged: (_) => _saveConfig(),
+              )
+            : DropdownMenu<String>(
+                controller: _keyAliasController,
+                expandedInsets: EdgeInsets.zero,
+                menuHeight: 280,
+                label: const Text('Key Alias'),
+                trailingIcon: const Icon(Icons.arrow_drop_down, size: 20),
+                selectedTrailingIcon: const Icon(Icons.arrow_drop_up, size: 20),
+                inputDecorationTheme: const InputDecorationTheme(
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  border: OutlineInputBorder(),
+                ),
+                textStyle: Theme.of(context).textTheme.bodyLarge,
+                dropdownMenuEntries: _config.keyAliasHistory.map((item) {
+                  return DropdownMenuEntry<String>(
+                    value: item,
+                    label: item,
+                    trailingIcon: GestureDetector(
+                      onTap: () => _removeKeyAliasHistory(item),
+                      child: const Icon(Icons.close, size: 14),
+                    ),
+                  );
+                }).toList(),
+                onSelected: (value) {
+                  if (value != null) {
+                    _keyAliasController.text = value;
+                    _saveConfig();
+                  }
+                },
+              ),
+      ),
+      const SizedBox(width: 12),
+      Expanded(
+        child: _config.passwordHistory.isEmpty
+            ? TextField(
+                controller: _passwordController,
+                decoration: const InputDecoration(
+                  labelText: '密码',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                ),
+                style: Theme.of(context).textTheme.bodyLarge,
+                onChanged: (_) => _saveConfig(),
+              )
+            : DropdownMenu<String>(
+                controller: _passwordController,
+                expandedInsets: EdgeInsets.zero,
+                menuHeight: 280,
+                label: const Text('密码'),
+                trailingIcon: const Icon(Icons.arrow_drop_down, size: 20),
+                selectedTrailingIcon: const Icon(Icons.arrow_drop_up, size: 20),
+                inputDecorationTheme: const InputDecorationTheme(
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 10,
+                  ),
+                  border: OutlineInputBorder(),
+                ),
+                textStyle: Theme.of(context).textTheme.bodyLarge,
+                dropdownMenuEntries: _config.passwordHistory.map((item) {
+                  return DropdownMenuEntry<String>(
+                    value: item,
+                    label: item,
+                    trailingIcon: GestureDetector(
+                      onTap: () => _removePasswordHistory(item),
+                      child: const Icon(Icons.close, size: 14),
+                    ),
+                  );
+                }).toList(),
+                onSelected: (value) {
+                  if (value != null) {
+                    _passwordController.text = value;
+                    _saveConfig();
+                  }
+                },
+              ),
+      ),
+    ],
+  );
+
+  Widget _buildOutputDirectoryField() => _buildPathPicker(
+    buttonKey: const ValueKey('apk-signing-select-output'),
+    label: '输出目录',
+    path: _config.outputDirectory,
+    placeholder: '选择签名后的 APK 保存位置',
+    icon: Icons.drive_folder_upload_outlined,
+    actionLabel: '选择目录',
+    onPressed: _pickOutputDirectory,
+  );
+
+  Widget _buildPathPicker({
+    required Key buttonKey,
+    required String label,
+    required String path,
+    required String placeholder,
+    required IconData icon,
+    required String actionLabel,
+    required VoidCallback onPressed,
+  }) {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.surfaceContainerLow,
@@ -319,36 +321,42 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
         border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            const Icon(Icons.drive_folder_upload_outlined, size: 18),
-            const SizedBox(width: 8),
-            const Text(
-              '输出目录',
-              style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-            ),
+            Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
             const SizedBox(width: 10),
             Expanded(
-              child: Text(
-                _config.outputDirectory,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(label, style: Theme.of(context).textTheme.bodySmall),
+                  const SizedBox(height: 4),
+                  Tooltip(
+                    message: path.isEmpty ? placeholder : path,
+                    child: Text(
+                      path.isEmpty ? placeholder : path,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(width: 8),
             OutlinedButton.icon(
-              onPressed: _pickOutputDirectory,
+              key: buttonKey,
+              onPressed: onPressed,
               icon: const Icon(Icons.folder_open, size: 16),
-              label: const Text('选择'),
+              label: Text(actionLabel),
               style: OutlinedButton.styleFrom(
-                minimumSize: const Size(0, 32),
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                minimumSize: const Size(104, 40),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 10,
+                ),
               ),
             ),
           ],
@@ -358,67 +366,47 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
   }
 
   Widget _buildOutputNameFields() {
-    return Row(
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const SizedBox(
-          width: 76,
-          child: Text(
-            '签名文件名',
-            style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-          ),
-        ),
-        Expanded(
-          child: TextField(
-            controller: _outputNamePrefixController,
-            decoration: const InputDecoration(
-              labelText: '统一前缀（可选）',
-              hintText: '例如 release_',
-              border: OutlineInputBorder(),
-              isDense: true,
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: 10,
-                vertical: 10,
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _outputNamePrefixController,
+                decoration: const InputDecoration(
+                  labelText: '统一前缀（可选）',
+                  hintText: '例如 release_',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 10,
+                  ),
+                ),
+                style: const TextStyle(fontSize: 13),
+                onChanged: (_) => _saveConfig(),
               ),
             ),
-            style: const TextStyle(fontSize: 13),
-            onChanged: (_) => _saveConfig(),
-          ),
-        ),
-        Padding(
-          padding: EdgeInsets.symmetric(horizontal: 7),
-          child: Text(
-            '原文件名',
-            style: TextStyle(
-              fontSize: 12,
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-            ),
-          ),
-        ),
-        Expanded(
-          child: TextField(
-            controller: _outputNameSuffixController,
-            decoration: const InputDecoration(
-              labelText: '统一后缀（可选）',
-              hintText: '例如 _signed',
-              border: OutlineInputBorder(),
-              isDense: true,
-              contentPadding: EdgeInsets.symmetric(
-                horizontal: 10,
-                vertical: 10,
+            const SizedBox(width: 12),
+            Expanded(
+              child: TextField(
+                controller: _outputNameSuffixController,
+                decoration: const InputDecoration(
+                  labelText: '统一后缀（可选）',
+                  hintText: '例如 _signed',
+                  border: OutlineInputBorder(),
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 10,
+                  ),
+                ),
+                style: const TextStyle(fontSize: 13),
+                onChanged: (_) => _saveConfig(),
               ),
             ),
-            style: const TextStyle(fontSize: 13),
-            onChanged: (_) => _saveConfig(),
-          ),
-        ),
-        const SizedBox(width: 8),
-        Tooltip(
-          message: '本次选中的所有 APK 都使用这组前缀和后缀',
-          child: Icon(
-            Icons.info_outline,
-            size: 18,
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
+          ],
         ),
       ],
     );
@@ -435,15 +423,22 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
         : 0.0;
 
     return WorkbenchPanel(
+      key: const ValueKey('apk-signing-unsigned-panel'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-            color: Theme.of(context).colorScheme.surfaceContainerLow,
+            color: Theme.of(
+              context,
+            ).colorScheme.primaryContainer.withValues(alpha: .4),
             child: Row(
               children: [
-                const Icon(Icons.inbox_outlined, size: 20),
+                Icon(
+                  Icons.inbox_outlined,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
                 const SizedBox(width: 8),
                 const Text(
                   '待签名',
@@ -483,7 +478,7 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                 const Spacer(),
                 if (hasApks && !signing)
                   SizedBox(
-                    height: 30,
+                    height: 36,
                     child: TextButton(
                       onPressed: () {
                         setState(() {
@@ -512,11 +507,12 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                   ),
                 const SizedBox(width: 4),
                 SizedBox(
-                  height: 30,
+                  height: 36,
                   child: OutlinedButton.icon(
+                    key: const ValueKey('apk-signing-add-apks'),
                     onPressed: signing ? null : () => _addApks(controller),
                     icon: const Icon(Icons.add, size: 16),
-                    label: const Text('添加', style: TextStyle(fontSize: 13)),
+                    label: const Text('添加 APK', style: TextStyle(fontSize: 13)),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       minimumSize: Size.zero,
@@ -589,32 +585,33 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                     ),
                   ),
           ),
-          if (hasApks)
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: FilledButton.icon(
-                onPressed: signing || _selectedApkPaths.isEmpty
-                    ? null
-                    : () => _signSelected(controller),
-                icon: signing
-                    ? const SizedBox(
-                        width: 16,
-                        height: 16,
-                        child: CircularProgressIndicator(
-                          strokeWidth: 2,
-                          color: Colors.white,
-                        ),
-                      )
-                    : const Icon(Icons.app_shortcut_outlined, size: 20),
-                label: Text(
-                  signing ? '签名中...' : '签名选中 (${_selectedApkPaths.length})',
-                  style: const TextStyle(fontSize: 14),
-                ),
-                style: FilledButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
+          Padding(
+            padding: const EdgeInsets.all(12),
+            child: FilledButton.icon(
+              key: const ValueKey('apk-signing-submit'),
+              onPressed: signing || _selectedApkPaths.isEmpty
+                  ? null
+                  : () => _signSelected(controller),
+              icon: signing
+                  ? SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Theme.of(context).colorScheme.onPrimary,
+                      ),
+                    )
+                  : const Icon(Icons.app_shortcut_outlined, size: 20),
+              label: Text(
+                signing ? '签名中...' : '签名选中 (${_selectedApkPaths.length})',
+                style: const TextStyle(fontSize: 14),
+              ),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size(double.infinity, 44),
+                padding: const EdgeInsets.symmetric(vertical: 12),
               ),
             ),
+          ),
         ],
       ),
     );
@@ -698,15 +695,22 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
     final successCount = state.signedApks.where((a) => a.success).length;
 
     return WorkbenchPanel(
+      key: const ValueKey('apk-signing-signed-panel'),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Container(
             padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-            color: Theme.of(context).colorScheme.surfaceContainerLow,
+            color: Theme.of(
+              context,
+            ).colorScheme.secondaryContainer.withValues(alpha: .4),
             child: Row(
               children: [
-                const Icon(Icons.check_circle_outline, size: 20),
+                Icon(
+                  Icons.check_circle_outline,
+                  size: 20,
+                  color: Theme.of(context).colorScheme.secondary,
+                ),
                 const SizedBox(width: 8),
                 const Text(
                   '已签名',
@@ -739,7 +743,7 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                 const Spacer(),
                 if (hasApks)
                   SizedBox(
-                    height: 30,
+                    height: 36,
                     child: TextButton(
                       onPressed: () {
                         ref
@@ -756,11 +760,11 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                   ),
                 const SizedBox(width: 4),
                 SizedBox(
-                  height: 30,
+                  height: 36,
                   child: OutlinedButton.icon(
                     onPressed: _openSignedOutputDir,
                     icon: const Icon(Icons.folder_open, size: 16),
-                    label: const Text('目录', style: TextStyle(fontSize: 13)),
+                    label: const Text('打开目录', style: TextStyle(fontSize: 13)),
                     style: OutlinedButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 10),
                       minimumSize: Size.zero,
@@ -863,7 +867,10 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
                 ),
                 const SizedBox(height: 2),
                 apk.success
-                    ? _buildColoredSubtitle(subtitle)
+                    ? Tooltip(
+                        message: subtitle,
+                        child: _buildColoredSubtitle(subtitle),
+                      )
                     : Text(
                         subtitle,
                         maxLines: 1,
@@ -954,7 +961,11 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
   }
 
   String _buildSignedApkSubtitle(SignedApkInfo apk) {
+    if (apk.sourceReplacementError != null) return apk.sourceReplacementError!;
     final parts = <String>[];
+    if (apk.sourceBackupPath != null) {
+      parts.add('已覆盖源文件，原文件备份：${apk.sourceBackupPath}');
+    }
     if (apk.channel.isNotEmpty && apk.channel != '未知') {
       parts.add('渠道: ${apk.channel}');
     }
@@ -1055,6 +1066,26 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
     controller.addUnsignedApks(apks);
   }
 
+  Future<void> _addProjectApk() async {
+    final state = ref.read(fvmControllerProvider);
+    final path = await showProjectApkPicker(
+      context,
+      projects: state.managedProjects,
+      initialProjectPath: state.selectedManagedProjectPath,
+    );
+    if (path == null || !mounted) return;
+    try {
+      final apk = await ref
+          .read(apkSigningServiceProvider)
+          .extractApkInfo(path);
+      if (!mounted) return;
+      ref.read(apkSigningControllerProvider.notifier).addUnsignedApks([apk]);
+      setState(() => _selectedApkPaths.add(apk.path));
+    } catch (error) {
+      if (mounted) ref.read(fvmControllerProvider.notifier).showError(error);
+    }
+  }
+
   Future<void> _signSelected(ApkSigningController controller) async {
     if (_config.jksPath.isEmpty) {
       ScaffoldMessenger.of(
@@ -1084,8 +1115,11 @@ class _ApkSigningPageState extends ConsumerState<_ApkSigningPage> {
       outputNamePrefix: _outputNamePrefixController.text,
       outputNameSuffix: _outputNameSuffixController.text,
       selectedPaths: _selectedApkPaths.toList(),
+      chooseSourceHandling: (count) => mounted
+          ? confirmSigningSourceHandling(context, ref, count)
+          : Future.value(false),
     );
-    setState(() => _selectedApkPaths.clear());
+    if (mounted) setState(() => _selectedApkPaths.clear());
   }
 
   Future<void> _openSignedOutputDir() async {

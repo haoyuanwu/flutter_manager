@@ -1,21 +1,44 @@
 part of '../home_page.dart';
 
 class _SettingsPage extends ConsumerStatefulWidget {
-  const _SettingsPage({required this.state});
+  const _SettingsPage({required this.state, this.highlightSigning = false});
 
   final FvmState state;
+  final bool highlightSigning;
 
   @override
   ConsumerState<_SettingsPage> createState() => _SettingsPageState();
 }
 
 class _SettingsPageState extends ConsumerState<_SettingsPage> {
+  final _signingKey = GlobalKey();
+  Timer? _highlightTimer;
+  bool _highlight = false;
   late final TextEditingController _pgyerApiKeyController;
   late final TextEditingController _firApiTokenController;
 
   @override
   void initState() {
     super.initState();
+    _highlight = widget.highlightSigning;
+    if (_highlight) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        final target = _signingKey.currentContext;
+        if (target != null) {
+          Scrollable.ensureVisible(
+            target,
+            alignment: .15,
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 250),
+          );
+        }
+        _highlightTimer = Timer(const Duration(seconds: 5), () {
+          if (mounted) setState(() => _highlight = false);
+        });
+      });
+    }
     final env = ref.read(pubEnvironmentServiceProvider);
     _pgyerApiKeyController = TextEditingController(text: env.globalPgyerApiKey);
     _firApiTokenController = TextEditingController(text: env.globalFirApiToken);
@@ -23,9 +46,97 @@ class _SettingsPageState extends ConsumerState<_SettingsPage> {
 
   @override
   void dispose() {
+    _highlightTimer?.cancel();
     _pgyerApiKeyController.dispose();
     _firApiTokenController.dispose();
     super.dispose();
+  }
+
+  Future<void> _saveSigningPreference({
+    bool? rememberChoice,
+    bool? replaceSource,
+  }) async {
+    try {
+      await ref
+          .read(signingPreferencesProvider.notifier)
+          .update(rememberChoice: rememberChoice, replaceSource: replaceSource);
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('无法保存签名设置：$error')));
+      }
+    }
+  }
+
+  Widget _buildSigningPreferences() {
+    final preference = ref.watch(signingPreferencesProvider);
+    final colors = Theme.of(context).colorScheme;
+    return Column(
+      key: _signingKey,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const WorkbenchSectionHeading(
+          title: 'APK 签名',
+          icon: Icons.key_outlined,
+        ),
+        const SizedBox(height: 12),
+        AnimatedContainer(
+          key: const ValueKey('signing-source-preferences-highlight'),
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 200),
+          decoration: BoxDecoration(
+            color: _highlight ? colors.primaryContainer : colors.surface,
+            border: Border.all(
+              color: _highlight ? colors.primary : colors.outlineVariant,
+              width: 1,
+            ),
+            borderRadius: AppRadius.lgAll,
+          ),
+          padding: const EdgeInsets.all(16),
+          child: Material(
+            color: Colors.transparent,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Text('签名后的源文件处理', style: AppTextStyles.h4),
+                const SizedBox(height: 8),
+                Text(
+                  '保留：签名包保存到输出目录。覆盖：替换源 APK，自动保存 .bak 备份。',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 12),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: SegmentedButton<bool>(
+                    key: const ValueKey('signing-source-default-choice'),
+                    segments: const [
+                      ButtonSegment(value: false, label: Text('保留原文件')),
+                      ButtonSegment(value: true, label: Text('覆盖源文件')),
+                    ],
+                    selected: {preference.replaceSource},
+                    onSelectionChanged: (value) =>
+                        _saveSigningPreference(replaceSource: value.single),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                CheckboxListTile(
+                  key: const ValueKey('signing-source-remember-setting'),
+                  controlAffinity: ListTileControlAffinity.leading,
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('以后不再提示，使用以上选择'),
+                  subtitle: const Text('取消勾选后，签名成功时会再次询问。'),
+                  value: preference.rememberChoice,
+                  onChanged: (value) =>
+                      _saveSigningPreference(rememberChoice: value ?? false),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
@@ -106,6 +217,8 @@ class _SettingsPageState extends ConsumerState<_SettingsPage> {
               ),
             ),
           ),
+          const SizedBox(height: 24),
+          _buildSigningPreferences(),
           const SizedBox(height: 24),
           const WorkbenchSectionHeading(
             title: '窗口与控制台',

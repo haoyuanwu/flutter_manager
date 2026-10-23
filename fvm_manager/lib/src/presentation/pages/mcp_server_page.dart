@@ -96,14 +96,17 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const WorkbenchPageHeader(
+          WorkbenchPageHeader(
             title: 'MCP 服务',
+            accentColor: AppPalette.of(context).violet,
             subtitle: '连接 AI 工具，在本机管理项目、运行命令和查看控制台。',
           ),
           const SizedBox(height: 20),
           WorkbenchSplitSections(
             breakpoint: 1000,
+            equalHeight: true,
             leading: WorkbenchPanel(
+              key: const ValueKey('mcp-local-service-panel'),
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
@@ -135,6 +138,34 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
                           ? null
                           : controller.setMcpServerEnabled,
                     ),
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.primaryContainer.withValues(alpha: .45),
+                        borderRadius: AppRadius.mdAll,
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.shield_outlined,
+                            size: 18,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              '仅监听本机地址，外部网络无法访问。请在同一台电脑的 AI 工具中接入。',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const SizedBox(height: 12),
                     if (runtime.error != null) ...[
                       const SizedBox(height: 12),
                       Semantics(
@@ -268,14 +299,16 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
               ),
             ),
             trailing: WorkbenchPanel(
+              key: const ValueKey('mcp-ai-setup-panel'),
               child: Padding(
                 padding: const EdgeInsets.all(20),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const WorkbenchSectionHeading(
+                    WorkbenchSectionHeading(
                       title: '一键接入 AI',
                       icon: Icons.auto_awesome_outlined,
+                      color: AppPalette.of(context).violet,
                     ),
                     const SizedBox(height: 8),
                     const Text(
@@ -354,10 +387,11 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
                                 .read(localProjectServiceProvider)
                                 .revealFile(serverPath);
                           } catch (error) {
-                            if (mounted)
+                            if (mounted) {
                               ref
                                   .read(fvmControllerProvider.notifier)
                                   .showError(error);
+                            }
                           }
                         },
                         icon: const Icon(Icons.folder_open_outlined, size: 18),

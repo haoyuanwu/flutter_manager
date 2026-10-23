@@ -1,9 +1,10 @@
 part of '../home_page.dart';
 
 class _SigningInfoPage extends ConsumerStatefulWidget {
-  const _SigningInfoPage({required this.state});
+  const _SigningInfoPage({required this.state, required this.onOpenSettings});
 
   final FvmState state;
+  final VoidCallback onOpenSettings;
 
   @override
   ConsumerState<_SigningInfoPage> createState() => _SigningInfoPageState();
@@ -13,8 +14,6 @@ class _SigningInfoPageState extends ConsumerState<_SigningInfoPage> {
   SigningInfo? _signingInfo;
   bool _loading = false;
   String? _error;
-  String? _selectedProjectPath;
-  String? _selectedApkPath;
   final _jksPathController = TextEditingController();
   final _passwordController = TextEditingController();
 
@@ -54,10 +53,6 @@ class _SigningInfoPageState extends ConsumerState<_SigningInfoPage> {
 
       if (result == null) return;
 
-      setState(() {
-        _selectedApkPath = result.path;
-        _selectedProjectPath = null;
-      });
       await _extractFromApk(result.path);
     } catch (e) {
       setState(() {
@@ -115,43 +110,13 @@ class _SigningInfoPageState extends ConsumerState<_SigningInfoPage> {
     }
   }
 
-  void _selectProjectApk(String projectPath) {
-    setState(() {
-      _selectedProjectPath = projectPath;
-      _selectedApkPath = null;
-    });
-
-    // 查找项目中的 APK 文件
-    final project = widget.state.managedProjects
-        .where((p) => p.path == projectPath)
-        .firstOrNull;
-
-    if (project != null && project.hasAndroid) {
-      final apkDir = Directory(
-        '${project.path}${Platform.pathSeparator}build${Platform.pathSeparator}app${Platform.pathSeparator}outputs${Platform.pathSeparator}flutter-apk',
-      );
-
-      if (apkDir.existsSync()) {
-        final apks = apkDir
-            .listSync()
-            .whereType<File>()
-            .where((f) => f.path.endsWith('.apk'))
-            .toList();
-
-        if (apks.isNotEmpty) {
-          // 按修改时间排序，获取最新的
-          apks.sort(
-            (a, b) => b.lastModifiedSync().compareTo(a.lastModifiedSync()),
-          );
-          _extractFromApk(apks.first.path);
-          return;
-        }
-      }
-    }
-
-    setState(() {
-      _error = '未找到项目构建的 APK 文件';
-    });
+  Future<void> _selectProjectApk(String projectPath) async {
+    final path = await showProjectApkPicker(
+      context,
+      projects: widget.state.managedProjects,
+      initialProjectPath: projectPath,
+    );
+    if (path != null && mounted) await _extractFromApk(path);
   }
 
   @override
@@ -164,142 +129,24 @@ class _SigningInfoPageState extends ConsumerState<_SigningInfoPage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const WorkbenchPageHeader(
+          WorkbenchPageHeader(
             title: '应用签名',
             subtitle: '查看 APK 或 JKS 文件的签名证书信息，包括 SHA1、SHA256、MD5 等。',
+            actions: [
+              IconButton(
+                key: const ValueKey('signing-info-settings'),
+                tooltip: '签名后的源文件处理设置',
+                onPressed: widget.onOpenSettings,
+                icon: const Icon(Icons.settings_outlined),
+              ),
+            ],
           ),
           const SizedBox(height: 20),
 
-          // 输入区域
-          WorkbenchPanel(
-            child: Padding(
-              padding: AppSpacing.cardPadding,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('选择签名文件', style: AppTextStyles.h3),
-                  const SizedBox(height: AppSpacing.lg),
-
-                  // JKS 文件选择
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _jksPathController,
-                          decoration: AppInputDecorations.defaultInput(
-                            labelText: 'JKS / Keystore 文件路径',
-                            hintText: '选择 .jks 或 .keystore 文件',
-                            prefixIcon: const Icon(Icons.key),
-                          ),
-                          readOnly: true,
-                        ),
-                      ),
-                      const SizedBox(width: AppSpacing.md),
-                      OutlinedButton.icon(
-                        onPressed: _selectJksFile,
-                        icon: const Icon(Icons.folder_open),
-                        label: const Text('选择 JKS'),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.md),
-
-                  // JKS 密码输入
-                  TextField(
-                    controller: _passwordController,
-                    decoration: AppInputDecorations.defaultInput(
-                      labelText: 'Keystore 密码（可选）',
-                      hintText: '默认为 changeit',
-                      prefixIcon: const Icon(Icons.lock_outline),
-                    ),
-                    obscureText: true,
-                    onSubmitted: (_) {
-                      if (_jksPathController.text.isNotEmpty) {
-                        _extractFromJks(_jksPathController.text);
-                      }
-                    },
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-
-                  // 分隔线
-                  const Row(
-                    children: [
-                      Expanded(child: Divider()),
-                      Padding(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: AppSpacing.md,
-                        ),
-                        child: Text('或者', style: AppTextStyles.caption),
-                      ),
-                      Expanded(child: Divider()),
-                    ],
-                  ),
-                  const SizedBox(height: AppSpacing.lg),
-
-                  // APK 文件选择
-                  Wrap(
-                    spacing: AppSpacing.md,
-                    runSpacing: AppSpacing.md,
-                    children: [
-                      OutlinedButton.icon(
-                        onPressed: _selectApkFile,
-                        icon: const Icon(Icons.android),
-                        label: const Text('选择 APK 文件'),
-                      ),
-                      if (projects.isNotEmpty)
-                        PopupMenuButton<String>(
-                          onSelected: _selectProjectApk,
-                          itemBuilder: (context) => projects
-                              .map(
-                                (project) => PopupMenuItem(
-                                  value: project.path,
-                                  child: ListTile(
-                                    leading: const Icon(Icons.folder_outlined),
-                                    title: Text(project.displayName),
-                                    subtitle: Text(
-                                      project.fvmVersion ?? '默认 Flutter',
-                                      style: AppTextStyles.captionSmall,
-                                    ),
-                                    dense: true,
-                                    contentPadding: EdgeInsets.zero,
-                                  ),
-                                ),
-                              )
-                              .toList(),
-                          child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 12,
-                            ),
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: Theme.of(context).colorScheme.outline,
-                              ),
-                              borderRadius: AppRadius.mdAll,
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(Icons.phone_android, size: 18),
-                                const SizedBox(width: 8),
-                                const Text('从项目获取 APK'),
-                                const SizedBox(width: 4),
-                                Icon(
-                                  Icons.arrow_drop_down,
-                                  size: 20,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
+          WorkbenchSplitSections(
+            equalHeight: true,
+            leading: _buildKeystoreSource(),
+            trailing: _buildApkSource(projects),
           ),
           const SizedBox(height: AppSpacing.xl),
 
@@ -353,6 +200,143 @@ class _SigningInfoPageState extends ConsumerState<_SigningInfoPage> {
       ),
     );
   }
+
+  Widget _buildKeystoreSource() => WorkbenchPanel(
+    key: const ValueKey('signing-keystore-source'),
+    padding: const EdgeInsets.all(20),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        WorkbenchSectionHeading(
+          title: '密钥库证书',
+          icon: Icons.key_outlined,
+          color: Theme.of(context).colorScheme.tertiary,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '读取 JKS / Keystore 的证书信息；可先填写密码，再选择文件。',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 16),
+        TextField(
+          controller: _passwordController,
+          enabled: !_loading,
+          decoration: AppInputDecorations.defaultInput(
+            labelText: 'Keystore 密码（可选）',
+            hintText: '默认为 changeit',
+            prefixIcon: const Icon(Icons.lock_outline),
+          ),
+          obscureText: true,
+          onSubmitted: (_) {
+            if (!_loading && _jksPathController.text.isNotEmpty) {
+              _extractFromJks(_jksPathController.text);
+            }
+          },
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          key: const ValueKey('signing-select-keystore'),
+          style: _sourceButtonStyle,
+          onPressed: _loading ? null : _selectJksFile,
+          icon: const Icon(Icons.folder_open_outlined, size: 18),
+          label: const Text('选择 JKS / Keystore'),
+        ),
+        if (_jksPathController.text.isNotEmpty) ...[
+          const SizedBox(height: 8),
+          SelectableText(
+            _jksPathController.text,
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ],
+    ),
+  );
+
+  // Both APK actions share bounds; appearance communicates their priority.
+  ButtonStyle get _sourceButtonStyle => ButtonStyle(
+    minimumSize: const WidgetStatePropertyAll(Size(double.infinity, 44)),
+    padding: const WidgetStatePropertyAll(
+      EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    ),
+    textStyle: WidgetStatePropertyAll(
+      Theme.of(context).textTheme.labelLarge!.copyWith(
+        fontSize: 13,
+        fontWeight: FontWeight.w600,
+      ),
+    ),
+  );
+
+  Widget _buildApkSource(List<FlutterProject> projects) => WorkbenchPanel(
+    key: const ValueKey('signing-apk-source'),
+    padding: const EdgeInsets.all(20),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        WorkbenchSectionHeading(
+          title: 'APK 安装包证书',
+          icon: Icons.android_outlined,
+          color: Theme.of(context).colorScheme.secondary,
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '选择本地 APK，或读取已管理项目最近一次构建的 APK。',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 16),
+        FilledButton.icon(
+          key: const ValueKey('signing-select-apk'),
+          style: _sourceButtonStyle,
+          onPressed: _loading ? null : _selectApkFile,
+          icon: const Icon(Icons.upload_file_outlined, size: 18),
+          label: const Text('选择 APK 文件'),
+        ),
+        const SizedBox(height: 12),
+        MenuAnchor(
+          menuChildren: [
+            for (final project in projects)
+              MenuItemButton(
+                onPressed: () => _selectProjectApk(project.path),
+                leadingIcon: const Icon(Icons.folder_outlined, size: 18),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(project.displayName),
+                    Text(
+                      project.fvmVersion ?? '默认 Flutter',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ),
+              ),
+          ],
+          builder: (context, menu, child) => OutlinedButton.icon(
+            key: const ValueKey('signing-project-apk'),
+            style: _sourceButtonStyle,
+            onPressed: _loading || projects.isEmpty
+                ? null
+                : () => menu.isOpen ? menu.close() : menu.open(),
+            icon: const Icon(Icons.folder_copy_outlined, size: 18),
+            label: const Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text('从项目获取 APK'),
+                SizedBox(width: 4),
+                Icon(Icons.expand_more, size: 18),
+              ],
+            ),
+          ),
+        ),
+        if (projects.isEmpty) ...[
+          const SizedBox(height: 8),
+          Text(
+            '暂无 Android 项目，请先在项目管理中添加。',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ],
+    ),
+  );
 
   Widget _buildSigningInfoCard(SigningInfo info) {
     return WorkbenchPanel(

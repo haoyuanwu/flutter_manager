@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../data/signing_preferences.dart';
 import 'dart:io';
 
 import 'package:archive/archive_io.dart';
@@ -169,6 +170,33 @@ final apkSigningControllerProvider =
       ApkSigningController.new,
     );
 
+final signingPreferencesStoreProvider = Provider<SigningPreferencesStore>(
+  (ref) => SigningPreferencesStore(),
+);
+final signingPreferencesProvider =
+    NotifierProvider<SigningPreferencesController, SigningPreferences>(
+      SigningPreferencesController.new,
+    );
+
+class SigningPreferencesController extends Notifier<SigningPreferences> {
+  Future<void> _pending = Future.value();
+  @override
+  SigningPreferences build() =>
+      ref.read(signingPreferencesStoreProvider).load();
+  Future<void> update({bool? rememberChoice, bool? replaceSource}) {
+    final task = _pending.then((_) async {
+      final next = state.copyWith(
+        rememberChoice: rememberChoice,
+        replaceSource: replaceSource,
+      );
+      await ref.read(signingPreferencesStoreProvider).save(next);
+      if (ref.mounted) state = next;
+    });
+    _pending = task.then((_) {}, onError: (Object error) {});
+    return task;
+  }
+}
+
 class ApkSigningState {
   const ApkSigningState({
     this.unsignedApks = const [],
@@ -235,6 +263,7 @@ class ApkSigningController extends Notifier<ApkSigningState> {
     String outputNamePrefix = '',
     String outputNameSuffix = '_signed',
     required List<String> selectedPaths,
+    Future<bool> Function(int count)? chooseSourceHandling,
   }) async {
     if (selectedPaths.isEmpty) return;
 
@@ -276,10 +305,29 @@ class ApkSigningController extends Notifier<ApkSigningState> {
       results.add(result);
     }
 
+    final successful = results.where((result) => result.success).length;
+    String? handlingError;
+    if (successful > 0 && chooseSourceHandling != null) {
+      try {
+        final replace = await chooseSourceHandling(successful);
+        if (replace) {
+          for (var i = 0; i < results.length; i++) {
+            if (results[i].success) {
+              results[i] = await service.replaceOriginal(results[i]);
+            }
+          }
+        }
+      } on Object catch (error) {
+        handlingError = '，源文件处理未完成，已保留签名产物：$error';
+      }
+    }
+
     state = state.copyWith(
       signingInProgress: false,
       signingStatus:
-          '签名完成: ${results.where((r) => r.success).length}/$total 成功',
+          '签名完成: ${results.where((r) => r.success).length}/$total 成功'
+          '${handlingError ?? ''}'
+          '${results.any((r) => r.sourceReplacementError != null) ? '，部分源文件未能覆盖，请查看结果' : ''}',
       signedApks: [...state.signedApks, ...results],
     );
   }

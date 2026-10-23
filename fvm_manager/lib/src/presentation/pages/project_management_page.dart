@@ -30,6 +30,7 @@ class _ProjectManagementState extends ConsumerState<_ProjectManagement> {
         children: [
           WorkbenchPageHeader(
             title: '项目管理',
+            accentColor: Theme.of(context).colorScheme.secondary,
             subtitle: '管理本地 Flutter 项目并执行常用开发、构建命令。',
             breakpoint: 1080,
             actions: [
@@ -247,7 +248,7 @@ class _ProjectManagementState extends ConsumerState<_ProjectManagement> {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     SizedBox(
-                      width: collapsed ? 68 : 260,
+                      width: collapsed ? 68 : 272,
                       child: collapsed
                           ? _CollapsedProjectList(
                               key: const ValueKey('collapsed-project-list'),
@@ -1199,6 +1200,15 @@ class _ProjectDetail extends ConsumerWidget {
                 children: [
                   Row(
                     children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).colorScheme.primaryContainer,
+                          borderRadius: AppRadius.lgAll,
+                        ),
+                        child: _ProjectLogo(project: project, size: 32),
+                      ),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Text(
                           project.displayName,
@@ -1264,9 +1274,9 @@ class _ProjectDetail extends ConsumerWidget {
               ),
             ),
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           _ProjectVersionSettings(project: project, state: state),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           WorkbenchPanel(
             child: Padding(
               padding: const EdgeInsets.all(20),
@@ -2171,7 +2181,7 @@ class _ProjectFvmSelector extends StatelessWidget {
                 menuMaxHeight: 300,
                 borderRadius: BorderRadius.circular(6),
                 iconSize: 20,
-                style: TextStyle(
+                style: Theme.of(context).textTheme.bodyMedium!.copyWith(
                   fontSize: 13,
                   color: disabled
                       ? Theme.of(context).colorScheme.onSurfaceVariant
@@ -2387,7 +2397,18 @@ class _CollapsibleProjectSectionState
     children: [
       Card(
         child: ListTile(
-          leading: Icon(widget.icon),
+          leading: Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.tertiaryContainer,
+              borderRadius: AppRadius.mdAll,
+            ),
+            child: Icon(
+              widget.icon,
+              size: 20,
+              color: Theme.of(context).colorScheme.tertiary,
+            ),
+          ),
           title: Text(
             widget.title,
             style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w700),

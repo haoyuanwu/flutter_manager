@@ -133,8 +133,21 @@ class _SidebarState extends State<_Sidebar> {
               ),
               title: const Text(
                 'Flutter Manager',
-                style: AppTextStyles.sidebarTitle,
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w700,
+                ),
               ),
+              subtitle: Text(
+                '开发 · 构建 · 分发',
+                style: TextStyle(
+                  fontSize: 11,
+                  color: AppPalette.of(context).sidebarText,
+                ),
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+              horizontalTitleGap: 10,
             ),
             const SizedBox(height: AppSpacing.lg),
             Expanded(
@@ -262,10 +275,25 @@ class _SidebarState extends State<_Sidebar> {
                 ),
               ),
             ),
-            Text(
-              Platform.isWindows ? 'Windows' : 'macOS',
-              style: AppTextStyles.captionSmall.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
+            Padding(
+              padding: const EdgeInsets.only(top: 12, left: 12),
+              child: Row(
+                children: [
+                  Icon(
+                    Platform.isWindows
+                        ? Icons.window
+                        : Icons.desktop_mac_outlined,
+                    size: 14,
+                    color: AppPalette.of(context).sidebarIcon,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    Platform.isWindows ? 'Windows 工作空间' : 'macOS 工作空间',
+                    style: AppTextStyles.captionSmall.copyWith(
+                      color: AppPalette.of(context).sidebarText,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -307,7 +335,14 @@ class _NavGroupHeader extends StatelessWidget {
               color: AppPalette.of(context).sidebarGroupTitle,
             ),
             const SizedBox(width: AppSpacing.sm),
-            Expanded(child: Text(title, style: AppTextStyles.sidebarGroup)),
+            Expanded(
+              child: Text(
+                title,
+                style: AppTextStyles.sidebarGroup.copyWith(
+                  color: AppPalette.of(context).sidebarGroupTitle,
+                ),
+              ),
+            ),
             AnimatedRotation(
               turns: expanded ? .5 : 0,
               duration: MediaQuery.disableAnimationsOf(context)
@@ -371,18 +406,18 @@ class _NavItem extends StatelessWidget {
               borderRadius: AppRadius.mdAll,
               border: Border.all(
                 color: selected
-                    ? AppPalette.of(context).border
+                    ? AppPalette.of(
+                        context,
+                      ).sidebarIndicator.withValues(alpha: .28)
                     : Colors.transparent,
               ),
             ),
             child: InkWell(
               borderRadius: AppRadius.mdAll,
-              hoverColor: Theme.of(
+              hoverColor: Colors.white.withValues(alpha: .08),
+              focusColor: AppPalette.of(
                 context,
-              ).colorScheme.onSurface.withValues(alpha: .05),
-              focusColor: Theme.of(
-                context,
-              ).colorScheme.primary.withValues(alpha: .14),
+              ).sidebarIndicator.withValues(alpha: .22),
               onTap: onTap,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 9),
@@ -429,6 +464,26 @@ class _NavItem extends StatelessWidget {
                       ),
                       const SizedBox(width: 6),
                     ],
+                    if (displayShortcut != null)
+                      ExcludeSemantics(
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 5,
+                            vertical: 3,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: .06),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            displayShortcut,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: AppPalette.of(context).sidebarGroupTitle,
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),

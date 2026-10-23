@@ -7,22 +7,40 @@ class WorkbenchPageHeader extends StatelessWidget {
     this.subtitle,
     this.actions = const [],
     this.breakpoint = 900,
+    this.accentColor,
   });
 
   final String title;
   final String? subtitle;
   final List<Widget> actions;
   final double breakpoint;
+  final Color? accentColor;
 
   @override
   Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
     final heading = Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          title,
-          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w700),
+        Row(
+          children: [
+            Container(
+              width: 4,
+              height: 24,
+              decoration: BoxDecoration(
+                color: accentColor ?? colors.primary,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Flexible(
+              child: Text(
+                title,
+                style: Theme.of(context).textTheme.headlineSmall,
+              ),
+            ),
+          ],
         ),
         if (subtitle != null) ...[
           const SizedBox(height: 6),
@@ -56,10 +74,10 @@ class WorkbenchPageHeader extends StatelessWidget {
         return Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Expanded(flex: 3, child: heading),
+            Expanded(flex: actions.length > 2 ? 2 : 3, child: heading),
             const SizedBox(width: 24),
             Expanded(
-              flex: actions.length > 2 ? 4 : 2,
+              flex: actions.length > 2 ? 5 : 2,
               child: Align(alignment: Alignment.topRight, child: toolbar),
             ),
           ],
@@ -131,7 +149,7 @@ class WorkbenchSectionHeading extends StatelessWidget {
           height: 32,
           decoration: BoxDecoration(
             color: accent.withValues(alpha: .1),
-            borderRadius: BorderRadius.circular(6),
+            borderRadius: BorderRadius.circular(10),
           ),
           child: Icon(icon, size: 18, color: accent),
         ),

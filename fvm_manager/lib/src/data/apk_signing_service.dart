@@ -48,6 +48,8 @@ class SignedApkInfo {
     this.versionCode = '',
     this.success = true,
     this.errorMessage,
+    this.sourceBackupPath,
+    this.sourceReplacementError,
   });
 
   final String originalPath;
@@ -59,6 +61,8 @@ class SignedApkInfo {
   final String versionCode;
   final bool success;
   final String? errorMessage;
+  final String? sourceBackupPath;
+  final String? sourceReplacementError;
 }
 
 /// Persisted signing configuration.
@@ -264,11 +268,7 @@ class ApkSigningService {
 
     // Check if file exists
     if (!File(normalizedPath).existsSync()) {
-      return ApkInfo(
-        path: normalizedPath,
-        name: name,
-        channel: '文件不存在',
-      );
+      return ApkInfo(path: normalizedPath, name: name, channel: '文件不存在');
     }
 
     final aaptPath = await findAapt();
@@ -430,13 +430,24 @@ class ApkSigningService {
     final name = _fileName(normalizedApkPath);
     final dotIdx = name.lastIndexOf('.');
     final baseName = dotIdx > 0 ? name.substring(0, dotIdx) : name;
-    final outputName = _signedOutputName(
+    var outputName = _signedOutputName(
       baseName,
       customBaseName: customBaseName,
       prefix: outputNamePrefix,
       suffix: outputNameSuffix,
     );
-    final outputPath = '$outputDir${Platform.pathSeparator}$outputName';
+    var outputPath = '$outputDir${Platform.pathSeparator}$outputName';
+    // Never sign over an input or an earlier output before the user's choice.
+    final desiredBase = outputName.substring(0, outputName.length - 4);
+    for (
+      var suffix = 2;
+      await FileSystemEntity.type(outputPath, followLinks: false) !=
+          FileSystemEntityType.notFound;
+      suffix++
+    ) {
+      outputName = '${desiredBase}_$suffix.apk';
+      outputPath = '$outputDir${Platform.pathSeparator}$outputName';
+    }
 
     // Copy APK to output path first, then sign in-place.
     try {
@@ -538,6 +549,80 @@ class ApkSigningService {
       versionCode: info.versionCode,
       success: true,
     );
+  }
+
+  /// Only called after successful verification and explicit/remembered consent.
+  /// A sibling backup makes replacement recoverable; the signed output is kept.
+  Future<SignedApkInfo> replaceOriginal(SignedApkInfo result) async {
+    if (!result.success) return result;
+    final source = File(result.originalPath);
+    final signed = File(result.outputPath);
+    File? staged;
+    File? backup;
+    var movedOriginal = false;
+    try {
+      if (!await source.exists() || !await signed.exists()) {
+        throw const FileSystemException('源文件或签名产物不存在');
+      }
+      if (await FileSystemEntity.identical(source.path, signed.path)) {
+        throw const FileSystemException('签名产物与源文件相同，拒绝覆盖');
+      }
+      // Do not follow a link and accidentally replace an unrelated target.
+      if (await FileSystemEntity.type(source.path, followLinks: false) !=
+          FileSystemEntityType.file) {
+        throw const FileSystemException('源文件不是普通文件');
+      }
+      final stagingDirectory = await Directory(
+        source.parent.path,
+      ).createTemp('.apk-signing-');
+      staged = await signed.copy(
+        '${stagingDirectory.path}${Platform.pathSeparator}signed.apk',
+      );
+      backup = File(
+        '${source.path}.original-${DateTime.now().microsecondsSinceEpoch}.bak',
+      );
+      if (await FileSystemEntity.type(backup.path, followLinks: false) !=
+          FileSystemEntityType.notFound) {
+        throw const FileSystemException('备份文件已存在');
+      }
+      await source.rename(backup.path);
+      movedOriginal = true;
+      await staged.rename(source.path);
+      return SignedApkInfo(
+        originalPath: result.originalPath,
+        outputPath: source.path,
+        outputName: _fileName(source.path),
+        channel: result.channel,
+        gdtChannel: result.gdtChannel,
+        versionName: result.versionName,
+        versionCode: result.versionCode,
+        sourceBackupPath: backup.path,
+      );
+    } on Object catch (error) {
+      if (movedOriginal && backup != null && !await source.exists()) {
+        await backup.rename(source.path);
+      }
+      return SignedApkInfo(
+        originalPath: result.originalPath,
+        outputPath: result.outputPath,
+        outputName: result.outputName,
+        channel: result.channel,
+        gdtChannel: result.gdtChannel,
+        versionName: result.versionName,
+        versionCode: result.versionCode,
+        sourceReplacementError: '签名已成功，覆盖失败，已保留独立产物：$error',
+      );
+    } finally {
+      try {
+        if (staged != null) {
+          if (await staged.exists()) await staged.delete();
+          if (await staged.parent.exists()) await staged.parent.delete();
+        }
+      } on FileSystemException {
+        // Temporary-file cleanup must not mask the replacement/recovery result.
+        // The source backup is never deleted here.
+      }
+    }
   }
 
   String _fileName(String path) =>

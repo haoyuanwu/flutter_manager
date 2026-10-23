@@ -87,6 +87,7 @@ class _EnvironmentDiagnosticsPageState
         children: [
           WorkbenchPageHeader(
             title: '环境诊断',
+            accentColor: Theme.of(context).colorScheme.secondary,
             subtitle:
                 '检查 FVM、Flutter SDK、Flutter Doctor、镜像网络、项目配置、设备、平台工具和 MCP 服务。',
             breakpoint: 900,

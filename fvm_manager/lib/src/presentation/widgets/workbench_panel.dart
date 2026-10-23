@@ -36,16 +36,16 @@ class _WorkbenchPanelState extends State<WorkbenchPanel> {
         clipBehavior: Clip.antiAlias,
         decoration: BoxDecoration(
           color: colors.surface,
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: BorderRadius.circular(12),
           border: Border.all(
             color: _focused ? colors.primary : colors.outlineVariant,
           ),
           boxShadow: colors.brightness == Brightness.light
               ? [
                   BoxShadow(
-                    color: colors.onSurface.withValues(alpha: .035),
-                    blurRadius: 8,
-                    offset: const Offset(0, 2),
+                    color: colors.primary.withValues(alpha: .035),
+                    blurRadius: 16,
+                    offset: const Offset(0, 4),
                   ),
                 ]
               : const [],
@@ -61,7 +61,7 @@ class _WorkbenchPanelState extends State<WorkbenchPanel> {
                     Container(
                       padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
                       decoration: BoxDecoration(
-                        color: colors.surfaceContainerLow,
+                        color: colors.primaryContainer.withValues(alpha: .35),
                         border: Border(
                           bottom: BorderSide(color: colors.outlineVariant),
                         ),
@@ -101,18 +101,11 @@ class WorkbenchSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Material(
     color: Theme.of(context).colorScheme.surface,
-    child: DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
-          bottom: BorderSide(
-            color: Theme.of(
-              context,
-            ).colorScheme.outlineVariant.withValues(alpha: .6),
-          ),
-        ),
-      ),
-      child: child,
+    clipBehavior: Clip.antiAlias,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(12),
+      side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
     ),
+    child: child,
   );
 }

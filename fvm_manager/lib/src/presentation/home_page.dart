@@ -24,6 +24,7 @@ import '../data/pub_environment_service.dart';
 import 'confirm_dialog.dart';
 import 'create_project_dialog.dart';
 import 'project_dependencies_dialog.dart';
+import 'signing_workflow_dialogs.dart';
 import 'console_search.dart';
 import 'widgets/flutter_startup_lock_button.dart';
 import 'widgets/workbench_panel.dart';
@@ -58,6 +59,31 @@ class HomePage extends ConsumerStatefulWidget {
 
 class _HomePageState extends ConsumerState<HomePage> {
   int _page = 0;
+  bool _highlightSigningSettings = false;
+  String? _initialSigningApk;
+
+  void _openSigningSettings() => setState(() {
+    _highlightSigningSettings = true;
+    _page = 10;
+  });
+
+  Future<void> _useArtifactForSigning(DistributionArtifact artifact) async {
+    if (artifact.type != DistributionArtifactType.apk) return;
+    try {
+      final info = await ref
+          .read(apkSigningServiceProvider)
+          .extractApkInfo(artifact.path);
+      if (!mounted) return;
+      ref.read(apkSigningControllerProvider.notifier).addUnsignedApks([info]);
+      setState(() {
+        _initialSigningApk = artifact.path;
+        _page = 5;
+      });
+    } catch (error) {
+      if (mounted) ref.read(fvmControllerProvider.notifier).showError(error);
+    }
+  }
+
   int _diagnosticsRunSeed = 0;
   EnvironmentDiagnosticReport? _diagnosticsReport;
   final Set<String> _promptedMissingProjects = {};
@@ -186,7 +212,11 @@ class _HomePageState extends ConsumerState<HomePage> {
                         onIgnoreFlutterUpdate: ref
                             .read(fvmControllerProvider.notifier)
                             .ignoreFlutterUpdate,
-                        onSelected: (value) => setState(() => _page = value),
+                        onSelected: (value) => setState(() {
+                          _highlightSigningSettings = false;
+                          _initialSigningApk = null;
+                          _page = value;
+                        }),
                       ),
                       VerticalDivider(
                         width: 1,
@@ -195,7 +225,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                       Expanded(
                         child: Column(
                           children: [
-                            _TopBar(state: state),
+                            _TopBar(state: state, page: _page),
                             if (state.activeVersion != null)
                               LinearProgressIndicator(
                                 value: state.downloadProgress,
@@ -221,13 +251,25 @@ class _HomePageState extends ConsumerState<HomePage> {
                                   state: state,
                                   onOpenDistribution: _openDistribution,
                                 ),
-                                4 => _DistributionPage(state: state),
-                                5 => const _ApkSigningPage(),
-                                6 => _SigningInfoPage(state: state),
+                                4 => _DistributionPage(
+                                  state: state,
+                                  onSignApk: _useArtifactForSigning,
+                                ),
+                                5 => _ApkSigningPage(
+                                  onOpenSettings: _openSigningSettings,
+                                  initialApkPath: _initialSigningApk,
+                                ),
+                                6 => _SigningInfoPage(
+                                  state: state,
+                                  onOpenSettings: _openSigningSettings,
+                                ),
                                 7 => const _LogPage(),
                                 8 => _EnvironmentGuide(state: state),
                                 9 => _McpServerPage(state: state),
-                                10 => _SettingsPage(state: state),
+                                10 => _SettingsPage(
+                                  state: state,
+                                  highlightSigning: _highlightSigningSettings,
+                                ),
                                 12 => const _SupportPage(),
                                 _ => const _ApkInstallPage(),
                               },

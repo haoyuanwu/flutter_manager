@@ -11,54 +11,54 @@ class AppTheme {
     final dark = brightness == Brightness.dark;
     final colors =
         ColorScheme.fromSeed(
-          seedColor: const Color(0xff0878c9),
+          seedColor: const Color(0xff3559d9),
           brightness: brightness,
         ).copyWith(
-          primary: dark ? const Color(0xff79c5ff) : const Color(0xff086db5),
-          onPrimary: dark ? const Color(0xff062c44) : Colors.white,
+          primary: dark ? const Color(0xffa9beff) : const Color(0xff3559d9),
+          onPrimary: dark ? const Color(0xff142967) : Colors.white,
           primaryContainer: dark
-              ? const Color(0xff19364c)
-              : const Color(0xffe5f1fc),
+              ? const Color(0xff25365e)
+              : const Color(0xffeaf0ff),
           onPrimaryContainer: dark
-              ? const Color(0xffb9dfff)
-              : const Color(0xff005b97),
-          surface: dark ? const Color(0xff24272c) : const Color(0xffffffff),
+              ? const Color(0xffdce5ff)
+              : const Color(0xff2745a8),
+          surface: dark ? const Color(0xff1b2435) : const Color(0xffffffff),
           surfaceContainerLowest: dark
-              ? const Color(0xff17191c)
-              : const Color(0xfff2f3f5),
+              ? const Color(0xff111827)
+              : const Color(0xfff4f6fb),
           surfaceContainerLow: dark
-              ? const Color(0xff2b2e34)
-              : const Color(0xfff7f8fa),
+              ? const Color(0xff202c40)
+              : const Color(0xfff8f9fd),
           surfaceContainer: dark
-              ? const Color(0xff30333a)
-              : const Color(0xffeceef1),
+              ? const Color(0xff27344a)
+              : const Color(0xffedf1f8),
           surfaceContainerHigh: dark
-              ? const Color(0xff373b42)
-              : const Color(0xffe5e8ec),
+              ? const Color(0xff303f57)
+              : const Color(0xffe6ebf5),
           surfaceContainerHighest: dark
-              ? const Color(0xff40454d)
-              : const Color(0xffdce1e7),
-          onSurface: dark ? const Color(0xffeceef2) : const Color(0xff24282e),
+              ? const Color(0xff3a4b65)
+              : const Color(0xffdce3ef),
+          onSurface: dark ? const Color(0xffedf2fc) : const Color(0xff202d45),
           onSurfaceVariant: dark
-              ? const Color(0xffb4bac4)
-              : const Color(0xff616975),
-          outline: dark ? const Color(0xff727b88) : const Color(0xff87919e),
+              ? const Color(0xffb5c1d7)
+              : const Color(0xff5d6b82),
+          outline: dark ? const Color(0xff8191ad) : const Color(0xff8290a8),
           outlineVariant: dark
-              ? const Color(0xff41464f)
-              : const Color(0xffd6dce3),
-          secondary: dark ? const Color(0xff71d7b5) : const Color(0xff17785f),
-          onSecondary: dark ? const Color(0xff062e23) : Colors.white,
+              ? const Color(0xff394962)
+              : const Color(0xffdfe5f0),
+          secondary: dark ? const Color(0xff77dfcc) : const Color(0xff087f78),
+          onSecondary: dark ? const Color(0xff063c36) : Colors.white,
           secondaryContainer: dark
-              ? const Color(0xff1c3930)
-              : const Color(0xffe8f5ef),
+              ? const Color(0xff173d3b)
+              : const Color(0xffe5f6f1),
           onSecondaryContainer: dark
-              ? const Color(0xffb5f2d9)
-              : const Color(0xff14533e),
-          tertiary: dark ? const Color(0xffebbd76) : const Color(0xff94611c),
+              ? const Color(0xffb2f3e7)
+              : const Color(0xff075e57),
+          tertiary: dark ? const Color(0xfff2c67e) : const Color(0xffa56314),
           onTertiary: dark ? const Color(0xff382407) : Colors.white,
           tertiaryContainer: dark
-              ? const Color(0xff41351f)
-              : const Color(0xfffff3df),
+              ? const Color(0xff433521)
+              : const Color(0xfffff4df),
           onTertiaryContainer: dark
               ? const Color(0xffffdba2)
               : const Color(0xff775019),
@@ -87,7 +87,7 @@ class AppTheme {
       ],
     );
     final shape = RoundedRectangleBorder(
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(AppRadius.md),
     );
     final button = ButtonStyle(
       visualDensity: VisualDensity.standard,
@@ -184,11 +184,14 @@ class AppTheme {
             ),
           ),
       cardTheme: CardThemeData(
-        color: Colors.transparent,
+        color: colors.surface,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         margin: EdgeInsets.zero,
-        shape: shape,
+        shape: RoundedRectangleBorder(
+          borderRadius: AppRadius.lgAll,
+          side: BorderSide(color: colors.outlineVariant),
+        ),
       ),
       filledButtonTheme: FilledButtonThemeData(
         style: button.copyWith(
@@ -233,19 +236,19 @@ class AppTheme {
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: dark ? const Color(0xff1e2126) : const Color(0xfffafbfc),
+        fillColor: colors.surfaceContainerLow,
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 12,
           vertical: 12,
         ),
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(6)),
+        border: OutlineInputBorder(borderRadius: AppRadius.mdAll),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: AppRadius.mdAll,
           borderSide: BorderSide(color: colors.outlineVariant),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(6),
+          borderRadius: AppRadius.mdAll,
           borderSide: BorderSide(color: colors.primary, width: 1.5),
         ),
         hintStyle: TextStyle(color: colors.onSurfaceVariant, fontSize: 13),
@@ -262,13 +265,16 @@ class AppTheme {
         side: BorderSide(color: colors.outlineVariant),
         backgroundColor: colors.surfaceContainerLow,
         selectedColor: colors.primaryContainer,
-        labelStyle: TextStyle(fontSize: 12, color: colors.onSurface),
+        labelStyle: base.textTheme.labelMedium!.copyWith(
+          fontSize: 12,
+          color: colors.onSurface,
+        ),
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: colors.surface,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        shape: RoundedRectangleBorder(borderRadius: AppRadius.xlAll),
       ),
       popupMenuTheme: PopupMenuThemeData(
         color: colors.surfaceContainerLow,
@@ -352,16 +358,20 @@ class AppPalette {
   Color get textPrimary => colors.onSurface;
   Color get textSecondary => colors.onSurfaceVariant;
   Color get textTertiary => colors.onSurfaceVariant;
+  Color get violet =>
+      isDark ? const Color(0xffc8b5ff) : const Color(0xff7552bf);
+  Color get violetContainer =>
+      isDark ? const Color(0xff342c50) : const Color(0xfff0eafa);
+  // The navigation keeps its own dark surface in both appearance modes.
   Color get sidebarBackground =>
-      isDark ? const Color(0xff1d1f23) : const Color(0xffe9ecf0);
-  Color get sidebarSelected =>
-      isDark ? const Color(0xff2c323a) : colors.surface;
-  Color get sidebarIndicator => colors.primary;
-  Color get sidebarText => colors.onSurfaceVariant;
-  Color get sidebarTextSelected => colors.primary;
-  Color get sidebarIcon => colors.onSurfaceVariant;
-  Color get sidebarIconSelected => colors.primary;
-  Color get sidebarGroupTitle => colors.onSurfaceVariant;
+      isDark ? const Color(0xff10192b) : const Color(0xff192641);
+  Color get sidebarSelected => const Color(0xff2c4070);
+  Color get sidebarIndicator => const Color(0xffa9c4ff);
+  Color get sidebarText => const Color(0xffc4cfe3);
+  Color get sidebarTextSelected => Colors.white;
+  Color get sidebarIcon => const Color(0xffa6b9d8);
+  Color get sidebarIconSelected => const Color(0xffb6ceff);
+  Color get sidebarGroupTitle => const Color(0xffa1b3d2);
   Color get messageErrorBackground => colors.errorContainer;
   Color get messageErrorBorder => colors.error.withValues(alpha: .4);
   Color get messageErrorText => colors.onErrorContainer;
@@ -469,9 +479,9 @@ class AppRadius {
   AppRadius._();
 
   static const double sm = 4;
-  static const double md = 6;
-  static const double lg = 6;
-  static const double xl = 8;
+  static const double md = 8;
+  static const double lg = 12;
+  static const double xl = 16;
   static const double full = 999;
 
   static BorderRadius get smAll => BorderRadius.circular(sm);

@@ -14,6 +14,7 @@ class _Overview extends ConsumerWidget {
       children: [
         WorkbenchPageHeader(
           title: '概览',
+          subtitle: '开发环境一目了然，从这里开始高效工作。',
           breakpoint: 700,
           actions: [
             OutlinedButton.icon(
@@ -401,8 +402,8 @@ class _MetricCard extends StatelessWidget {
   final Color? accent;
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    height: 116,
+  Widget build(BuildContext context) => ConstrainedBox(
+    constraints: const BoxConstraints(minHeight: 128),
     child: Card(
       child: InkWell(
         onTap: onTap,
@@ -414,7 +415,19 @@ class _MetricCard extends StatelessWidget {
           context,
         ).colorScheme.primary.withValues(alpha: .12),
         child: Ink(
-          decoration: AppCardStyles.metricDecoration(context),
+          decoration: BoxDecoration(
+            color: Color.alphaBlend(
+              (accent ?? Theme.of(context).colorScheme.primary).withValues(
+                alpha: .07,
+              ),
+              Theme.of(context).colorScheme.surface,
+            ),
+            borderRadius: AppRadius.lgAll,
+            border: Border.all(
+              color: (accent ?? Theme.of(context).colorScheme.primary)
+                  .withValues(alpha: .25),
+            ),
+          ),
           padding: const EdgeInsets.all(AppSpacing.xl - 4),
           child: Row(
             children: [
@@ -424,7 +437,7 @@ class _MetricCard extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: (accent ?? Theme.of(context).colorScheme.primary)
                       .withValues(alpha: .1),
-                  borderRadius: BorderRadius.circular(8),
+                  borderRadius: BorderRadius.circular(12),
                 ),
                 child: Icon(
                   icon,
@@ -442,26 +455,29 @@ class _MetricCard extends StatelessWidget {
                       title,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.caption,
+                      style: AppTextStyles.caption.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                     const SizedBox(height: AppSpacing.xs),
                     Text(
                       value,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: AppTextStyles.h2,
+                      style: AppTextStyles.h2.copyWith(
+                        fontSize: 24,
+                        color: accent ?? Theme.of(context).colorScheme.primary,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
                     ),
                     const SizedBox(height: 3),
-                    SizedBox(
-                      height: 16,
-                      child: subtitle == null
-                          ? const SizedBox.shrink()
-                          : Text(
-                              subtitle!,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: AppTextStyles.captionSmall,
-                            ),
+                    Text(
+                      subtitle ?? ' ',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AppTextStyles.captionSmall.copyWith(
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                   ],
                 ),
