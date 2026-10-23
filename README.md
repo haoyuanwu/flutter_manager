@@ -14,7 +14,7 @@
 这些步骤单独看都很小，项目一多就变成了每天的固定开销。Flutter Manager 想先把这些重复确认省掉。
 
 <p align="center">
-  <img src="docs/images/01-cover.png" alt="Flutter Manager" width="720" />
+  <img src="docs/images/v1.3-overview.png" alt="Flutter Manager 新版概览" width="960" />
 </p>
 
 
@@ -54,18 +54,26 @@
 ### 概览：先看清当前环境
 
 <p align="center">
-  <img src="docs/images/04-app-overview.png" alt="概览页" width="720" />
+  <img src="docs/images/v1.3-overview.png" alt="概览页" width="960" />
 </p>
 
 集中展示 FVM 版本、全局 Flutter 版本、已安装 SDK 与缓存，并提供打开目录、切换全局版本等入口。  
 「全局版本」和「项目版本」分开表达——旧项目可能有依赖约束，新项目可能需要另一套 SDK。
 
-> 概览截图中的版本号为演示数据；截图里仍可见旧版「日志」入口，当前代码已隐藏该侧边栏入口。
+> 以下为新版界面截图，业务 App Logo、本机路径和分发凭据已遮挡。截图中的 SDK 版本与历史安装包仅用于展示界面。
+
+### Flutter 版本：管理全局与项目 SDK
+
+<p align="center">
+  <img src="docs/images/v1.3-flutter-versions.png" alt="Flutter 版本与安装状态" width="960" />
+</p>
+
+按 Stable、Beta、Dev 渠道查看版本，下载与管理 SDK，设置全局版本，并为不同项目选择独立 Flutter 环境。
 
 ### 项目管理：把一次开发流程串起来
 
 <p align="center">
-  <img src="docs/images/05-project-management.png" alt="项目管理" width="720" />
+  <img src="docs/images/v1.3-projects.png" alt="项目管理，业务 App Logo 已遮挡" width="960" />
 </p>
 
 典型流程：
@@ -75,7 +83,7 @@
 3. 修改代码后热重载，必要时热重启或重新运行  
 4. 按目标平台和构建选项生成产物，再到产物中心查看与分发  
 
-项目目录被移动后支持重新定位，也可删除失效记录。
+项目列表支持读取项目 Logo，收起后通过图标直接切换。运行模式支持 Debug / Release，默认 Debug。项目目录被移动后支持重新定位，也可删除失效记录。
 
 <p align="center">
   <img src="docs/images/02-workflow.png" alt="功能流程示意" width="720" />
@@ -93,11 +101,13 @@
 ### 产物与分发：构建结束，接着交付
 
 <p align="center">
-  <img src="docs/images/06-distribution.png" alt="产物中心与分发" width="720" />
+  <img src="docs/images/v1.3-artifacts.png" alt="新版产物中心与分发" width="960" />
 </p>
 
 配置好凭据后，在产物中心选中安装包，一键上传到 **蒲公英** 或 **fir.im**，查看进度与结果。  
 APK 签名、应用签名信息、Bugly 符号表上传也有独立入口。
+
+支持从项目已生成的 APK 列表选择签名包；签名成功后可选择保留或覆盖源文件，并记住处理方式。macOS 批量构建成功后可发送本地通知，点击通知打开产物目录。
 
 > 可上传的文件格式以目标平台规则为准。截图中选中的是本地 DMG，仅用于展示入口。
 
@@ -114,6 +124,12 @@ APK 签名、应用签名信息、Bugly 符号表上传也有独立入口。
 
 让支持 MCP 的 AI 工具结合本机项目与真实运行状态进行操作，而不只是生成一串待复制的命令。
 
+<p align="center">
+  <img src="docs/images/v1.3-mcp.png" alt="本机 MCP 服务与一键接入 AI" width="960" />
+</p>
+
+在 MCP 页面点击「一键复制接入说明」，将 MCP、Skill 和命令选择指南交给本机 AI 客户端。接入后，可以让 AI 运行项目、修改页面后热重载、读取控制台，或在原生代码变更后重新运行。需要 Node.js 18+ 和支持 MCP 的本机客户端。
+
 ```text
 支持 MCP 的 AI 工具
         ↓ stdio
@@ -126,7 +142,7 @@ Flutter Manager App
 
 - App 控制接口 **只监听 `127.0.0.1`**，不会向局域网或外部网络开放  
 - 当前能力包括：列出/选择项目、列出设备、运行、重新运行、热重载、热重启、读取控制台等  
-- MCP Server、App 控制接口、AI 工具配置需分别完成；Skill 提供使用说明  
+- 一键接入说明引导配置 MCP Server 与 AI 工具；Skill 和命令指南说明热重载、热重启与重新运行的适用场景
 
 配置示例与 Skill 安装说明见 [`fvm_manager/mcp_server/README.md`](fvm_manager/mcp_server/README.md)。
 
@@ -187,7 +203,6 @@ flutter run -d windows   # 或 macos
 
 - 构建、下载速度仍取决于本机环境与网络 / 镜像服务  
 - 可上传的分发格式、安装分发规则以蒲公英 / fir.im 等平台为准  
-- 
 ---
 
 ## 后续想继续打磨
