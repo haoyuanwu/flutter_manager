@@ -2910,8 +2910,16 @@ class FvmController extends Notifier<FvmState> {
   }
 
   Future<void> packageMacosDmg(MacosPackageArchitecture architecture) async {
+    await packageMacosDmgs([architecture]);
+  }
+
+  Future<void> packageMacosDmgs(
+    List<MacosPackageArchitecture> architectures,
+  ) async {
     final project = _selectedManagedProject;
-    if (project == null) return;
+    if (project == null || state.loading || selectedTaskActive('build')) return;
+    final targets = architectures.toSet().toList();
+    if (targets.isEmpty) return;
     _consoleModes[project.path] = 'build';
     if (state.buildOpensConsoleWindow) {
       unawaited(_openConsoleWindow(project.path));
@@ -2919,15 +2927,39 @@ class FvmController extends Notifier<FvmState> {
       _mainBuildConsoleProjectPath = project.path;
       state = state.copyWith(buildConsoleVisible: true);
     }
-    state = state.copyWith(loading: true, statusMessage: '正在打包 DMG…');
+    _clearCommandLogFor(_taskId('build', project.path));
+    state = state.copyWith(
+      loading: true,
+      statusMessage: '正在打包 DMG…',
+      errorMessage: null,
+    );
+    final generated = <String>[];
     try {
-      final dmgPath = await ref
-          .read(localProjectServiceProvider)
-          .packageMacosDmg(project.path, project.name, architecture);
-      state = state.copyWith(statusMessage: 'DMG 已生成：$dmgPath');
-      await ref.read(localProjectServiceProvider).revealFile(dmgPath);
+      final service = ref.read(localProjectServiceProvider);
+      for (final architecture in targets) {
+        state = state.copyWith(
+          statusMessage:
+              '正在打包 DMG（${generated.length + 1}/${targets.length}）：${architecture.machineName}…',
+        );
+        generated.add(
+          await service.packageMacosDmg(
+            project.path,
+            project.name,
+            architecture,
+          ),
+        );
+      }
+      state = state.copyWith(
+        statusMessage: '已生成 ${generated.length} 个 DMG：${generated.join('、')}',
+      );
+      await service.revealFile(generated.last);
     } catch (error) {
-      state = state.copyWith(errorMessage: _message(error));
+      state = state.copyWith(
+        statusMessage: generated.isEmpty
+            ? null
+            : '已生成 ${generated.length} 个 DMG：${generated.join('、')}',
+        errorMessage: _message(error),
+      );
     } finally {
       state = state.copyWith(loading: false);
     }

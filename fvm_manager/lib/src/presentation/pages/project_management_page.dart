@@ -1771,42 +1771,59 @@ class _ProjectDetail extends ConsumerWidget {
                           const SizedBox(width: 8),
                           Tooltip(
                             message: '按芯片架构打包 DMG',
-                            child: PopupMenuButton<MacosPackageArchitecture>(
-                              enabled:
-                                  !state.loading &&
-                                  !controller.selectedTaskActive('build'),
-                              tooltip: '按芯片架构打包 DMG',
-                              onSelected: controller.packageMacosDmg,
-                              itemBuilder: (_) => const [
-                                PopupMenuItem(
-                                  value: MacosPackageArchitecture.intel,
-                                  child: Text('英特尔芯片 (x86_64)'),
+                            child:
+                                PopupMenuButton<List<MacosPackageArchitecture>>(
+                                  enabled:
+                                      !state.loading &&
+                                      !controller.selectedTaskActive('build'),
+                                  tooltip: '按芯片架构打包 DMG',
+                                  onSelected: controller.packageMacosDmgs,
+                                  itemBuilder: (_) => const [
+                                    PopupMenuItem(
+                                      value: [MacosPackageArchitecture.intel],
+                                      child: Text('英特尔芯片 (x86_64)'),
+                                    ),
+                                    PopupMenuItem(
+                                      value: [
+                                        MacosPackageArchitecture.appleSilicon,
+                                      ],
+                                      child: Text('苹果芯片 (arm64)'),
+                                    ),
+                                    PopupMenuItem(
+                                      value: [
+                                        MacosPackageArchitecture.appleSilicon,
+                                        MacosPackageArchitecture.intel,
+                                      ],
+                                      child: Text('双架构 (arm64 + x86_64)'),
+                                    ),
+                                  ],
+                                  icon: const Icon(
+                                    Icons.archive_outlined,
+                                    size: 18,
+                                  ),
+                                  style: ButtonStyle(
+                                    shape: const WidgetStatePropertyAll(
+                                      CircleBorder(),
+                                    ),
+                                    side: WidgetStateProperty.resolveWith((
+                                      states,
+                                    ) {
+                                      final colors = Theme.of(
+                                        context,
+                                      ).colorScheme;
+                                      return BorderSide(
+                                        color:
+                                            states.contains(
+                                              WidgetState.disabled,
+                                            )
+                                            ? colors.onSurface.withValues(
+                                                alpha: .12,
+                                              )
+                                            : colors.outline,
+                                      );
+                                    }),
+                                  ),
                                 ),
-                                PopupMenuItem(
-                                  value: MacosPackageArchitecture.appleSilicon,
-                                  child: Text('苹果芯片 (arm64)'),
-                                ),
-                              ],
-                              icon: const Icon(
-                                Icons.archive_outlined,
-                                size: 18,
-                              ),
-                              style: ButtonStyle(
-                                shape: const WidgetStatePropertyAll(
-                                  CircleBorder(),
-                                ),
-                                side: WidgetStateProperty.resolveWith((states) {
-                                  final colors = Theme.of(context).colorScheme;
-                                  return BorderSide(
-                                    color: states.contains(WidgetState.disabled)
-                                        ? colors.onSurface.withValues(
-                                            alpha: .12,
-                                          )
-                                        : colors.outline,
-                                  );
-                                }),
-                              ),
-                            ),
                           ),
                         ],
                         if (state.projectBuildTarget ==
@@ -1988,7 +2005,10 @@ class _ProjectDetail extends ConsumerWidget {
             ProjectBuildTarget.macos => const _PackageGuideContent(
               steps: [
                 ('产物位置', 'build/macos/Build/Products/Release/ 目录下，为 .app 包'),
-                ('打包 DMG', '点击归档图标选择英特尔或苹果芯片架构；文件名包含应用版本号'),
+                (
+                  '打包 DMG',
+                  '点击归档图标选择单架构或双架构；双架构依次生成两个 DMG，Release 应用需包含两个架构；文件名包含版本号',
+                ),
                 ('签名公证', '正式分发需进行代码签名和 Apple 公证：codesign + notarytool'),
                 ('拖拽安装', 'DMG 内放入 Applications 快捷方式，用户拖拽即可安装'),
                 ('Homebrew Cask', '可提交至 homebrew-cask 供用户 brew install 安装'),
