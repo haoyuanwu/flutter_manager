@@ -1,6 +1,7 @@
 import 'dart:async';
 import '../data/signing_preferences.dart';
 import 'dart:io';
+import '../data/build_notification_service.dart';
 
 import 'package:archive/archive_io.dart';
 import 'package:dio/dio.dart';
@@ -152,6 +153,10 @@ final buildDirectoryWatcherProvider = Provider<BuildDirectoryWatcher>((ref) {
 
 final apkSigningServiceProvider = Provider<ApkSigningService>(
   (ref) => ApkSigningService(ref.watch(processRunnerProvider)),
+);
+
+final buildNotificationServiceProvider = Provider<BuildNotificationService>(
+  (ref) => const BuildNotificationService(),
 );
 
 final apkInstallServiceProvider = Provider<ApkInstallService>(
@@ -1473,6 +1478,7 @@ class FvmController extends Notifier<FvmState> {
     _clearCommandLogFor(taskId);
     _startCommandTask(taskId, project.path, '自定义构建工作流');
     var stoppedByUser = false;
+    final buildStartedAt = DateTime.now();
     try {
       for (var index = 0; index < commands.length; index++) {
         final command = commands[index];
@@ -1526,6 +1532,14 @@ class FvmController extends Notifier<FvmState> {
       }
       if (!stoppedByUser) {
         state = state.copyWith(statusMessage: '自定义构建工作流完成');
+        if (commands.any(
+          (command) =>
+              command.executable == 'flutter' &&
+              command.arguments.isNotEmpty &&
+              command.arguments.first == 'build',
+        )) {
+          await _notifyBuildCompleted(project, buildStartedAt);
+        }
       }
     } catch (error) {
       state = state.copyWith(errorMessage: _message(error));
@@ -1724,6 +1738,9 @@ class FvmController extends Notifier<FvmState> {
       if (stoppedByUser && rethrowErrors) throw StateError('$label 已停止');
       if (!stoppedByUser) {
         state = state.copyWith(statusMessage: '$label 完成');
+        if (buildSession != null && project != null) {
+          await _notifyBuildCompleted(project, buildSession.startedAt);
+        }
       }
     } catch (error) {
       failed = true;
@@ -1739,6 +1756,58 @@ class FvmController extends Notifier<FvmState> {
         );
       }
       _finishCommandTask(taskId);
+    }
+  }
+
+  Future<void> _notifyBuildCompleted(
+    FlutterProject project,
+    DateTime startedAt,
+  ) async {
+    try {
+      final artifacts = await ref
+          .read(distributionServiceProvider)
+          .scanArtifacts(project.path);
+      final fresh = artifacts
+          .where(
+            (artifact) => !artifact.modified.isBefore(
+              startedAt.subtract(const Duration(seconds: 2)),
+            ),
+          )
+          .toList();
+      // Prefer the common parent of this batch's outputs; never use the
+      // currently selected project, which may change during an async build.
+      var directory = fresh.isEmpty
+          ? Directory('${project.path}${Platform.pathSeparator}build')
+          : File(fresh.first.path).parent;
+      for (final artifact in fresh.skip(1)) {
+        final parent = File(artifact.path).parent.absolute.path;
+        while (parent != directory.absolute.path &&
+            !parent.startsWith(
+              '${directory.absolute.path}${Platform.pathSeparator}',
+            )) {
+          if (directory.parent.path == directory.path) break;
+          directory = directory.parent;
+        }
+      }
+      if (!await directory.exists()) directory = Directory(project.path);
+      final delivered = await ref
+          .read(buildNotificationServiceProvider)
+          .completed(
+            projectName: project.displayName,
+            directory: directory.absolute.path,
+          );
+      if (!delivered && Platform.isMacOS) {
+        _appendCommandLog(
+          _taskId('build', project.path),
+          '\n[未发送构建通知：请在系统设置中允许 Flutter Manager 发送通知]\n',
+        );
+      }
+    } catch (error) {
+      // Build results remain successful if notification/scanning is unavailable.
+      _appendCommandLog(
+        _taskId('build', project.path),
+        '\n[构建通知不可用：${_message(error)}]\n',
+      );
     }
   }
 

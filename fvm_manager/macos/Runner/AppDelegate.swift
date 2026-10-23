@@ -1,8 +1,10 @@
 import Cocoa
 import FlutterMacOS
+import UserNotifications
 
 @main
-class AppDelegate: FlutterAppDelegate {
+class AppDelegate: FlutterAppDelegate, UNUserNotificationCenterDelegate {
+  private var buildNotificationChannel: FlutterMethodChannel?
   private var statusItem: NSStatusItem?
   private var statusMenuChannel: FlutterMethodChannel?
   private var dragDropChannel: FlutterMethodChannel?
@@ -19,6 +21,7 @@ class AppDelegate: FlutterAppDelegate {
 
   override func applicationDidFinishLaunching(_ notification: Notification) {
     super.applicationDidFinishLaunching(notification)
+    UNUserNotificationCenter.current().delegate = self
     if let window = NSApp.windows.first(where: { $0 is MainFlutterWindow }) as? MainFlutterWindow {
       attachMainWindow(window)
     } else {
@@ -64,6 +67,73 @@ class AppDelegate: FlutterAppDelegate {
     // 通过 Flutter Method Channel 发送到 Flutter 端
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
       self?.dragDropChannel?.invokeMethod("onPathDropped", arguments: path)
+    }
+  }
+
+  private func configureBuildNotificationChannel() {
+    guard buildNotificationChannel == nil,
+          let controller = mainWindow?.contentViewController as? FlutterViewController else { return }
+    let channel = FlutterMethodChannel(
+      name: "fvm_manager/build_notifications",
+      binaryMessenger: controller.engine.binaryMessenger
+    )
+    channel.setMethodCallHandler { call, result in
+      guard call.method == "buildCompleted" else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      guard let args = call.arguments as? [String: String],
+            let name = args["projectName"], let path = args["directory"],
+            path.hasPrefix("/") else {
+        result(FlutterError(code: "invalid_path", message: "构建目录无效", details: nil))
+        return
+      }
+      let center = UNUserNotificationCenter.current()
+      center.requestAuthorization(options: [.alert, .sound]) { granted, error in
+        guard granted, error == nil else {
+          DispatchQueue.main.async { result(false) }
+          return
+        }
+        let content = UNMutableNotificationContent()
+        content.title = "\(name) · 打包完成"
+        content.body = "全部构建步骤已成功完成，点击在访达中打开产物目录。"
+        content.sound = .default
+        content.userInfo = ["buildDirectory": path]
+        let request = UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil)
+        center.add(request) { error in
+          DispatchQueue.main.async { result(error == nil) }
+        }
+      }
+    }
+    buildNotificationChannel = channel
+  }
+
+  func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    willPresent notification: UNNotification,
+    withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+  ) {
+    if #available(macOS 11.0, *) {
+      completionHandler([.banner, .list, .sound])
+    } else {
+      completionHandler([.alert, .sound])
+    }
+  }
+
+  func userNotificationCenter(
+    _ center: UNUserNotificationCenter,
+    didReceive response: UNNotificationResponse,
+    withCompletionHandler completionHandler: @escaping () -> Void
+  ) {
+    guard response.actionIdentifier == UNNotificationDefaultActionIdentifier,
+          let path = response.notification.request.content.userInfo["buildDirectory"] as? String,
+          path.hasPrefix("/") else { completionHandler(); return }
+    DispatchQueue.main.async {
+      var isDirectory: ObjCBool = false
+      if FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory), isDirectory.boolValue {
+        NSWorkspace.shared.open(URL(fileURLWithPath: path, isDirectory: true))
+      }
+      completionHandler()
     }
   }
 
@@ -141,6 +211,7 @@ class AppDelegate: FlutterAppDelegate {
     configureStatusMenuChannel()
     configureDragDropChannel()
     configureAppearanceChannel()
+    configureBuildNotificationChannel()
 
     // 设置窗口支持拖放
     setupWindowDragDrop(window)
