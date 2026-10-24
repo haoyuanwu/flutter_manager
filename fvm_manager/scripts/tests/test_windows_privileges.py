@@ -14,6 +14,8 @@ class WindowsPrivilegesTest(unittest.TestCase):
         self.assertIsNotNone(level)
         self.assertEqual(level.attrib['level'], 'requireAdministrator')
         self.assertEqual(level.attrib['uiAccess'], 'false')
+        cmake = (ROOT / 'windows/runner/CMakeLists.txt').read_text(encoding='utf-8')
+        self.assertIn('/MANIFESTUAC:NO', cmake)
 
     def test_installer_launch_preserves_administrator_credentials(self):
         script = (ROOT / 'scripts/package_windows_release.ps1').read_text(

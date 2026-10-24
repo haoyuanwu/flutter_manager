@@ -20,6 +20,8 @@ add_executable(${BINARY_NAME} WIN32
 # that need different build settings.
 apply_standard_settings(${BINARY_NAME})
 target_compile_options(${BINARY_NAME} PRIVATE /utf-8)
+# 权限由 runner.exe.manifest 声明，避免链接器默认 asInvoker 与其冲突。
+target_link_options(${BINARY_NAME} PRIVATE /MANIFESTUAC:NO)
 
 # Add preprocessor definitions for the build version.
 target_compile_definitions(${BINARY_NAME} PRIVATE "FLUTTER_VERSION=\"${FLUTTER_VERSION}\"")
