@@ -8,6 +8,8 @@ param(
     [switch]$Build,
     [switch]$Upload,
     [switch]$UploadOnly,
+    [ValidatePattern('^[a-z0-9][a-z0-9-]*$')]
+    [string]$Revision,
     [ValidateRange(0, 7200)]
     [int]$WaitForReleaseSeconds = 0
 )
@@ -21,6 +23,8 @@ if ($pubspec -notmatch '(?m)^version:\s*(\d+\.\d+\.\d+)\+(\d+)\s*$') {
 $version = $Matches[1]
 $buildNumber = $Matches[2]
 $tag = "v$version"
+$revisionSuffix = if ($Revision) { "-$Revision" } else { '' }
+$manifestName = "SHA256SUMS-windows$revisionSuffix.txt"
 $sourceCommit = (& git -C $projectRoot rev-parse HEAD).Trim()
 if ($LASTEXITCODE -ne 0) { throw '无法读取当前 Git 提交。' }
 if ($UploadOnly -and !$Upload) { throw '-UploadOnly 必须和 -Upload 一起使用。' }
@@ -45,7 +49,7 @@ if ($Build) {
         throw 'Flutter SDK 缓存不完整，请先完成 SDK 初始化。'
     }
     # 每个版本使用独立构建目录，避免正在运行的旧程序锁住 Release 文件。
-    $buildDirectory = "build/windows-publish-$version-$buildNumber"
+    $buildDirectory = "build/windows-publish-$version-$buildNumber$revisionSuffix"
     $profile = Join-Path $projectRoot "build\windows-publish-profile-$version-$buildNumber"
     New-Item -ItemType Directory -Path $profile -Force | Out-Null
     @{ 'build-dir' = $buildDirectory } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $profile '.flutter_settings') -Encoding utf8
@@ -116,10 +120,10 @@ foreach ($runtimeFile in $runtimeFiles) {
     }
 }
 
-$output = Join-Path $projectRoot "build\release\windows-$version-$buildNumber"
-$filename = "Flutter-Manager-$version-windows-x64-setup.exe"
+$output = Join-Path $projectRoot "build\release\windows-$version-$buildNumber$revisionSuffix"
+$filename = "Flutter-Manager-$version-windows-x64$revisionSuffix-setup.exe"
 $installer = Join-Path $output $filename
-$manifest = Join-Path $output 'SHA256SUMS-windows.txt'
+$manifest = Join-Path $output $manifestName
 $receipt = Join-Path $output "$filename.json"
 foreach ($destination in @($installer, $manifest, $receipt)) {
     if (!$UploadOnly -and (Test-Path -LiteralPath $destination)) {
@@ -141,7 +145,14 @@ if ($Upload) {
     if ($metadata.tagName -ne $tag -or $metadata.isDraft) { throw 'Expected an existing published release.' }
     # 核对标签指向，禁止把当前代码构建的附件上传到其他版本源码下。
     $remoteCommit = & gh api "repos/$Repository/commits/$tag" --jq '.sha'
-    if ($LASTEXITCODE -ne 0 -or $remoteCommit.Trim() -ne $sourceCommit) { throw 'Release 标签与当前源码提交不一致。' }
+    if ($LASTEXITCODE -ne 0) { throw '无法读取 Release 标签源码。' }
+    if ($Revision) {
+        # 同版本修订保留原标签；源码必须已推送，且由原发布提交演进而来。
+        & git -C $projectRoot merge-base --is-ancestor $remoteCommit.Trim() $sourceCommit
+        if ($LASTEXITCODE -ne 0) { throw '修订源码不是原发布提交的后续版本。' }
+        $publishedCommit = & gh api "repos/$Repository/commits/$sourceCommit" --jq '.sha'
+        if ($LASTEXITCODE -ne 0 -or $publishedCommit.Trim() -ne $sourceCommit) { throw '请先推送修订源码。' }
+    } elseif ($remoteCommit.Trim() -ne $sourceCommit) { throw 'Release 标签与当前源码提交不一致。' }
     if (& git -C $projectRoot status --porcelain) { throw '构建后源码发生变化，请先检查并提交。' }
 }
 New-Item -ItemType Directory -Path $output -Force | Out-Null
@@ -159,6 +170,7 @@ AppId=flutter_manager
 AppName=Flutter Manager
 AppVersion=$version
 AppPublisher=Flutter Manager
+PrivilegesRequired=admin
 DefaultDirName={autopf}\flutter_manager
 DefaultGroupName=Flutter Manager
 DisableProgramGroupPage=yes
@@ -184,7 +196,7 @@ Name: "{group}\Flutter Manager"; Filename: "{app}\flutter_manager.exe"
 Name: "{autodesktop}\Flutter Manager"; Filename: "{app}\flutter_manager.exe"; Tasks: desktopicon
 
 [Run]
-Filename: "{app}\flutter_manager.exe"; Description: "{cm:LaunchProgram,Flutter Manager}"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\flutter_manager.exe"; WorkingDir: "{app}"; Description: "{cm:LaunchProgram,Flutter Manager}"; Flags: nowait postinstall skipifsilent shellexec runascurrentuser
 "@ | Set-Content -LiteralPath $script -Encoding UTF8
 & $IsccPath /Qp $script
 if ($LASTEXITCODE -ne 0 -or !(Test-Path -LiteralPath $installer)) {
@@ -226,10 +238,10 @@ if ($Upload) {
     }
     $verification = Join-Path $output ('download-check-' + [Guid]::NewGuid().ToString('N'))
     New-Item -ItemType Directory -Path $verification | Out-Null
-    & gh release download $tag --repo $Repository --pattern $filename --pattern 'SHA256SUMS-windows.txt' --dir $verification
+    & gh release download $tag --repo $Repository --pattern $filename --pattern $manifestName --dir $verification
     if ($LASTEXITCODE -ne 0) { throw 'Uploaded, but download verification failed.' }
     $downloadedDigest = (Get-FileHash -LiteralPath (Join-Path $verification $filename) -Algorithm SHA256).Hash.ToLowerInvariant()
-    $downloadedManifest = (Get-Content -LiteralPath (Join-Path $verification 'SHA256SUMS-windows.txt') -Raw).Trim()
+    $downloadedManifest = (Get-Content -LiteralPath (Join-Path $verification $manifestName) -Raw).Trim()
     if ($downloadedDigest -ne $digest -or $downloadedManifest -ne "$digest  $filename") {
         throw 'Downloaded installer checksum mismatch.'
     }

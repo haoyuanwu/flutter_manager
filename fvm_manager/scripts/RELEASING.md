@@ -50,6 +50,10 @@ powershell -ExecutionPolicy Bypass -File scripts/package_windows_release.ps1 -Up
 ```
 
 本地需要 Visual Studio C++ 桌面构建工具、Inno Setup、已登录的 GitHub CLI。
+Windows 安装器显式要求管理员权限，应用清单也声明 `requireAdministrator`。
+安装完成后通过 Windows Shell 以安装器当前管理员身份启动应用；从快捷方式
+或资源管理器启动时，由 Windows 按需弹出 UAC 确认，不能静默绕过授权。
+应用执行的 Flutter/FVM 等子进程也会继承管理员权限，请仅运行可信项目和命令。
 脚本会核对 exe 与 pubspec 的完整版本号，自动查找 Inno Setup 和 x64 Visual C++ 运行库。
 也可用 `-IsccPath`、`-VcRuntimeDirectory` 显式指定路径。去掉 `-Upload` 则仅打包。
 产物为 `build/release/windows-X.Y.Z-Build/Flutter-Manager-X.Y.Z-windows-x64-setup.exe` 和独立的
@@ -57,6 +61,11 @@ powershell -ExecutionPolicy Bypass -File scripts/package_windows_release.ps1 -Up
 `SHA256SUMS.txt`；上传后会下载 Windows 两个附件并校验 SHA-256。
 
 ### Windows 一条命令构建并上传
+
+用户明确要求维持版本号修复 Windows 包时，先用中文提交并推送修订源码，再添加
+`-Revision admin-fix`（修订名按实际问题指定）。该模式验证原发布提交是当前源码的
+祖先、当前源码已推送；不移动旧标签。安装包、校验清单及输出目录均带修订名，
+旧附件不覆盖。恢复上传时也必须带同一个 `-Revision`。
 
 先按上文用 `release.py --publish` 推送中文提交与新版本标签，再执行：
 
