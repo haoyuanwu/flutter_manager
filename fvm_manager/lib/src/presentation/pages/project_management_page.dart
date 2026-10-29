@@ -3008,6 +3008,7 @@ class _CommandConsole extends ConsumerStatefulWidget {
 class _CommandConsoleState extends ConsumerState<_CommandConsole> {
   final _scrollController = ScrollController();
   final _searchController = TextEditingController();
+  final _searchWorker = ConsoleSearchWorker();
   final _searchFocusNode = FocusNode();
   final _searchRevealKey = GlobalKey();
   final _logViewportKey = GlobalKey();
@@ -3048,6 +3049,7 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
     _scrollController
       ..removeListener(_handleScroll)
       ..dispose();
+    _searchWorker.cancel();
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
@@ -3092,6 +3094,7 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
 
   void _closeSearch() {
     _searchFocusNode.unfocus();
+    _searchWorker.cancel();
     _searchController.clear();
     setState(() {
       _showSearch = false;
@@ -3101,28 +3104,38 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
     });
   }
 
-  void _refreshMatches({bool preserveCurrent = false}) {
+  Future<void> _refreshMatches({
+    bool preserveCurrent = false,
+    bool submit = false,
+  }) async {
     final query = _searchController.text;
     final log = widget.state.commandLog;
-    final matches = findConsoleMatches(log, query);
-    final nextIndex =
-        preserveCurrent &&
-            query == _searchQuery &&
-            _currentMatch < matches.length
-        ? _currentMatch
-        : -1;
-    if (mounted) {
-      setState(() {
-        _searchQuery = query;
-        _matches = matches;
-        _currentMatch = nextIndex;
-      });
-    }
+    final previousQuery = _searchQuery;
+    // Hide stale ranges immediately; filtering runs entirely in the worker.
+    setState(() {
+      _searchQuery = query;
+      _matches = const [];
+      if (!preserveCurrent || query != previousQuery) _currentMatch = -1;
+    });
+    final matches = await _searchWorker.search(
+      log,
+      query,
+      delay: submit ? Duration.zero : const Duration(milliseconds: 300),
+    );
+    if (!mounted || matches == null) return;
+    setState(() {
+      _matches = matches;
+      if (_currentMatch >= matches.length) _currentMatch = -1;
+    });
+    if (submit) _nextMatch();
   }
 
   void _submitSearch() {
-    if (_searchController.text != _searchQuery) _refreshMatches();
-    _nextMatch();
+    if (_matches.isNotEmpty) {
+      _nextMatch();
+    } else {
+      _refreshMatches(submit: true);
+    }
   }
 
   void _previousMatch() {

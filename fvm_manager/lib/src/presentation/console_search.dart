@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:isolate';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
@@ -15,6 +18,77 @@ List<TextRange> findConsoleMatches(String text, String query) {
     offset = end;
   }
   return matches;
+}
+
+/// Debounces searches and terminates obsolete work, including pending spawns.
+class ConsoleSearchWorker {
+  Timer? _timer;
+  Isolate? _isolate;
+  ReceivePort? _port;
+  Completer<List<TextRange>?>? _pending;
+  int _generation = 0;
+
+  Future<List<TextRange>?> search(
+    String text,
+    String query, {
+    Duration delay = const Duration(milliseconds: 300),
+  }) {
+    cancel();
+    if (text.isEmpty || query.isEmpty) return Future.value(const []);
+    final generation = _generation;
+    final pending = Completer<List<TextRange>?>();
+    _pending = pending;
+    _timer = Timer(delay, () async {
+      final port = ReceivePort();
+      _port = port;
+      port.listen((message) {
+        if (generation != _generation) return;
+        if (message is! List<TextRange>) {
+          cancel();
+          return;
+        }
+        final matches = message;
+        pending.complete(matches);
+        _pending = null;
+        _isolate?.kill(priority: Isolate.immediate);
+        _isolate = null;
+        port.close();
+        _port = null;
+      });
+      try {
+        final isolate = await Isolate.spawn(_searchConsoleInBackground, (
+          port.sendPort,
+          text,
+          query,
+        ), onError: port.sendPort);
+        if (generation != _generation || pending.isCompleted) {
+          isolate.kill(priority: Isolate.immediate);
+        } else {
+          _isolate = isolate;
+        }
+      } on Object {
+        if (generation == _generation) cancel();
+      }
+    });
+    return pending.future;
+  }
+
+  void cancel() {
+    _generation++;
+    _timer?.cancel();
+    _timer = null;
+    _isolate?.kill(priority: Isolate.immediate);
+    _isolate = null;
+    _port?.close();
+    _port = null;
+    _pending?.complete(null);
+    _pending = null;
+  }
+}
+
+void _searchConsoleInBackground((SendPort, String, String) request) {
+  final (port, text, query) = request;
+  Isolate.exit(port, findConsoleMatches(text, query));
 }
 
 void revealConsoleMatch({

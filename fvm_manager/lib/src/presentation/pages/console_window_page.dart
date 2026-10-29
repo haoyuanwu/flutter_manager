@@ -93,6 +93,7 @@ class ConsoleWindowPage extends StatefulWidget {
 class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
   final _scrollController = ScrollController();
   final _searchController = TextEditingController();
+  final _searchWorker = ConsoleSearchWorker();
   final _searchFocusNode = FocusNode();
   final _logViewportKey = GlobalKey();
   final _logTextKey = GlobalKey();
@@ -107,7 +108,6 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
   bool _showSearch = false;
   bool _stickToBottom = true;
   bool _stoppingAndClosing = false;
-  String _searchQuery = '';
 
   @override
   void initState() {
@@ -147,12 +147,11 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
           )
           .toList(growable: false);
       final nextLog = data['commandLog'] as String? ?? _commandLog;
-      final nextMatches = findConsoleMatches(nextLog, _searchQuery);
+      final logChanged = nextLog != _commandLog;
       setState(() {
         _projectTitle = data['projectTitle'] as String? ?? _projectTitle;
         _commandLog = nextLog;
-        _matches = nextMatches;
-        if (_currentMatch >= nextMatches.length) _currentMatch = -1;
+
         _tasks = tasks;
         _showQuickCommands =
             data['showQuickCommands'] as bool? ?? _showQuickCommands;
@@ -160,6 +159,7 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
         _actionChannelName =
             data['actionChannelName'] as String? ?? _actionChannelName;
       });
+      if (logChanged) _updateSearch(_searchController.text);
       if (_stickToBottom && _currentMatch < 0) _scrollToBottom();
     });
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -188,6 +188,7 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
     _scrollController
       ..removeListener(_handleScroll)
       ..dispose();
+    _searchWorker.cancel();
     _searchController.dispose();
     _searchFocusNode.dispose();
     super.dispose();
@@ -232,21 +233,36 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
 
   void _closeSearch() {
     _searchFocusNode.unfocus();
+    _searchWorker.cancel();
     _searchController.clear();
     setState(() {
       _showSearch = false;
-      _searchQuery = '';
       _matches = const [];
       _currentMatch = -1;
     });
   }
 
-  void _updateSearch(String query) {
+  Future<void> _updateSearch(String query, {bool submit = false}) async {
     setState(() {
-      _searchQuery = query;
-      _matches = findConsoleMatches(_commandLog, query);
+      _matches = const [];
       _currentMatch = -1;
     });
+    final matches = await _searchWorker.search(
+      _commandLog,
+      query,
+      delay: submit ? Duration.zero : const Duration(milliseconds: 300),
+    );
+    if (!mounted || matches == null) return;
+    setState(() => _matches = matches);
+    if (submit) _nextMatch();
+  }
+
+  void _submitSearch() {
+    if (_matches.isNotEmpty) {
+      _nextMatch();
+    } else {
+      _updateSearch(_searchController.text, submit: true);
+    }
   }
 
   void _nextMatch() {
@@ -548,7 +564,7 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
                     ),
                     onChanged: _updateSearch,
                     onEditingComplete: () {},
-                    onSubmitted: (_) => _nextMatch(),
+                    onSubmitted: (_) => _submitSearch(),
                   ),
                 ),
                 const SizedBox(width: 8),
