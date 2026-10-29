@@ -3,6 +3,8 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:io';
 
+import 'windows_git_paths.dart';
+
 class MirrorOption {
   const MirrorOption({
     required this.id,
@@ -100,6 +102,62 @@ class PubEnvironmentService {
   Map<String, String>? _windowsRegistryEnvCache;
   DateTime? _windowsRegistryEnvAt;
 
+  List<String>? _windowsGitInstallations;
+
+  List<String> _findWindowsGitInstallations() {
+    if (_windowsGitInstallations case final cached?) return cached;
+    final roots = <String>[];
+    final systemRoot = _env('SystemRoot') ?? r'C:\Windows';
+    // 注册表可记录装在自定义盘符/目录中的 Git。
+    for (final key in const [
+      r'HKCU\Software\GitForWindows',
+      r'HKLM\Software\GitForWindows',
+      r'HKLM\Software\WOW6432Node\GitForWindows',
+    ]) {
+      try {
+        final result = Process.runSync('$systemRoot\\System32\\reg.exe', [
+          'query',
+          key,
+          '/v',
+          'InstallPath',
+        ], stdoutEncoding: SystemEncoding());
+        if (result.exitCode != 0) continue;
+        final match = RegExp(
+          r'InstallPath\s+REG_\w+\s+([^\r\n]+)',
+        ).firstMatch(result.stdout.toString());
+        if (match != null) roots.add(match.group(1)!.trim());
+      } on ProcessException {
+        // 没有注册的 Git 时继续查找便携版本。
+      }
+    }
+    final programFiles = _env('ProgramFiles(x86)') ?? r'C:\Program Files (x86)';
+    final vswhere =
+        '$programFiles\\Microsoft Visual Studio\\Installer\\vswhere.exe';
+    if (File(vswhere).existsSync()) {
+      try {
+        final result = Process.runSync(vswhere, [
+          '-latest',
+          '-products',
+          '*',
+          '-property',
+          'installationPath',
+          '-utf8',
+        ], stdoutEncoding: utf8);
+        if (result.exitCode == 0 &&
+            result.stdout.toString().trim().isNotEmpty) {
+          roots.add(
+            '${result.stdout.toString().trim()}'
+            '\\Common7\\IDE\\CommonExtensions\\Microsoft\\TeamFoundation'
+            '\\Team Explorer\\Git',
+          );
+        }
+      } on ProcessException {
+        // Visual Studio 不可查询时继续使用其他候选。
+      }
+    }
+    return _windowsGitInstallations = roots;
+  }
+
   /// Windows 环境变量名大小写不敏感，但 Dart Map 大小写敏感。
   /// 统一按小写查找 PATH / FVM_CACHE_PATH 等键。
   ///
@@ -140,24 +198,19 @@ class PubEnvironmentService {
           stderrEncoding: SystemEncoding(),
         );
         if (result.exitCode != 0) return;
-        for (final rawLine in result.stdout
-            .toString()
-            .split(RegExp(r'\r?\n'))) {
+        for (final rawLine in result.stdout.toString().split(
+          RegExp(r'\r?\n'),
+        )) {
           final line = rawLine.trim();
           if (line.isEmpty) continue;
-          final match = RegExp(
-            r'^(\S+)\s+REG_\w+\s+(.+)$',
-          ).firstMatch(line);
+          final match = RegExp(r'^(\S+)\s+REG_\w+\s+(.+)$').firstMatch(line);
           if (match == null) continue;
           final key = match.group(1)!.trim();
           var value = match.group(2)!.trim();
           // REG_EXPAND_SZ 里的 %VAR% 在 reg query 输出中保持原样，这里做一层展开。
           value = value.replaceAllMapped(RegExp(r'%([^%]+)%'), (m) {
             final token = m.group(1)!;
-            for (final entry in {
-              ...Platform.environment,
-              ...values,
-            }.entries) {
+            for (final entry in {...Platform.environment, ...values}.entries) {
               if (entry.key.toLowerCase() == token.toLowerCase()) {
                 return entry.value;
               }
@@ -270,6 +323,22 @@ class PubEnvironmentService {
       add(systemRoot);
       add('$systemRoot\\System32\\Wbem');
       add('$systemRoot\\System32\\WindowsPowerShell\\v1.0\\');
+      // FVM / Flutter 会继续调用 git；GUI 的 PATH 可能没有 Git 安装目录。
+      // 保留已有 PATH 优先级，只补入确实存在的常见安装。
+      for (final path in windowsGitPaths({
+        for (final name in const [
+          'ProgramW6432',
+          'ProgramFiles',
+          'ProgramFiles(x86)',
+          'USERPROFILE',
+          'LOCALAPPDATA',
+          'SCOOP',
+          'SCOOP_GLOBAL',
+        ])
+          name: ?_env(name),
+      }, installationRoots: _findWindowsGitInstallations())) {
+        add(path);
+      }
     }
     final home = _env(Platform.isWindows ? 'USERPROFILE' : 'HOME');
     final pubCache =
