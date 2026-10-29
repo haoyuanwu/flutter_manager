@@ -613,6 +613,16 @@ void main() {
     final field = find.byKey(const ValueKey('command-console-search-field'));
     await tester.enterText(field, 'target');
     await tester.pump();
+    expect(find.text('共 0 处 · 0/0'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 300));
+    // Isolate messages need real event-loop time outside the fake test clock.
+    for (var attempt = 0; attempt < 100; attempt++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
+      await tester.pump();
+      if (find.text('共 3 处 · 0/3').evaluate().isNotEmpty) break;
+    }
     expect(find.text('共 3 处 · 0/3'), findsOneWidget);
 
     final output = tester.widget<SingleChildScrollView>(
@@ -643,6 +653,20 @@ void main() {
   testWidgets('separate console Enter visits search results in order', (
     tester,
   ) async {
+    final messenger =
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger;
+    const windowChannel = MethodChannel('mixin.one/desktop_multi_window');
+    const channels = MethodChannel('mixin.one/desktop_multi_window/channels');
+    messenger.setMockMethodCallHandler(
+      windowChannel,
+      (call) async => {'windowId': 'search', 'windowArgument': ''},
+    );
+    messenger.setMockMethodCallHandler(channels, (call) async => null);
+    addTearDown(() {
+      messenger.setMockMethodCallHandler(windowChannel, null);
+      messenger.setMockMethodCallHandler(channels, null);
+    });
+
     tester.view.devicePixelRatio = 1;
     tester.view.physicalSize = const Size(900, 600);
     addTearDown(tester.view.resetDevicePixelRatio);
@@ -667,6 +691,16 @@ void main() {
     final field = find.byKey(const ValueKey('command-console-search-field'));
     await tester.enterText(field, 'target');
     await tester.pump();
+    expect(find.text('共 0 处 · 0/0'), findsOneWidget);
+    await tester.pump(const Duration(milliseconds: 300));
+    // Isolate messages need real event-loop time outside the fake test clock.
+    for (var attempt = 0; attempt < 100; attempt++) {
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 10)),
+      );
+      await tester.pump();
+      if (find.text('共 3 处 · 0/3').evaluate().isNotEmpty) break;
+    }
     expect(find.text('共 3 处 · 0/3'), findsOneWidget);
 
     await tester.testTextInput.receiveAction(TextInputAction.done);
