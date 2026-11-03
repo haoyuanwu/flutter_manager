@@ -18,6 +18,7 @@ class FlutterDeviceMonitor {
   int _requestId = 0;
   final Set<int> _deviceSnapshotRequestIds = {};
   bool _refreshing = false;
+  bool _hasSnapshot = false;
   String? _projectPath;
   void Function(List<Map<String, String>> devices)? _onDevices;
   void Function(Object error)? _onError;
@@ -33,13 +34,14 @@ class FlutterDeviceMonitor {
     _onDevices = onDevices;
     _onError = onError;
     if (_process != null) {
-      _emit(onDevices);
+      if (_hasSnapshot) _emit(onDevices);
       await refresh();
       return;
     }
     await stop();
     final generation = ++_generation;
     _devices.clear();
+    _hasSnapshot = false;
     try {
       final process = await _fvmService.startFlutterCommand(
         projectPath: projectPath,
@@ -116,7 +118,7 @@ class FlutterDeviceMonitor {
         if (event == 'device.added' || event == 'device.changed') {
           final device = _normalizeDevice(message['params']);
           if (device != null) _devices[device['id']!] = device;
-          _emit(onDevices);
+          if (_hasSnapshot) _emit(onDevices);
           continue;
         }
         if (event == 'device.removed') {
@@ -125,7 +127,7 @@ class FlutterDeviceMonitor {
               ? (params['id'] ?? params['deviceId'])?.toString()
               : params?.toString();
           if (id != null) _devices.remove(id);
-          _emit(onDevices);
+          if (_hasSnapshot) _emit(onDevices);
           continue;
         }
         final responseId = message['id'];
@@ -140,8 +142,9 @@ class FlutterDeviceMonitor {
             _devices
               ..clear()
               ..addAll(snapshot);
+            _hasSnapshot = true;
           }
-          _emit(onDevices);
+          if (_hasSnapshot) _emit(onDevices);
         }
       }
     } on FormatException {

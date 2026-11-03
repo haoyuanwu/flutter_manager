@@ -128,6 +128,7 @@ abstract class FlutterProject with _$FlutterProject {
     @Default(BuglyUploadConfig()) BuglyUploadConfig bugly,
     @Default(PgyerConfig()) PgyerConfig pgyer,
     @Default(FirConfig()) FirConfig fir,
+    String? selectedDeviceId,
     @Default(<String>[]) List<String> selectedFlavors,
     @Default(ProjectBuildMode.release) ProjectBuildMode lastBuildMode,
     @Default(ProjectBuildTarget.apk) ProjectBuildTarget lastBuildTarget,
@@ -164,6 +165,7 @@ abstract class FlutterProject with _$FlutterProject {
     ),
     pgyer: PgyerConfig.fromMap((map['pgyer'] as Map?)?.cast<String, dynamic>()),
     fir: FirConfig.fromMap((map['fir'] as Map?)?.cast<String, dynamic>()),
+    selectedDeviceId: map['selectedDeviceId'] as String?,
     selectedFlavors: (map['selectedFlavors'] as List<dynamic>? ?? const [])
         .cast<String>(),
     lastBuildMode: ProjectBuildMode.values.firstWhere(
@@ -200,6 +202,7 @@ abstract class FlutterProject with _$FlutterProject {
     'bugly': bugly.toMap(),
     'pgyer': pgyer.toMap(),
     'fir': fir.toMap(),
+    'selectedDeviceId': selectedDeviceId,
     'selectedFlavors': selectedFlavors,
     'lastBuildMode': lastBuildMode.name,
     'lastBuildTarget': lastBuildTarget.name,

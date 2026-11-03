@@ -23,6 +23,7 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
   BuildHistorySnapshot _history = const BuildHistorySnapshot();
   bool _historyLoading = false;
   bool _loading = false;
+  bool _packaging = false;
   late final BuildDirectoryWatcher _watcher;
 
   DistributionArtifact? get _selectedArtifact => _artifacts
@@ -253,12 +254,39 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
     }
   }
 
+  Future<void> _generateInstaller({
+    List<MacosPackageArchitecture>? architectures,
+  }) async {
+    if (_packaging) return;
+    setState(() => _packaging = true);
+    try {
+      final controller = ref.read(fvmControllerProvider.notifier);
+      if (architectures != null) {
+        await controller.packageMacosDmgs(architectures);
+      } else {
+        await _packageWindowsInstaller(context, controller);
+      }
+      if (mounted) await _refresh();
+    } finally {
+      if (mounted) setState(() => _packaging = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = widget.state;
     final projects = state.managedProjects.where(
       (project) => project.pathExists,
     );
+    final project = projects
+        .where((project) => project.path == state.selectedManagedProjectPath)
+        .firstOrNull;
+    final canPackageMacos = Platform.isMacOS && project?.hasMacos == true;
+    final canPackageWindows = Platform.isWindows && project?.hasWindows == true;
+    final busy =
+        _packaging ||
+        state.loading ||
+        ref.read(fvmControllerProvider.notifier).selectedTaskActive('build');
     return Padding(
       padding: const EdgeInsets.all(24),
       child: Column(
@@ -270,6 +298,59 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
             subtitle: '集中查看、筛选和分发项目的最终安装包。',
             breakpoint: 760,
             actions: [
+              MenuAnchor(
+                menuChildren: [
+                  if (canPackageMacos) ...[
+                    MenuItemButton(
+                      onPressed: busy
+                          ? null
+                          : () => _generateInstaller(
+                              architectures: [
+                                MacosPackageArchitecture.appleSilicon,
+                              ],
+                            ),
+                      child: const Text('macOS DMG · 苹果芯片 (arm64)'),
+                    ),
+                    MenuItemButton(
+                      onPressed: busy
+                          ? null
+                          : () => _generateInstaller(
+                              architectures: [MacosPackageArchitecture.intel],
+                            ),
+                      child: const Text('macOS DMG · 英特尔芯片 (x86_64)'),
+                    ),
+                    MenuItemButton(
+                      onPressed: busy
+                          ? null
+                          : () => _generateInstaller(
+                              architectures: [
+                                MacosPackageArchitecture.appleSilicon,
+                                MacosPackageArchitecture.intel,
+                              ],
+                            ),
+                      child: const Text('macOS DMG · 双架构'),
+                    ),
+                  ],
+                  if (canPackageWindows)
+                    MenuItemButton(
+                      onPressed: busy ? null : () => _generateInstaller(),
+                      child: const Text('Windows 安装包 · Inno Setup'),
+                    ),
+                ],
+                builder: (context, menu, child) => Tooltip(
+                  message: canPackageMacos || canPackageWindows
+                      ? '将当前项目已有的 Release 构建产物生成安装包'
+                      : '请选择支持当前系统的 macOS 或 Windows 项目',
+                  child: FilledButton.icon(
+                    key: const ValueKey('distribution-generate-installer'),
+                    onPressed: busy || !(canPackageMacos || canPackageWindows)
+                        ? null
+                        : () => menu.isOpen ? menu.close() : menu.open(),
+                    icon: const Icon(Icons.install_desktop_outlined),
+                    label: Text(_packaging ? '正在生成安装包…' : '生成安装包'),
+                  ),
+                ),
+              ),
               OutlinedButton.icon(
                 onPressed: _loading ? null : _chooseArtifact,
                 icon: const Icon(Icons.file_open_outlined),
@@ -293,14 +374,16 @@ class _DistributionPageState extends ConsumerState<_DistributionPage> {
             platform: _platformFilter,
             type: _typeFilter,
             sort: _sort,
-            onProjectChanged: (path) {
-              if (path == null) return;
-              unawaited(
-                ref
-                    .read(fvmControllerProvider.notifier)
-                    .selectManagedProject(path),
-              );
-            },
+            onProjectChanged: _packaging
+                ? null
+                : (path) {
+                    if (path == null || _packaging) return;
+                    unawaited(
+                      ref
+                          .read(fvmControllerProvider.notifier)
+                          .selectManagedProject(path),
+                    );
+                  },
             onSearchChanged: _setSearch,
             onPlatformChanged: _setPlatformFilter,
             onTypeChanged: _setTypeFilter,
@@ -423,7 +506,7 @@ class _ArtifactToolbar extends StatelessWidget {
   final String? platform;
   final DistributionArtifactType? type;
   final _ArtifactSort sort;
-  final ValueChanged<String?> onProjectChanged;
+  final ValueChanged<String?>? onProjectChanged;
   final ValueChanged<String> onSearchChanged;
   final ValueChanged<String?> onPlatformChanged;
   final ValueChanged<DistributionArtifactType?> onTypeChanged;

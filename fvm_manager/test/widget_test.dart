@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter_manager/src/data/distribution_service.dart';
+import 'package:flutter_manager/src/data/build_history_repository.dart';
+import 'package:flutter_manager/src/domain/build_history_models.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/material.dart';
@@ -11,9 +14,9 @@ import 'package:flutter_manager/src/data/pub_environment_service.dart';
 import 'package:flutter_manager/src/data/apk_install_service.dart';
 import 'package:flutter_manager/src/data/mcp_ai_setup_service.dart';
 import 'package:flutter_manager/src/data/process_runner.dart';
+import 'package:flutter_manager/src/data/local_project_service.dart';
 import 'package:flutter_manager/src/data/flutter_command_service.dart';
 import 'package:flutter_manager/src/data/fvm_service.dart';
-import 'package:flutter_manager/src/data/local_project_service.dart';
 import 'package:flutter_manager/src/data/project_repository.dart';
 import 'package:flutter_manager/src/domain/models.dart';
 import 'package:flutter_manager/src/domain/project_models.dart';
@@ -127,6 +130,43 @@ class _TestController extends FvmController {
           )
           .toList(),
     );
+  }
+}
+
+class _CenterArtifacts extends DistributionService {
+  @override
+  Future<List<DistributionArtifact>> scanArtifacts(
+    String projectPath, {
+    bool deduplicate = true,
+  }) async => [];
+}
+
+class _CenterHistory extends BuildHistoryRepository {
+  @override
+  Future<BuildHistorySnapshot> load({bool tolerateErrors = true}) async =>
+      const BuildHistorySnapshot();
+}
+
+class _InstallerCenterController extends _TestController {
+  final packaged = <MacosPackageArchitecture>[];
+  @override
+  FvmState build() {
+    final initial = super.build();
+    return initial.copyWith(
+      managedProjects: [
+        initial.managedProjects.first.copyWith(
+          hasMacos: true,
+          hasWindows: true,
+        ),
+      ],
+    );
+  }
+
+  @override
+  Future<void> packageMacosDmgs(
+    List<MacosPackageArchitecture> architectures,
+  ) async {
+    packaged.addAll(architectures);
   }
 }
 
@@ -588,6 +628,66 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Pixel 8 (online-1)'), findsWidgets);
     expect(find.text('offline-1'), findsNothing);
+  });
+
+  testWidgets('artifact center packages macOS with the chosen architectures', (
+    tester,
+  ) async {
+    if (!Platform.isMacOS) return;
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    final controller = _InstallerCenterController();
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          fvmControllerProvider.overrideWith(() => controller),
+          distributionServiceProvider.overrideWithValue(_CenterArtifacts()),
+          buildHistoryRepositoryProvider.overrideWithValue(_CenterHistory()),
+        ],
+        child: const FvmManagerApp(),
+      ),
+    );
+    await tester.tap(find.text('产物中心'));
+    await tester.pumpAndSettle();
+    await tester.tap(
+      find.byKey(const ValueKey('distribution-generate-installer')),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Windows 安装包 · Inno Setup'), findsNothing);
+    await tester.tap(find.text('macOS DMG · 双架构'));
+    await tester.pumpAndSettle();
+    expect(controller.packaged, [
+      MacosPackageArchitecture.appleSilicon,
+      MacosPackageArchitecture.intel,
+    ]);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('artifact center disables packaging for an unsupported project', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1400, 900);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    addTearDown(tester.view.resetPhysicalSize);
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          fvmControllerProvider.overrideWith(_TestController.new),
+          distributionServiceProvider.overrideWithValue(_CenterArtifacts()),
+          buildHistoryRepositoryProvider.overrideWithValue(_CenterHistory()),
+        ],
+        child: const FvmManagerApp(),
+      ),
+    );
+    await tester.tap(find.text('产物中心'));
+    await tester.pumpAndSettle();
+    final button = tester.widget<FilledButton>(
+      find.byKey(const ValueKey('distribution-generate-installer')),
+    );
+    expect(button.onPressed, isNull);
   });
 
   testWidgets('main console Enter visits search results in order', (

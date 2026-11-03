@@ -229,27 +229,9 @@ class DistributionService {
       );
       await outputDirectory.create(recursive: true);
       final baseName = naming.fileName(artifact.name);
-      var destination = File('${outputDirectory.path}/$baseName');
-      if (await destination.exists()) {
-        final existing = DistributionArtifact(
-          path: destination.path,
-          name: baseName,
-          type: type,
-          size: await destination.length(),
-          modified: await destination.lastModified(),
-        );
-        if (await _digest(existing) == await _digest(artifact)) {
-          await destination.setLastModified(DateTime.now());
-          published.add(destination.path);
-          continue;
-        }
-        // Rebuilding an unchanged version must not silently overwrite an older
-        // package that may already have been shared with testers.
-        final dot = baseName.lastIndexOf('.');
-        destination = File(
-          '${outputDirectory.path}/${baseName.substring(0, dot)}-${DateTime.now().microsecondsSinceEpoch}${baseName.substring(dot)}',
-        );
-      }
+      final destination = File('${outputDirectory.path}/$baseName');
+      // Stage the complete package first, then replace the same stable filename.
+      // Rebuilding a version should not accumulate timestamp-suffixed copies.
       final staging = await outputDirectory.createTemp('.publishing_');
       try {
         final copy = await File(

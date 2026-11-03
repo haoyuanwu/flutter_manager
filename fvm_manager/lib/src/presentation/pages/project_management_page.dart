@@ -1337,6 +1337,9 @@ class _ProjectDetail extends ConsumerWidget {
                                   : state.devices.isNotEmpty
                                   ? DropdownButtonFormField<String>(
                                       isExpanded: true,
+                                      key: ValueKey(
+                                        'run-device-${state.selectedManagedProjectPath}-${state.selectedDeviceId}',
+                                      ),
                                       initialValue: state.selectedDeviceId,
                                       decoration: const InputDecoration(
                                         labelText: '运行设备（自动监听）',

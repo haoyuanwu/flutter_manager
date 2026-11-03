@@ -540,6 +540,7 @@ class FvmController extends Notifier<FvmState> {
             : projects.first.lastBuildTarget,
         projectBuildMode:
             projects.firstOrNull?.lastBuildMode ?? state.projectBuildMode,
+        selectedDeviceId: projects.firstOrNull?.selectedDeviceId,
         selectedAndroidFlavors:
             projects.firstOrNull?.selectedFlavors ?? const [],
         cleanBeforeBuild: projects.firstOrNull?.cleanBeforeBuild ?? false,
@@ -864,6 +865,7 @@ class FvmController extends Notifier<FvmState> {
       state = state.copyWith(
         managedProjects: projects,
         selectedManagedProjectPath: project.path,
+        selectedDeviceId: _availableProjectDevice(project),
         selectedAndroidFlavors: project.selectedFlavors,
         projectBuildTarget: project.lastBuildTarget,
         projectBuildMode: project.lastBuildMode,
@@ -913,6 +915,7 @@ class FvmController extends Notifier<FvmState> {
       state = state.copyWith(
         managedProjects: projects,
         selectedManagedProjectPath: project.path,
+        selectedDeviceId: _availableProjectDevice(project),
         selectedAndroidFlavors: project.selectedFlavors,
         projectBuildTarget: project.lastBuildTarget,
         projectBuildMode: project.lastBuildMode,
@@ -934,13 +937,17 @@ class FvmController extends Notifier<FvmState> {
         .where((project) => project.path == path)
         .firstOrNull;
     if (current != null) {
-      final updated = current.copyWith(lastOpened: DateTime.now());
+      final updated = current.copyWith(
+        lastOpened: DateTime.now(),
+        selectedDeviceId: _availableProjectDevice(current),
+      );
       final projects = await ref
           .read(projectRepositoryProvider)
           .upsert(state.managedProjects, updated);
       state = state.copyWith(
         managedProjects: projects,
         selectedManagedProjectPath: path,
+        selectedDeviceId: _availableProjectDevice(updated),
         selectedAndroidFlavors: updated.selectedFlavors,
         projectBuildTarget: updated.lastBuildTarget,
         projectBuildMode: updated.lastBuildMode,
@@ -987,6 +994,7 @@ class FvmController extends Notifier<FvmState> {
               bugly: bugly,
               pgyer: previous.pgyer,
               fir: previous.fir,
+              selectedDeviceId: previous.selectedDeviceId,
               selectedFlavors: previous.selectedFlavors,
               lastBuildMode: previous.lastBuildMode,
               lastBuildTarget: previous.lastBuildTarget,
@@ -1049,6 +1057,7 @@ class FvmController extends Notifier<FvmState> {
         bugly: missingProject.bugly,
         pgyer: missingProject.pgyer,
         fir: missingProject.fir,
+        selectedDeviceId: missingProject.selectedDeviceId,
         selectedFlavors: missingProject.selectedFlavors,
         lastBuildMode: missingProject.lastBuildMode,
         lastBuildTarget: missingProject.lastBuildTarget,
@@ -3181,18 +3190,7 @@ class FvmController extends Notifier<FvmState> {
         .read(flutterDeviceMonitorProvider)
         .start(
           projectPath: path,
-          onDevices: (devices) {
-            final selected = state.selectedDeviceId;
-            state = state.copyWith(
-              devices: devices,
-              devicesLoading: false,
-              selectedDeviceId:
-                  selected != null &&
-                      devices.any((device) => device['id'] == selected)
-                  ? selected
-                  : null,
-            );
-          },
+          onDevices: _applyDevices,
           onError: (error) {
             final fallbackPath = state.selectedManagedProjectPath;
             if (fallbackPath != null) {
@@ -3205,7 +3203,7 @@ class FvmController extends Notifier<FvmState> {
   Future<void> _loadDevicesOnce(String path) async {
     try {
       final devices = await ref.read(fvmServiceProvider).listDevices(path);
-      state = state.copyWith(devices: devices, devicesLoading: false);
+      if (state.selectedManagedProjectPath == path) _applyDevices(devices);
     } catch (error) {
       state = state.copyWith(
         devicesLoading: false,
@@ -3214,8 +3212,36 @@ class FvmController extends Notifier<FvmState> {
     }
   }
 
+  bool _devicesDiscovered = false;
+
+  String? _availableProjectDevice(FlutterProject project) {
+    final id = project.selectedDeviceId;
+    // An empty list during startup is not yet a completed discovery.
+    if (!_devicesDiscovered && state.devices.isEmpty) return id;
+    return state.devices.any((device) => device['id'] == id) ? id : null;
+  }
+
+  void _applyDevices(List<Map<String, String>> devices) {
+    _devicesDiscovered = true;
+    final selected = state.selectedDeviceId;
+    final available = devices.any((device) => device['id'] == selected);
+    state = state.copyWith(
+      devices: devices,
+      devicesLoading: false,
+      selectedDeviceId: available ? selected : null,
+    );
+    if (selected != null && !available) {
+      _updateSelectedProject(
+        (project) => project.copyWith(selectedDeviceId: null),
+      );
+    }
+  }
+
   void selectDevice(String? deviceId) {
     state = state.copyWith(selectedDeviceId: deviceId);
+    _updateSelectedProject(
+      (project) => project.copyWith(selectedDeviceId: deviceId),
+    );
   }
 
   Future<void> setManagedProjectFvmVersion(

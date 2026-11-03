@@ -193,7 +193,7 @@ void main() {
     );
 
     test(
-      'same version with changed contents never overwrites a shared package',
+      'same version with changed contents replaces the same distribution package',
       () async {
         final original = await file('app/outputs/flutter-apk/app-release.apk', [
           1,
@@ -214,10 +214,10 @@ void main() {
           naming,
           DateTime.now(),
         )).single;
-        expect(second, isNot(first));
-        expect(await File(first).readAsBytes(), [1, 2]);
+        expect(second, first);
+        expect(await File(first).readAsBytes(), [3, 4, 5]);
         expect(await File(second).readAsBytes(), [3, 4, 5]);
-        expect(await service.scanArtifacts(project.path), hasLength(2));
+        expect(await service.scanArtifacts(project.path), hasLength(1));
       },
     );
 
