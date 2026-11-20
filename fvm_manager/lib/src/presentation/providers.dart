@@ -1,3 +1,6 @@
+import 'mcp_operations.dart';
+import '../data/log_service.dart';
+import '../domain/project_creation_options.dart';
 import 'dart:async';
 import '../data/signing_preferences.dart';
 import 'dart:io';
@@ -501,7 +504,10 @@ class FvmController extends Notifier<FvmState> {
           case 'consoleReady':
             final projectPath = arguments['projectPath'] as String?;
             if (projectPath != null) {
-              ConsoleWindowService.instance.markReady(projectPath);
+              ConsoleWindowService.instance.markReady(
+                projectPath,
+                windowId: arguments['windowId'] as String?,
+              );
             }
             return null;
         }
@@ -2358,10 +2364,716 @@ class FvmController extends Notifier<FvmState> {
     }
   }
 
+  final _mcpOperations = McpOperations();
+
+  String _mcpRequired(Map<String, dynamic> args, String key) {
+    final value = args[key];
+    if (value is! String || value.trim().isEmpty) {
+      throw ArgumentError('缺少参数：$key');
+    }
+    return value;
+  }
+
+  T _mcpEnum<T extends Enum>(List<T> values, Object? value, String key) =>
+      values.where((v) => v.name == value).firstOrNull ??
+      (throw ArgumentError('无效 $key：$value'));
+
+  Map<String, dynamic> _mcpMap(Object? value) =>
+      value == null ? {} : (value as Map).cast<String, dynamic>();
+
+  final _mcpSecretValues = <String>{};
+  void _mcpRememberSecrets(Object? value, [String key = '']) {
+    if (value is Map) {
+      value.forEach((k, v) => _mcpRememberSecrets(v, k.toString()));
+    } else if (RegExp(
+          'token|password|apiKey|appKey',
+          caseSensitive: false,
+        ).hasMatch(key) &&
+        value is String &&
+        value.isNotEmpty) {
+      _mcpSecretValues.add(value);
+    }
+  }
+
+  String _mcpSafeError(Object error) {
+    if (!ref.mounted) return '应用会话已结束';
+    for (final project in state.managedProjects) {
+      _mcpRememberSecrets(project.toMap());
+    }
+    final environment = ref.read(pubEnvironmentServiceProvider);
+    _mcpSecretValues.addAll(
+      [
+        environment.globalPgyerApiKey,
+        environment.globalFirApiToken,
+        state.mcpServerToken,
+      ].where((s) => s.isNotEmpty),
+    );
+    var result = _message(error);
+    for (final secret in _mcpSecretValues) {
+      result = result.replaceAll(secret, '[redacted]');
+    }
+    return result;
+  }
+
+  Object? _mcpRedact(Object? value) {
+    if (value is Map) {
+      return value.map(
+        (key, v) => MapEntry(
+          key.toString(),
+          RegExp(
+                'token|password|apiKey|appKey',
+                caseSensitive: false,
+              ).hasMatch(key.toString())
+              ? (v is String && v.isNotEmpty ? '[configured]' : '')
+              : _mcpRedact(v),
+        ),
+      );
+    }
+    if (value is List) return value.map(_mcpRedact).toList();
+    if (value is String) {
+      var text = value;
+      for (final secret in _mcpSecretValues) {
+        text = text.replaceAll(secret, '[redacted]');
+      }
+      return text;
+    }
+    return value;
+  }
+
+  Map<String, dynamic> _mcpProgress() => {
+    'statusMessage': _mcpRedact(state.statusMessage),
+    'pgyer': {
+      'progress': state.pgyerUploadProgress,
+      'phase': state.pgyerUploadPhase,
+      'url': state.pgyerUploadResult,
+    },
+    'fir': {
+      'progress': state.firUploadProgress,
+      'phase': state.firUploadPhase,
+      'url': state.firUploadResult,
+    },
+    'downloadProgress': state.downloadProgress,
+  };
+
+  Future<Map<String, dynamic>> _handleExtendedMcp(
+    String tool,
+    Map<String, dynamic> args,
+  ) async {
+    if (tool == 'sdk_action' && args['action'] == 'cancel_download') {
+      cancelDownload();
+      _mcpOperations.requestCancellation('sdk_action', null);
+      return {'cancelRequested': true};
+    }
+    _mcpRememberSecrets(args);
+    for (final project in state.managedProjects) {
+      _mcpRememberSecrets(project.toMap());
+    }
+    if (tool == 'get_capabilities') {
+      return {
+        'apiVersion': 2,
+        'platform': Platform.operatingSystem,
+        'commands': [
+          ...mcpExtendedCommands,
+          'list_projects',
+          'get_current_project',
+          'select_project',
+          'list_devices',
+          'pub_get',
+          'clean',
+          'devtools',
+          'hot_reload',
+          'hot_restart',
+          'list_running_projects',
+          'wait_for_runtime_change',
+          'build',
+          'run',
+          'rerun',
+          'stop',
+          'read_console',
+          'get_runtime_status',
+        ],
+        'packaging': {'macos': Platform.isMacOS, 'windows': Platform.isWindows},
+      };
+    }
+    if (tool == 'get_operation') {
+      final job = _mcpOperations.get(_mcpRequired(args, 'operationId'));
+      return {
+        ...job,
+        if (job['status'] == 'running') 'progress': _mcpProgress(),
+      };
+    }
+    if (tool == 'list_operations') return {'operations': _mcpOperations.list()};
+    if (tool == 'get_environment') {
+      return {
+        'fvmInstalled': state.fvmInstalled,
+        'fvmVersion': state.fvmVersion,
+        'globalVersion': state.globalVersion,
+        'mirrorId': state.mirrorId,
+        'settings': {
+          'autoOpenConsoleWindow': state.autoOpenConsoleWindow,
+          'showMainWindowConsole': state.showMainWindowConsole,
+          'showConsoleQuickCommands': state.showConsoleQuickCommands,
+          'buildOpensConsoleWindow': state.buildOpensConsoleWindow,
+        },
+        'installed': state.installed
+            .map(
+              (s) => {
+                'name': s.name,
+                'flutterVersion': s.flutterVersion,
+                'directory': s.directory,
+              },
+            )
+            .toList(),
+        'releases': state.releases.map((r) => {'version': r.version}).toList(),
+      };
+    }
+    if (tool == 'list_android_devices') {
+      final devices = await ref.read(apkInstallServiceProvider).listDevices();
+      return {
+        'devices': devices
+            .map((d) => {'id': d.id, 'status': d.status, 'model': d.model})
+            .toList(),
+      };
+    }
+    if (tool == 'get_project_config' ||
+        tool == 'scan_artifacts' ||
+        tool == 'build_history') {
+      final path = await _mcpProjectPath(args);
+      final project = state.managedProjects.firstWhere((p) => p.path == path);
+      if (tool == 'get_project_config') {
+        return {
+          'project': _mcpRedact({
+            ...project.toMap(),
+            'customCommandCode': project.customCommandCode.isEmpty
+                ? ''
+                : '[configured]',
+          }),
+        };
+      }
+      if (tool == 'scan_artifacts') {
+        final artifacts = await ref
+            .read(distributionServiceProvider)
+            .scanArtifacts(path);
+        return {
+          'artifacts': artifacts
+              .map(
+                (a) => {
+                  'path': a.path,
+                  'name': a.name,
+                  'type': a.type.name,
+                  'size': a.size,
+                  'modified': a.modified.toIso8601String(),
+                },
+              )
+              .toList(),
+        };
+      }
+      final history = await ref.read(buildHistoryRepositoryProvider).load();
+      return {
+        'sessions': history
+            .sessionsForProject(path)
+            .map((s) => _mcpRedact(s.toMap()))
+            .toList(),
+        'artifacts': history.artifacts
+            .where((a) => a.projectPath == path)
+            .map((a) => a.toMap())
+            .toList(),
+      };
+    }
+    if (state.loading ||
+        _activeCommandTasks.keys.any((id) => !id.startsWith('run::'))) {
+      throw StateError('已有构建或维护任务执行中，请等待完成');
+    }
+    final projectPath =
+        args['projectPath'] as String? ?? state.selectedManagedProjectPath;
+    return _mcpOperations.start(tool, projectPath, () async {
+      state = state.copyWith(errorMessage: null);
+      final result = await _executeExtendedMcp(tool, args);
+      if (state.errorMessage != null) {
+        throw StateError(_mcpSafeError(state.errorMessage!));
+      }
+      return (_mcpRedact(result) as Map).cast<String, dynamic>();
+    }, describeError: _mcpSafeError);
+  }
+
+  Future<Map<String, dynamic>> _executeExtendedMcp(
+    String tool,
+    Map<String, dynamic> args,
+  ) async {
+    const global = {
+      'sdk_action',
+      'environment_action',
+      'settings',
+      'create_project',
+      'parse_log',
+      'sign_apk',
+      'signing_info',
+      'install_apk',
+    };
+    if (!global.contains(tool) &&
+        !(tool == 'project_action' && args['action'] == 'add')) {
+      await _selectMcpProject(args);
+    }
+    switch (tool) {
+      case 'configure_project':
+        _applyMcpBuildOptions(args);
+        if (args.containsKey('deviceId')) {
+          selectDevice(args['deviceId'] as String?);
+        }
+        if (args.containsKey('runMode')) {
+          selectProjectRunMode(
+            _mcpEnum(ProjectRunMode.values, args['runMode'], 'runMode'),
+          );
+        }
+        final project = _selectedManagedProject!;
+        _updateSelectedProject(
+          (p) => p.copyWith(
+            pgyer: args.containsKey('pgyer')
+                ? PgyerConfig.fromMap({
+                    ...p.pgyer.toMap(),
+                    ..._mcpMap(args['pgyer']),
+                  })
+                : p.pgyer,
+            fir: args.containsKey('fir')
+                ? FirConfig.fromMap({...p.fir.toMap(), ..._mcpMap(args['fir'])})
+                : p.fir,
+            bugly: args.containsKey('bugly')
+                ? BuglyUploadConfig.fromMap({
+                    ...p.bugly.toMap(),
+                    ..._mcpMap(args['bugly']),
+                  })
+                : p.bugly,
+          ),
+        );
+        if (args.containsKey('customCommandCode')) {
+          await saveCustomCommandCode(args['customCommandCode'] as String);
+        }
+        if (args.containsKey('useCustomCommands')) {
+          setUseCustomCommands(args['useCustomCommands'] as bool);
+        }
+        await ref.read(projectRepositoryProvider).save(state.managedProjects);
+        return {'projectPath': project.path, 'configured': true};
+      case 'build':
+        _applyMcpBuildOptions(args);
+        await buildManagedProject();
+        return {'projectPath': state.selectedManagedProjectPath};
+      case 'custom_workflow':
+        await runCustomBuildWorkflow();
+      case 'update_version':
+        await updateProjectBuildVersion(
+          _mcpRequired(args, 'version'),
+          _mcpRequired(args, 'buildNo'),
+        );
+      case 'package_macos':
+        final architectures = (args['architectures'] as List? ?? ['arm64'])
+            .map(
+              (a) => switch (a) {
+                'arm64' => MacosPackageArchitecture.appleSilicon,
+                'x86_64' => MacosPackageArchitecture.intel,
+                _ => throw ArgumentError('不支持的架构：$a'),
+              },
+            )
+            .toList();
+        if (!Platform.isMacOS) throw StateError('DMG 只能在 macOS 生成');
+        if (architectures.isEmpty) throw ArgumentError('architectures 不能为空');
+        await packageMacosDmgs(architectures);
+      case 'package_windows':
+        if (!Platform.isWindows) throw StateError('Windows 安装包只能在 Windows 生成');
+        await packageWindowsInstaller(
+          innoCompilerPath: args['innoCompilerPath'] as String?,
+          rethrowInnoCompilerNotFound: true,
+        );
+      case 'upload_pgyer':
+      case 'upload_fir':
+        final file = _mcpRequired(args, 'filePath');
+        if (!File(file).existsSync()) throw ArgumentError('安装包不存在');
+        if (!['apk', 'ipa'].contains(file.split('.').last.toLowerCase())) {
+          throw ArgumentError('分发上传仅支持 APK / IPA');
+        }
+        if (tool == 'upload_pgyer') {
+          await uploadToPgyer(file);
+          if (state.pgyerUploadResult == null) {
+            throw StateError(state.errorMessage ?? '上传未完成');
+          }
+          return {'downloadUrl': state.pgyerUploadResult};
+        }
+        await uploadToFir(file);
+        if (state.firUploadResult == null) {
+          throw StateError(state.errorMessage ?? '上传未完成');
+        }
+        return {'downloadUrl': state.firUploadResult};
+      case 'upload_bugly':
+        final project = _selectedManagedProject!;
+        final flavor = _mcpRequired(args, 'flavor');
+        final error = _validateBuglyBuild(project, [flavor]);
+        if (error != null) throw ArgumentError(error);
+        await _uploadBuglySymbols(project, flavor);
+      case 'install_apk':
+        final device = _mcpRequired(args, 'deviceId');
+        final service = ref.read(apkInstallServiceProvider);
+        if (!(await service.listDevices()).any(
+          (d) => d.id == device && d.available,
+        )) {
+          throw ArgumentError('设备不在线');
+        }
+        await service.install(
+          apkPath: _mcpRequired(args, 'filePath'),
+          deviceId: device,
+        );
+      case 'sign_apk':
+        final service = ref.read(apkSigningServiceProvider);
+        final config = await service.loadConfig();
+        _mcpRememberSecrets(config.toMap());
+        final result = await service.signApk(
+          apkPath: _mcpRequired(args, 'filePath'),
+          jksPath: args['jksPath'] as String? ?? config.jksPath,
+          password: args['password'] as String? ?? config.password,
+          keyAlias: args['keyAlias'] as String? ?? config.keyAlias,
+          outputDir:
+              args['outputDirectory'] as String? ??
+              (config.outputDirectory.isEmpty
+                  ? service.defaultOutputDirectory
+                  : config.outputDirectory),
+          customBaseName: args['outputName'] as String?,
+        );
+        if (!result.success) throw StateError(result.errorMessage ?? '签名失败');
+        return {'outputPath': result.outputPath, 'success': true};
+      case 'signing_info':
+        final file = _mcpRequired(args, 'filePath');
+        final service = ref.read(signingInfoServiceProvider);
+        final info = file.toLowerCase().endsWith('.apk')
+            ? await service.extractFromApk(file)
+            : await service.extractFromJks(
+                file,
+                password: args['password'] as String?,
+              );
+        return {
+          'filePath': info.filePath,
+          'alias': info.certificateAlias,
+          'sha1': info.sha1,
+          'sha256': info.sha256,
+          'md5': info.md5,
+          'subject': info.subject,
+          'issuer': info.issuer,
+        };
+      case 'project_action':
+        final action = _mcpRequired(args, 'action');
+        final path =
+            args['projectPath'] as String? ?? state.selectedManagedProjectPath!;
+        switch (action) {
+          case 'add':
+            await addProjectByDragDrop(_mcpRequired(args, 'projectPath'));
+          case 'remove':
+            await removeManagedProject(path);
+          case 'refresh':
+            await refreshManagedProject();
+          case 'rename':
+            await renameManagedProject(path, args['alias'] as String? ?? '');
+          case 'tags':
+            await updateProjectTags(
+              path,
+              (args['tags'] as List).cast<String>(),
+            );
+          case 'sdk':
+            await setManagedProjectFvmVersion(
+              path,
+              _mcpRequired(args, 'version'),
+            );
+          case 'clear_build':
+            await clearProjectBuildDirectory();
+          default:
+            throw ArgumentError('未知 project action：$action');
+        }
+      case 'file_action':
+        switch (_mcpRequired(args, 'action')) {
+          case 'project_folder':
+            await openProjectFolder();
+          case 'build_folder':
+            await openBuildOutput();
+          case 'vscode':
+            await openInVSCode();
+          case 'android_studio':
+            await openInAndroidStudio();
+          case 'android_project':
+            await openAndroidProjectInAndroidStudio();
+          case 'ios_project':
+            await openIosProjectInXcode();
+          case 'macos_project':
+            await openMacosProjectInXcode();
+          case 'windows_project':
+            await openWindowsProjectInVisualStudio();
+          case 'reveal':
+            await ref
+                .read(localProjectServiceProvider)
+                .revealFile(_mcpRequired(args, 'filePath'));
+          default:
+            throw ArgumentError('未知 file action');
+        }
+      case 'console_action':
+        switch (_mcpRequired(args, 'action')) {
+          case 'open':
+            await openSelectedProjectConsole();
+          case 'clear':
+            clearCommandLog();
+          case 'select':
+            selectConsoleTab(_mcpRequired(args, 'tabId'));
+          case 'close':
+            await closeConsoleTab(_mcpRequired(args, 'tabId'));
+          default:
+            throw ArgumentError('未知 console action');
+        }
+      case 'sdk_action':
+        final version = args['version'] as String?;
+        switch (_mcpRequired(args, 'action')) {
+          case 'refresh':
+            await refreshInstalled();
+          case 'install_fvm':
+            await installFvm();
+          case 'update_fvm':
+            await updateFvm();
+          case 'install':
+            await installRequiredFlutterVersion(_mcpRequired(args, 'version'));
+          case 'set_global':
+            await setGlobal(_mcpRequired(args, 'version'));
+          case 'remove':
+            final sdk = state.installed
+                .where((s) => s.name == version)
+                .firstOrNull;
+            if (sdk == null) throw ArgumentError('SDK 不存在');
+            await removeFlutterVersion(sdk);
+          case 'cache_size':
+            await refreshFvmCacheSize();
+          case 'clear_unused_cache':
+            await clearUnusedFvmCache();
+          case 'open_fvm':
+            await openFvmDirectory();
+          case 'open_global':
+            await openGlobalFlutterDirectory();
+          case 'system_path':
+            await setSystemFlutterPath(
+              type: args['pathType'] as String? ?? 'default',
+              versionOrPath: args['versionOrPath'] as String?,
+            );
+          default:
+            throw ArgumentError('未知 sdk action');
+        }
+      case 'environment_action':
+        switch (_mcpRequired(args, 'action')) {
+          case 'set_mirror':
+            await setMirror(_mcpRequired(args, 'mirrorId'));
+          case 'test_mirror':
+            await testMirror(_mcpRequired(args, 'mirrorId'));
+          case 'test_all':
+            await testAllMirrors();
+          case 'fastest_mirror':
+            await switchToFastestAvailableMirror();
+          case 'diagnose':
+            final report = await ref
+                .read(environmentDiagnosticsServiceProvider)
+                .run(state: state);
+            return {
+              'items': report.items
+                  .map(
+                    (i) => {
+                      'level': i.level.name,
+                      'title': i.title,
+                      'detail': i.detail,
+                      'suggestion': i.suggestion,
+                    },
+                  )
+                  .toList(),
+            };
+          default:
+            throw ArgumentError('未知 environment action');
+        }
+      case 'settings':
+        if (args.containsKey('autoOpenConsoleWindow')) {
+          await setAutoOpenConsoleWindow(args['autoOpenConsoleWindow'] as bool);
+        }
+        if (args.containsKey('showMainWindowConsole')) {
+          await setShowMainWindowConsole(args['showMainWindowConsole'] as bool);
+        }
+        if (args.containsKey('showConsoleQuickCommands')) {
+          await setShowConsoleQuickCommands(
+            args['showConsoleQuickCommands'] as bool,
+          );
+        }
+        if (args.containsKey('buildOpensConsoleWindow')) {
+          await setBuildOpensConsoleWindow(
+            args['buildOpensConsoleWindow'] as bool,
+          );
+        }
+        if (args.containsKey('pgyerApiKey')) {
+          await setGlobalPgyerApiKey(args['pgyerApiKey'] as String);
+        }
+        if (args.containsKey('firApiToken')) {
+          await setGlobalFirApiToken(args['firApiToken'] as String);
+        }
+        if (args.containsKey('innoCompilerPath')) {
+          await setInnoCompilerPath(args['innoCompilerPath'] as String);
+        }
+      case 'dependencies':
+        final path = state.selectedManagedProjectPath!;
+        final service = ref.read(projectDependencyServiceProvider);
+        final snapshot = await service.load(path);
+        if (args.containsKey('additions') || args.containsKey('removals')) {
+          await updateProjectDependencies(
+            snapshot,
+            additions: (args['additions'] as List? ?? []).map((v) {
+              final d = _mcpMap(v);
+              return ProjectDependency(
+                name: _mcpRequired(d, 'name'),
+                constraint: _mcpRequired(d, 'constraint'),
+                development: d['development'] == true,
+              );
+            }).toList(),
+            removals: (args['removals'] as List? ?? []).cast<String>().toSet(),
+          );
+        }
+        final updated = await service.load(path);
+        return {
+          'dependencies': updated.dependencies
+              .map((d) => {'name': d.name, 'development': d.development})
+              .toList(),
+        };
+      case 'parse_log':
+        final lines = await LogParser().parseFile(
+          _mcpRequired(args, 'filePath'),
+          isEncrypted: args['isEncrypted'] as bool? ?? true,
+        );
+        return {'lines': lines.take(1000).toList(), 'totalLines': lines.length};
+      case 'create_project':
+        final options = ProjectCreationOptions(
+          name: _mcpRequired(args, 'name'),
+          parentDirectory: _mcpRequired(args, 'parentDirectory'),
+          directoryName: _mcpRequired(args, 'directoryName'),
+          organization: args['organization'] as String? ?? 'com.example',
+          platforms:
+              (args['platforms'] as List? ??
+                      ['android', 'ios', 'web', 'macos', 'windows', 'linux'])
+                  .cast<String>(),
+          template: _mcpEnum(
+            FlutterProjectTemplate.values,
+            args['template'] ?? 'app',
+            'template',
+          ),
+          sdkDirectory: args['sdkDirectory'] as String?,
+          sdkVersion: args['sdkVersion'] as String?,
+        );
+        final project = await ref
+            .read(flutterProjectCreationServiceProvider)
+            .create(
+              options,
+              onOutput: (s) => _appendCommandLog('create-flutter-project', s),
+            );
+        await registerCreatedProject(project);
+        return {'project': _mcpProjectJson(project)};
+      default:
+        throw ArgumentError('未知 MCP 操作：$tool');
+    }
+    return {'completed': true, 'statusMessage': state.statusMessage};
+  }
+
+  void _applyMcpBuildOptions(Map<String, dynamic> args) {
+    final project = _selectedManagedProject!;
+    if (args.containsKey('target')) {
+      final supported = switch (args['target']) {
+        'apk' || 'appbundle' => project.hasAndroid,
+        'ios' => project.hasIos && Platform.isMacOS,
+        'macos' => project.hasMacos && Platform.isMacOS,
+        'windows' => project.hasWindows && Platform.isWindows,
+        _ => false,
+      };
+      if (!supported) throw ArgumentError('当前项目或系统不支持指定构建平台');
+    }
+    if (args.containsKey('androidTargetPlatform')) {
+      final parts = (args['androidTargetPlatform'] as String).split(',');
+      if (parts.isEmpty ||
+          parts.any(
+            (v) => !{'android-arm', 'android-arm64', 'android-x64'}.contains(v),
+          )) {
+        throw ArgumentError('无效 Android 目标架构');
+      }
+    }
+    final pgyer = _mcpMap(args['pgyer']);
+    if (pgyer.containsKey('installType')) {
+      _mcpEnum(PgyerInstallType.values, pgyer['installType'], 'installType');
+    }
+
+    final mode = args.containsKey('mode')
+        ? _mcpEnum(ProjectBuildMode.values, args['mode'], 'mode')
+        : null;
+    final target = args.containsKey('target')
+        ? _mcpEnum(ProjectBuildTarget.values, args['target'], 'target')
+        : null;
+    final flavors = args['flavors'] == null
+        ? null
+        : (args['flavors'] as List).cast<String>();
+    if (flavors != null &&
+        flavors.any(
+          (f) => !_selectedManagedProject!.androidFlavors.contains(f),
+        )) {
+      throw ArgumentError('项目不存在指定渠道');
+    }
+    if (mode != null) selectProjectBuildMode(mode);
+    if (target != null) selectProjectBuildTarget(target);
+    if (flavors != null) {
+      state = state.copyWith(selectedAndroidFlavors: flavors);
+      _updateSelectedProject((p) => p.copyWith(selectedFlavors: flavors));
+    }
+    if (args.containsKey('cleanBeforeBuild')) {
+      setCleanBeforeBuild(args['cleanBeforeBuild'] as bool);
+    }
+    if (args.containsKey('androidTargetPlatform')) {
+      setAndroidTargetPlatform(args['androidTargetPlatform'] as String);
+    }
+  }
+
   Future<Map<String, dynamic>> _handleMcpToolCall(
     String tool,
     Map<String, dynamic> arguments,
   ) async {
+    _mcpRememberSecrets(arguments);
+    for (final project in state.managedProjects) {
+      _mcpRememberSecrets(project.toMap());
+    }
+    final environment = ref.read(pubEnvironmentServiceProvider);
+    _mcpSecretValues.addAll(
+      [
+        environment.globalPgyerApiKey,
+        environment.globalFirApiToken,
+        state.mcpServerToken,
+      ].where((value) => value.isNotEmpty),
+    );
+    try {
+      return (_mcpRedact(await _dispatchMcpToolCall(tool, arguments)) as Map)
+          .cast<String, dynamic>();
+    } on Object catch (error) {
+      throw Exception(_mcpSafeError(error));
+    }
+  }
+
+  Future<Map<String, dynamic>> _dispatchMcpToolCall(
+    String tool,
+    Map<String, dynamic> arguments,
+  ) async {
+    if (mcpExtendedCommands.contains(tool)) {
+      return _handleExtendedMcp(tool, arguments);
+    }
+    if (_mcpOperations.busy &&
+        !{
+          'list_projects',
+          'get_current_project',
+          'read_console',
+          'list_running_projects',
+          'get_runtime_status',
+          'wait_for_runtime_change',
+          'stop',
+          'hot_reload',
+          'hot_restart',
+        }.contains(tool)) {
+      throw StateError('已有 MCP 操作执行中，请先查询 get_operation');
+    }
     switch (tool) {
       case 'list_projects':
         return {
@@ -2415,9 +3127,7 @@ class FvmController extends Notifier<FvmState> {
         unawaited(projectClean());
         return _mcpCommandStarted('clean');
       case 'build':
-        await _selectMcpProject(arguments);
-        unawaited(buildManagedProject());
-        return _mcpCommandStarted('build');
+        return _handleExtendedMcp('build', arguments);
       case 'devtools':
         await _selectMcpProject(arguments);
         unawaited(openProjectDevTools());
@@ -2431,6 +3141,11 @@ class FvmController extends Notifier<FvmState> {
           return {'stopped': false, 'message': '当前项目没有正在运行的命令'};
         }
         await stopProjectCommand(resolvedTaskId);
+        if (resolvedTaskId.startsWith('build::')) {
+          _mcpOperations.requestCancellation('build', projectPath);
+        } else if (resolvedTaskId.startsWith('workflow::')) {
+          _mcpOperations.requestCancellation('custom_workflow', projectPath);
+        }
         return {
           'stopped': true,
           'taskId': resolvedTaskId,

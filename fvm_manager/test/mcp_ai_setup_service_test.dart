@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_manager/src/data/mcp_ai_setup_service.dart';
+import 'package:flutter_manager/src/data/flutter_whisper_setup.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -13,6 +14,33 @@ void main() {
     directory = await Directory.systemTemp.createTemp('mcp_ai_setup_');
   });
   tearDown(() => directory.delete(recursive: true));
+
+  test('Whisper prompt preserves project and Manager paths as JSON', () {
+    const project = r'C:\Users\Test User\项目 "demo"';
+    const server = r'C:\Users\Test User\manager.mjs';
+    const skill = r'C:\Users\Test User\skills\flutter-manager-mcp';
+    const token = 'test-"quoted"-token\\';
+    final text = buildFlutterWhisperSetupPrompt(
+      projectPath: project,
+      managerConfig: buildFlutterManagerMcpConfig(
+        port: 19002,
+        token: token,
+        serverPath: server,
+      ),
+      managerSkillPath: skill,
+    );
+    final config =
+        jsonDecode(
+              RegExp(r'```json\n([\s\S]*?)\n```').firstMatch(text)!.group(1)!,
+            )
+            as Map;
+    final manager = config['mcpServers']['flutter_manager'];
+    expect(manager['args'], [server]);
+    expect(manager['env']['FLUTTER_MANAGER_TOKEN'], token);
+    expect(manager['env']['FLUTTER_MANAGER_PORT'], '19002');
+    expect(text, contains(jsonEncode(project)));
+    expect(text, contains(jsonEncode(skill)));
+  });
 
   test(
     'exports server and complete skill including the linked command guide',

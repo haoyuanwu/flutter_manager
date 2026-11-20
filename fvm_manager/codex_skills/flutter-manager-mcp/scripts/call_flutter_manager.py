@@ -13,6 +13,8 @@ import urllib.request
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Call Flutter Manager HTTP tools")
+    parser.add_argument("--args-json", help="Additional tool arguments as JSON object")
+    parser.add_argument("--args-file", help="Read tool arguments from a UTF-8 JSON file (preferred for credentials)")
     parser.add_argument("tool", help="Tool name, e.g. run, read_console, list_devices")
     parser.add_argument("--project", dest="project_path", help="Managed Flutter project path")
     parser.add_argument("--device-id", help="Flutter device id for run/rerun")
@@ -32,6 +34,19 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     payload: dict[str, object] = {}
+    try:
+        if args.args_json and args.args_file:
+            raise ValueError("Use only one of --args-json and --args-file")
+        if args.args_file:
+            with open(args.args_file, encoding="utf-8") as source:
+                payload = json.load(source)
+        elif args.args_json:
+            payload = json.loads(args.args_json)
+        if not isinstance(payload, dict):
+            raise ValueError("Tool arguments must be a JSON object")
+    except (OSError, ValueError) as error:
+        print(str(error), file=sys.stderr)
+        return 1
     if args.project_path:
         payload["projectPath"] = args.project_path
     if args.device_id:
@@ -62,17 +77,21 @@ def main() -> int:
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=10) as response:
+        with urllib.request.urlopen(request, timeout=max(40, (args.timeout_ms or 0) / 1000 + 10)) as response:
             data = json.load(response)
     except urllib.error.HTTPError as error:
         body = error.read().decode("utf-8", errors="replace")
         print(body or str(error), file=sys.stderr)
         return 1
 
+    except (urllib.error.URLError, TimeoutError) as error:
+        print(str(error), file=sys.stderr)
+        return 1
+
     if args.tail and isinstance(data, dict) and isinstance(data.get("log"), str):
         data = {**data, "log": data["log"][-args.tail :]}
     print(json.dumps(data, ensure_ascii=False, indent=2))
-    return 0
+    return 1 if isinstance(data, dict) and data.get("ok") is False else 0
 
 
 if __name__ == "__main__":

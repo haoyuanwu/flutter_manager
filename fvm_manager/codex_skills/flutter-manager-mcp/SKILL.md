@@ -1,6 +1,6 @@
 ---
 name: flutter-manager-mcp
-description: Control the user's local Flutter Manager desktop app through its MCP server or localhost HTTP bridge. Use when the user asks Xiaomi MiMo, Codex, or another agent to operate managed Flutter projects from Flutter Manager, including listing projects/devices, selecting a project, running or rerunning Flutter on a device, stopping commands, reading the App console, opening DevTools, pub get, clean, or build through Flutter Manager MCP.
+description: Control the user's local Flutter Manager desktop app through its MCP server or localhost HTTP bridge. Use when the user asks Xiaomi MiMo, Codex, or another agent to operate managed Flutter projects from Flutter Manager, including listing projects/devices, selecting a project, running or rerunning Flutter on a device, stopping commands, reading the App console, opening DevTools, builds, installer packaging, APK signing/install, distribution uploads, SDK/environment administration, and Flutter AI Whisper setup.
 ---
 
 # Flutter Manager MCP
@@ -94,3 +94,19 @@ After starting `run` or `rerun`, poll `read_console` until one of these appears:
 - failure: “BUILD FAILED”, “Error:”, “Gradle task ... failed”, or the task list becomes empty with an error.
 
 Keep final answers short: say which project, device, flavor, and current result.
+
+## Build, package and distribution
+
+Read [references/full-api.md](references/full-api.md) for the v2 tool catalog, parameters, operation tracking, SDK/project administration and artifact workflows. Call `flutter_manager_get_capabilities` first when tool availability or host platform is unknown.
+
+- Use `flutter_manager_build` with explicit target/mode/flavors when requested; omitted options reuse saved project settings. It now returns an `operationId`.
+- For tools returning `accepted: true`, poll `flutter_manager_get_operation` until `status` is `success`, `failed`, or `cancelled`; inspect `result` or `error`. Acceptance does not prove success. Runtime status alone cannot establish packaging/upload completion.
+- Submit one mutation at a time. Do not switch the selected project or change build/distribution settings during an operation. SDK/build/packaging/upload work is serialized; unrelated reads remain available.
+- Build first, scan actual artifacts, package/sign when needed, then upload the explicit final APK/IPA only when the user asked to distribute. A tool being available does not authorize an upload. Do not automatically retry an upload after a timeout; inspect its operation first to avoid duplicate releases.
+- macOS DMG requires a macOS host; Inno Setup requires Windows and an existing Windows Release build. Do not attempt cross-platform installer builds.
+- Prefer saved credentials. Read endpoints mask credentials; never print tokens/passwords or include them in Skill files. Use `--args-file` for sensitive helper payloads.
+- Signing keeps source APKs; source replacement requires a separately implemented workflow. New production dependencies require user confirmation. Removing a project removes its management record; clearing build/SDK cache deletes generated files and needs matching user intent.
+
+## Flutter AI Whisper
+
+Read [references/flutter-ai-whisper.md](references/flutter-ai-whisper.md) when installing/configuring Flutter AI Whisper or inspecting/changing live app state. It complements Flutter Manager MCP; it does not replace project/command management. Install it as a standalone Dart developer tool, never as an app production dependency. Setup verification is read-only and does not authorize state injection, navigation, app restart, or distribution.

@@ -80,6 +80,8 @@ flutter:
     - codex_skills/flutter-manager-mcp/agents/openai.yaml
     - codex_skills/flutter-manager-mcp/scripts/call_flutter_manager.py
     - codex_skills/flutter-manager-mcp/references/command-guide.md
+    - codex_skills/flutter-manager-mcp/references/full-api.md
+    - codex_skills/flutter-manager-mcp/references/flutter-ai-whisper.md
 
   # To add assets to your application, add an assets section, like this:
   # assets:

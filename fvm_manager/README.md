@@ -38,3 +38,11 @@ flutter run -d macos # 或 windows
 若所在网络无法直连 pub.dev，可临时使用可用的 Dart Pub 镜像后再执行依赖解析。
 
 > 本工具需要执行 FVM/Dart 子进程并读写 FVM 缓存，因此 macOS 构建未启用 App Sandbox。
+
+## Flutter MCP 调试
+
+在应用的「MCP 服务」页展开「Flutter AI Whisper」，可复制安装命令、客户端配置与使用示例。详见 [Flutter AI Whisper 使用指南](docs/FLUTTER_AI_WHISPER.md)。
+
+MCP API v2 还开放构建配置、安装包生成、产物扫描、分发上传、APK 签名安装和项目 / SDK / 环境管理。长操作通过操作 ID 查询结果，见 [MCP 完整功能指南](codex_skills/flutter-manager-mcp/references/full-api.md)。
+
+MCP 服务页支持一键复制 Flutter AI Whisper 接入提示词，由 AI 安装独立工具、合并客户端配置并执行只读连接验证。

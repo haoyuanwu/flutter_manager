@@ -48,6 +48,7 @@ class ConsoleWindowApp extends ConsumerWidget {
     builder: (context, child) =>
         WindowAppearance(mode: ref.watch(appThemeModeProvider), child: child!),
     home: ConsoleWindowPage(
+      windowId: windowId,
       projectTitle: projectTitle,
       projectPath: projectPath,
       initialCommandLog: initialCommandLog,
@@ -74,6 +75,7 @@ class ConsoleWindowPage extends StatefulWidget {
     required this.initialBuildTarget,
     required this.initialActionChannelName,
     this.onThemeModeChanged,
+    this.windowId,
   });
 
   final String projectTitle;
@@ -85,6 +87,7 @@ class ConsoleWindowPage extends StatefulWidget {
   final String initialBuildTarget;
   final String initialActionChannelName;
   final ValueChanged<String>? onThemeModeChanged;
+  final String? windowId;
 
   @override
   State<ConsoleWindowPage> createState() => _ConsoleWindowPageState();
@@ -125,7 +128,9 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
   }
 
   Future<void> _registerChannel() async {
-    final controller = await WindowController.fromCurrentEngine();
+    final controller = widget.windowId == null
+        ? await WindowController.fromCurrentEngine()
+        : WindowController.fromWindowId(widget.windowId!);
     await controller.setWindowMethodHandler((call) async {
       if (!mounted) return;
       if (call.method == 'themeSync') {
@@ -170,11 +175,14 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
   Future<void> _notifyReady() async {
     try {
       await _request(
-        onGlobal: () =>
-            ConsoleWindowService.instance.notifyReady(widget.projectPath),
+        onGlobal: () => ConsoleWindowService.instance.notifyReady(
+          widget.projectPath,
+          windowId: widget.windowId,
+        ),
         onChannel: () => ConsoleWindowService.instance.notifyReadyOn(
           _actionChannelName,
           widget.projectPath,
+          windowId: widget.windowId,
         ),
       );
     } on Object {

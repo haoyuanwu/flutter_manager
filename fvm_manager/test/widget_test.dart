@@ -489,6 +489,35 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('test-only-token'), findsNothing);
       expect(find.text('配置内容'), findsNothing);
+      // Whisper must prepare an authenticated Manager connection on its own.
+      await tester.ensureVisible(find.text('Flutter AI Whisper'));
+      await tester.tap(find.text('Flutter AI Whisper'));
+      await tester.pumpAndSettle();
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('copy-whisper-ai-setup')),
+      );
+      await tester.tap(find.byKey(const ValueKey('copy-whisper-ai-setup')));
+      await tester.pumpAndSettle();
+      expect(copied, contains('test-only-token'));
+      expect(copied, contains('18999'));
+      expect(copied, contains('目标项目路径（JSON 字符串）："/tmp/demo"'));
+      expect(find.text('test-only-token'), findsNothing);
+      final whisperConfig =
+          jsonDecode(
+                RegExp(
+                  r'```json\s*([\s\S]*?)```',
+                ).firstMatch(copied!)!.group(1)!,
+              )
+              as Map<String, dynamic>;
+      expect(
+        File(
+          whisperConfig['mcpServers']['flutter_manager']['args'][0] as String,
+        ).existsSync(),
+        isTrue,
+      );
+      await tester.ensureVisible(
+        find.byKey(const ValueKey('copy-mcp-ai-setup')),
+      );
       await tester.tap(find.byKey(const ValueKey('copy-mcp-ai-setup')));
       await tester.pumpAndSettle();
       expect(copied, contains('http://127.0.0.1:18999'));
@@ -516,6 +545,15 @@ void main() {
       await tester.tap(find.text('手动配置'));
       await tester.pumpAndSettle();
       expect(find.text('配置内容'), findsOneWidget);
+      await tester.ensureVisible(find.text('Flutter AI Whisper'));
+      final whisperCopy = find.byKey(const ValueKey('copy-whisper-ai-setup'));
+      await tester.ensureVisible(whisperCopy);
+      await tester.tap(whisperCopy);
+      await tester.pumpAndSettle();
+      expect(copied, contains('dart pub global activate flutter_ai_whisper'));
+      expect(copied, contains('discover_running_apps'));
+      expect(copied, contains('只做只读验证'));
+      expect(copied, contains('test-only-token'));
     },
     variant: TargetPlatformVariant({
       TargetPlatform.macOS,

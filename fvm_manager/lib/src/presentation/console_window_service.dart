@@ -76,7 +76,7 @@ class ConsoleWindowService {
     if (existing != null) {
       try {
         await existing.show();
-        await existing.invokeMethod<void>('consoleSync', payload);
+        await _syncWhenReady(windowKey, existing);
         return;
       } on Object {
         _windows.remove(windowKey);
@@ -137,9 +137,11 @@ class ConsoleWindowService {
         final window = _windows[windowKey];
         if (window == null) return;
         try {
-          await window.invokeMethod<void>('consoleSync', payload);
+          await window
+              .invokeMethod<void>('consoleSync', payload)
+              .timeout(const Duration(seconds: 2));
         } on Object {
-          return;
+          await _syncWhenReady(windowKey, window);
         }
       }
     } finally {
@@ -155,15 +157,17 @@ class ConsoleWindowService {
       final payload = _latestPayloads[windowKey];
       if (payload == null) return;
       try {
-        await window.invokeMethod<void>('consoleSync', payload);
+        await window
+            .invokeMethod<void>('consoleSync', payload)
+            .timeout(const Duration(seconds: 2));
         return;
       } on Object {
         await Future<void>.delayed(const Duration(milliseconds: 100));
       }
     }
-    if (identical(_windows[windowKey], window)) {
-      _windows.remove(windowKey);
-    }
+    // Keep the window tracked if its engine registers late. Discarding the
+    // controller here permanently stops live logs in an already visible window.
+    // Subsequent output and the ready handshake retry with the latest snapshot.
   }
 
   Future<void> requestStop(String taskId, {bool waitForExit = false}) =>
@@ -238,17 +242,34 @@ class ConsoleWindowService {
     'action': action,
   });
 
-  Future<void> notifyReady(String projectPath) => _commandChannel
-      .invokeMethod<void>('consoleReady', {'projectPath': projectPath});
+  Future<void> notifyReady(String projectPath, {String? windowId}) =>
+      _commandChannel.invokeMethod<void>('consoleReady', {
+        'projectPath': projectPath,
+        'windowId': ?windowId,
+      });
 
-  Future<void> notifyReadyOn(String channelName, String projectPath) =>
-      _actionChannel(
-        channelName,
-      ).invokeMethod<void>('consoleReady', {'projectPath': projectPath});
+  Future<void> notifyReadyOn(
+    String channelName,
+    String projectPath, {
+    String? windowId,
+  }) => _actionChannel(channelName).invokeMethod<void>('consoleReady', {
+    'projectPath': projectPath,
+    'windowId': ?windowId,
+  });
 
-  void markReady(String projectPath) {
-    final signal = _readySignals[projectPath];
-    if (signal != null && !signal.isCompleted) signal.complete();
+  void markReady(String projectPath, {String? windowId}) {
+    // Windows are keyed by console tab, not project path. A project can have
+    // several consoles; acknowledge the engine that actually registered.
+    for (final entry in _windows.entries.toList()) {
+      if (windowId != null
+          ? entry.value.windowId != windowId
+          : _latestPayloads[entry.key]?['projectPath'] != projectPath) {
+        continue;
+      }
+      final signal = _readySignals[entry.key];
+      if (signal != null && !signal.isCompleted) signal.complete();
+      unawaited(_syncWhenReady(entry.key, entry.value));
+    }
   }
 
   Future<String> _ensureActionChannel(String windowKey) async {

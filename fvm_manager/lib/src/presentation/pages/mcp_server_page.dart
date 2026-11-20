@@ -1,5 +1,24 @@
 part of '../home_page.dart';
 
+const _whisperJsonConfig = '''{
+  "mcpServers": {
+    "flutter-ai-whisper": {
+      "command": "flutter_ai_whisper"
+    }
+  }
+}''';
+
+const _whisperTomlConfig = '''[mcp_servers.flutter-ai-whisper]
+command = "flutter_ai_whisper"''';
+
+const _whisperUsagePrompt =
+    '''请使用 Flutter AI Whisper 的 discover_running_apps 查找目标项目，
+再使用 connect_to_app 连接；多个应用时通过 workspaceFilter 指定项目路径。
+使用 list_active_state_holders 查看当前状态，先只读检查，不修改。
+需要修改时，结合源码用 inject_state_variable 调用已有方法，
+然后检查页面是否更新；只有明确要求时才跳转已注册路由。
+连接失败时先重新发现应用；仅在自动发现失败时使用当前会话的 vmUri。''';
+
 class _McpServerPage extends ConsumerStatefulWidget {
   const _McpServerPage({required this.state});
 
@@ -353,6 +372,93 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
           const SizedBox(height: 16),
           WorkbenchPanel(
             child: ExpansionTile(
+              key: const ValueKey('flutter-ai-whisper-guide'),
+              leading: const Icon(Icons.code_outlined, size: 20),
+              title: const Text('Flutter AI Whisper', style: AppTextStyles.h3),
+              subtitle: const Text('连接 Debug 应用，查看状态、调试页面与导航'),
+              childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                const Divider(),
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: FilledButton.icon(
+                    key: const ValueKey('copy-whisper-ai-setup'),
+                    onPressed: _copyingAiSetup
+                        ? null
+                        : () => _copyAiSetupInstructions(forWhisper: true),
+                    icon: const Icon(Icons.copy_all_outlined),
+                    label: Text(_copyingAiSetup ? '正在准备…' : '一键复制接入提示词'),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '复制时自动准备并启用 Manager 本机服务。提示词包含本机连接凭据，并授权 AI 在目标未运行时启动 Debug、连接及只读验证；请仅粘贴给本机可信 AI 客户端。',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Flutter Manager MCP 管理项目与运行命令；flutter_ai_whisper 连接运行中的 Flutter 应用，读取状态、执行状态修改和已注册路由导航。两者可配合使用。',
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  '1. 在开发机安装独立 MCP 工具（Dart 3.8+），无需添加应用依赖或修改 main.dart。',
+                ),
+                const SizedBox(height: 8),
+                _CodeBlock(
+                  title: '安装与检查',
+                  text:
+                      'dart pub global activate flutter_ai_whisper\nflutter_ai_whisper --help',
+                  onCopy: _copy,
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  '2. 将配置合并到 AI 客户端，保留已有 flutter_manager 服务。若客户端找不到命令，请使用 Pub 缓存 bin 目录中可执行文件的绝对路径，并确认该客户端能找到 Dart。',
+                ),
+                const SizedBox(height: 8),
+                _CodeBlock(
+                  title: 'Cursor / Claude Desktop 通用配置',
+                  text: _whisperJsonConfig,
+                  onCopy: _copy,
+                ),
+                const SizedBox(height: 12),
+                _CodeBlock(
+                  title: 'Codex 配置片段（config.toml）',
+                  text: _whisperTomlConfig,
+                  onCopy: _copy,
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  '3. 在项目管理页以 Debug 模式运行目标项目，重新加载 AI 客户端后，让 AI 发现并连接对应应用。多个项目同时运行时按项目路径筛选；应用重启后重新连接，不要复用旧 VM Service 地址。',
+                ),
+                const SizedBox(height: 8),
+                _CodeBlock(
+                  title: '复制给 AI 的使用示例',
+                  text: _whisperUsagePrompt,
+                  onCopy: _copy,
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  '仅用于自己控制的本机 Debug 应用；Profile / Release 不支持。状态注入会执行 Dart 并改变应用状态，先读取、再按需修改。Web 不能枚举堆对象，需要结合源码指定 expressions；页面跳转要求路由已注册，改值后还需确认页面实际刷新。',
+                ),
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: () => _openExternalUrl(
+                    'https://pub.dev/packages/flutter_ai_whisper',
+                    context: context,
+                  ),
+                  icon: const Icon(Icons.open_in_new, size: 18),
+                  label: const Text('打开 flutter_ai_whisper 文档'),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 16),
+          WorkbenchPanel(
+            child: ExpansionTile(
               key: const ValueKey('mcp-manual-setup'),
               leading: const Icon(Icons.tune, size: 20),
               title: const Text('手动配置', style: AppTextStyles.h3),
@@ -524,7 +630,10 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
     ],
   );
 
-  Future<void> _copyAiSetupInstructions() async {
+  Future<void> _copyAiSetupInstructions({bool forWhisper = false}) async {
+    final projectPath = ref
+        .read(fvmControllerProvider)
+        .selectedManagedProjectPath;
     setState(() => _copyingAiSetup = true);
     try {
       final home =
@@ -562,14 +671,27 @@ class _McpServerPageState extends ConsumerState<_McpServerPage> {
           ref.read(mcpServerRuntimeProvider).error ?? 'MCP 本机服务尚未启动，请先解决服务错误。',
         );
       }
-      final text = buildMcpAiSetupInstructions(
-        port: state.mcpServerPort,
-        token: state.mcpServerToken,
-        serverPath: files.serverPath,
-        skillPath: files.skillPath,
-        operatingSystem: Platform.operatingSystem,
+      final text = forWhisper
+          ? buildFlutterWhisperSetupPrompt(
+              projectPath: projectPath,
+              managerConfig: buildFlutterManagerMcpConfig(
+                port: state.mcpServerPort,
+                token: state.mcpServerToken,
+                serverPath: files.serverPath,
+              ),
+              managerSkillPath: files.skillPath,
+            )
+          : buildMcpAiSetupInstructions(
+              port: state.mcpServerPort,
+              token: state.mcpServerToken,
+              serverPath: files.serverPath,
+              skillPath: files.skillPath,
+              operatingSystem: Platform.operatingSystem,
+            );
+      await _copy(
+        text,
+        forWhisper ? 'Flutter AI Whisper 接入提示词已复制' : '接入说明已复制，粘贴给 AI 即可开始配置',
       );
-      await _copy(text, '接入说明已复制，粘贴给 AI 即可开始配置');
     } on Object catch (error) {
       if (mounted) _snack('准备接入说明失败：$error');
     } finally {

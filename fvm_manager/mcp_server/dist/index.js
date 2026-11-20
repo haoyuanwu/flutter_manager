@@ -1,3 +1,4 @@
+import { extendedTools } from "./extended_tools.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { CallToolRequestSchema, ListToolsRequestSchema, } from "@modelcontextprotocol/sdk/types.js";
@@ -28,6 +29,7 @@ const tailCharsProperty = {
     description: "Maximum console characters to return. Defaults to 4000 for runtime status.",
 };
 const tools = [
+    ...extendedTools,
     {
         name: "flutter_manager_list_projects",
         description: "List Flutter projects managed by Flutter Manager.",
@@ -197,10 +199,10 @@ const tools = [
     },
     {
         name: "flutter_manager_build",
-        description: "Start the app's configured build command for a project.",
+        description: "Build a project with explicit or saved options. Returns operationId; poll get_operation for success/failure.",
         inputSchema: {
             type: "object",
-            properties: { projectPath: projectPathProperty },
+            properties: { "projectPath": { "type": "string", "description": "Managed project path; defaults to selected project." }, "target": { "type": "string", "enum": ["apk", "appbundle", "ios", "macos", "windows"] }, "mode": { "type": "string", "enum": ["debug", "profile", "release"] }, "flavors": { "type": "array", "items": { "type": "string" } }, "cleanBeforeBuild": { "type": "boolean" }, "androidTargetPlatform": { "type": "string" } },
         },
     },
     {
@@ -213,6 +215,7 @@ const tools = [
     },
 ];
 const toolMap = {
+    ...Object.fromEntries(extendedTools.map(t => [t.name, t.name.replace("flutter_manager_", "")])),
     flutter_manager_list_projects: "list_projects",
     flutter_manager_get_current_project: "get_current_project",
     flutter_manager_select_project: "select_project",

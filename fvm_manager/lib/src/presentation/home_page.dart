@@ -1,3 +1,4 @@
+import '../data/flutter_whisper_setup.dart';
 import 'dart:async';
 import 'dart:io';
 

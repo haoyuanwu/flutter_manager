@@ -192,9 +192,9 @@ npm run bundle
 
 如果你修改了 App 里的端口，也要同步修改 `FLUTTER_MANAGER_PORT`。
 
-## 4. 第一版支持的工具
+## 4. MCP API v2
 
-当前开放第一版工具：
+基础运行工具：
 
 - `flutter_manager_list_projects`
 - `flutter_manager_get_current_project`
@@ -276,3 +276,13 @@ npm run build
 ```
 
 然后重启 AI 软件里的 MCP Server。
+
+### 完整功能接口
+
+新增构建参数配置、DMG / Inno Setup 打包、产物与构建历史、蒲公英 / fir.im 上传、Bugly 符号、APK 签名与安装、SDK / 项目 / 环境管理。工具及参数见 [Skill API 指南](../codex_skills/flutter-manager-mcp/references/full-api.md)。
+
+长操作返回 operationId，通过 flutter_manager_get_operation 等待 success / failed；accepted 不表示已完成。安装包上传只在用户要求分发时执行。凭证沿用已保存配置，读取接口不会返回明文。
+
+配套 Skill 同时包含 [Flutter AI Whisper 安装调用指南](../codex_skills/flutter-manager-mcp/references/flutter-ai-whisper.md)。Flutter Manager 管理命令，Whisper 调试运行状态，两者可同时配置。
+
+修改后执行 npm run build 与 npm run bundle，再重新加载 AI 客户端。协议回归测试：`node --test test/tools.test.mjs`。

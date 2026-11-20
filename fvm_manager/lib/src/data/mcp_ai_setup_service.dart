@@ -20,6 +20,8 @@ class McpAiSetupService {
     'agents/openai.yaml',
     'scripts/call_flutter_manager.py',
     'references/command-guide.md',
+    'references/full-api.md',
+    'references/flutter-ai-whisper.md',
   ];
 
   /// Export bundled files to a stable location, independent of the source tree.
@@ -69,6 +71,24 @@ class McpAiSetupService {
   }
 }
 
+String buildFlutterManagerMcpConfig({
+  required int port,
+  required String token,
+  required String serverPath,
+}) => const JsonEncoder.withIndent('  ').convert({
+  'mcpServers': {
+    'flutter_manager': {
+      'command': 'node',
+      'args': [serverPath],
+      'env': {
+        'FLUTTER_MANAGER_HOST': '127.0.0.1',
+        'FLUTTER_MANAGER_PORT': '$port',
+        'FLUTTER_MANAGER_TOKEN': token,
+      },
+    },
+  },
+});
+
 String buildMcpAiSetupInstructions({
   required int port,
   required String token,
@@ -76,19 +96,11 @@ String buildMcpAiSetupInstructions({
   required String skillPath,
   required String operatingSystem,
 }) {
-  final config = const JsonEncoder.withIndent('  ').convert({
-    'mcpServers': {
-      'flutter_manager': {
-        'command': 'node',
-        'args': [serverPath],
-        'env': {
-          'FLUTTER_MANAGER_HOST': '127.0.0.1',
-          'FLUTTER_MANAGER_PORT': '$port',
-          'FLUTTER_MANAGER_TOKEN': token,
-        },
-      },
-    },
-  });
+  final config = buildFlutterManagerMcpConfig(
+    port: port,
+    token: token,
+    serverPath: serverPath,
+  );
   return '''请帮我在当前 AI 工具中连接本机 Flutter Manager MCP，并安装配套 Skill。请直接完成本机可执行的配置操作。
 
 本机信息：
