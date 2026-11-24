@@ -54,6 +54,9 @@ Windows 安装器显式要求管理员权限，应用清单也声明 `requireAdm
 安装完成后通过 Windows Shell 以安装器当前管理员身份启动应用；从快捷方式
 或资源管理器启动时，由 Windows 按需弹出 UAC 确认，不能静默绕过授权。
 应用执行的 Flutter/FVM 等子进程也会继承管理员权限，请仅运行可信项目和命令。
+安装前通过 `stop_windows_app.ps1` 按安装目录定位旧进程，先发送托盘退出命令，
+等待后仅终止目标目录下仍未退出的主程序；退出失败则阻止安装，不继续替换文件。
+用户设置保存在用户目录的 `.fvm_manager` 中，安装器不删除该目录。
 脚本会核对 exe 与 pubspec 的完整版本号，自动查找 Inno Setup 和 x64 Visual C++ 运行库。
 也可用 `-IsccPath`、`-VcRuntimeDirectory` 显式指定路径。去掉 `-Upload` 则仅打包。
 产物为 `build/release/windows-X.Y.Z-Build/Flutter-Manager-X.Y.Z-windows-x64-setup.exe` 和独立的

@@ -19,6 +19,24 @@ class _SearchPathEnvironment extends PubEnvironmentService {
 }
 
 void main() {
+  test('concurrent settings writes keep selected FVM across restart', () async {
+    final root = await Directory.systemTemp.createTemp('fvm_settings_writes_');
+    addTearDown(() => root.delete(recursive: true));
+    final file = File('${root.path}/settings.json');
+    final service = PubEnvironmentService(settingsFile: file);
+    await service.load();
+    await Future.wait([
+      service.setCustomFvmExecutable(r'D:\Pub\Cache\bin\fvm.bat'),
+      service.setCachedFvmExecutable(r'D:\Pub\Cache\bin\fvm.bat'),
+      for (var index = 0; index < 20; index++)
+        service.setShowMainWindowConsole(index.isEven),
+    ]);
+    final reloaded = PubEnvironmentService(settingsFile: file);
+    await reloaded.load();
+    expect(reloaded.customFvmExecutable, r'D:\Pub\Cache\bin\fvm.bat');
+    expect(reloaded.cachedFvmExecutable, r'D:\Pub\Cache\bin\fvm.bat');
+  });
+
   test('adds GUI command paths required by FVM', () {
     final service = PubEnvironmentService();
     final paths = service.executableSearchPaths;

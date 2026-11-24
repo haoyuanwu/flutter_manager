@@ -4,6 +4,7 @@ import 'dart:math';
 import 'dart:io';
 
 import 'windows_git_paths.dart';
+import 'windows_sdk_paths.dart';
 
 class MirrorOption {
   const MirrorOption({
@@ -191,7 +192,7 @@ class PubEnvironmentService {
     void mergeQuery(List<String> arguments) {
       try {
         final result = Process.runSync(
-          'reg',
+          '${Platform.environment['SystemRoot'] ?? r'C:\Windows'}\\System32\\reg.exe',
           arguments,
           runInShell: false,
           stdoutEncoding: SystemEncoding(),
@@ -218,6 +219,15 @@ class PubEnvironmentService {
             return m.group(0)!;
           });
           if (key.isNotEmpty && value.isNotEmpty) {
+            final previousKey = values.keys
+                .where(
+                  (existing) => existing.toLowerCase() == key.toLowerCase(),
+                )
+                .firstOrNull;
+            if (key.toLowerCase() == 'path' && previousKey != null) {
+              value = '${values[previousKey]};$value';
+            }
+            if (previousKey != null) values.remove(previousKey);
             values[key] = value;
           }
         }
@@ -226,11 +236,11 @@ class PubEnvironmentService {
       }
     }
 
-    mergeQuery([r'query', r'HKCU\Environment']);
     mergeQuery([
       r'query',
       r'HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment',
     ]);
+    mergeQuery([r'query', r'HKCU\Environment']);
     _windowsRegistryEnvCache = values;
     _windowsRegistryEnvAt = now;
     return values;
@@ -377,6 +387,15 @@ class PubEnvironmentService {
       add('/opt/homebrew/sbin');
       add('/usr/local/bin');
       add('/usr/local/sbin');
+    }
+    if (Platform.isWindows) {
+      for (final path in windowsSdkPaths([
+        ...paths,
+        Directory.current.path,
+        Platform.resolvedExecutable,
+      ])) {
+        add(path);
+      }
     }
     return paths.toList(growable: false);
   }
@@ -572,10 +591,19 @@ class PubEnvironmentService {
     }
   }
 
-  Future<void> _persist() async {
+  Future<void> _pendingSettingsWrite = Future.value();
+
+  Future<void> _persist() {
+    final next = _pendingSettingsWrite.then((_) => _writeSettings());
+    _pendingSettingsWrite = next.catchError((Object _) {});
+    return next;
+  }
+
+  Future<void> _writeSettings() async {
     final file = _settingsFile;
     await file.parent.create(recursive: true);
-    await file.writeAsString(
+    final temporary = File('${file.path}.tmp');
+    await temporary.writeAsString(
       jsonEncode({
         'mirrorId': _mirrorId,
         'useDomesticMirror': useDomesticMirror, // 兼容旧版
@@ -598,6 +626,7 @@ class PubEnvironmentService {
       }),
       flush: true,
     );
+    await temporary.rename(file.path);
   }
 
   String _generateToken() {

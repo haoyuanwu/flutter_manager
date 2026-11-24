@@ -51,6 +51,18 @@ try {
     Start-Sleep -Milliseconds 500
     if ([TrayProbe]::IsWindowVisible($window)) { throw 'Closing the window did not hide it to the tray.' }
 
+    # Launching again must exit and activate the original hidden window.
+    $duplicate = Start-Process -FilePath (Resolve-Path -LiteralPath $Executable) -PassThru -WindowStyle Hidden
+    if (!$duplicate.WaitForExit(15000)) {
+        Stop-Process -Id $duplicate.Id
+        throw 'Launching again created a second running instance.'
+    }
+    if ($duplicate.ExitCode -ne 0) { throw 'Second launch did not exit successfully.' }
+    Start-Sleep -Milliseconds 500
+    if (-not [TrayProbe]::IsWindowVisible($window)) { throw 'Second launch did not restore the original window.' }
+    [void][TrayProbe]::PostMessage($window, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
+    Start-Sleep -Milliseconds 500
+
     # Version 4 callbacks include icon ID 1 in the high word.
     [void][TrayProbe]::PostMessage($window, 0x8001, [IntPtr]::Zero, [IntPtr]0x10400)
     Start-Sleep -Milliseconds 500
@@ -78,7 +90,7 @@ try {
     if (-not $app.WaitForExit(10000)) {
         throw "Exit command did not terminate the application. Window exists: $([TrayProbe]::IsWindow($window))."
     }
-    Write-Output 'PASS: packed tray activation, hide, context menu, and Exit command.'
+    Write-Output 'PASS: single instance, second-launch activation, tray hide, context menu, and Exit command.'
 } finally {
     if (-not $app.HasExited) { Stop-Process -Id $app.Id }
 }

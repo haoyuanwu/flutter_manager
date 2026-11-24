@@ -183,11 +183,14 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 UninstallDisplayIcon={app}\flutter_manager.exe
 SetupIconFile=$icon
+CloseApplications=yes
+RestartApplications=no
 
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
 [Files]
+Source: "$PSScriptRoot\stop_windows_app.ps1"; Flags: dontcopy
 Source: "$bundle\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 $runtimeEntries
 
@@ -197,6 +200,22 @@ Name: "{autodesktop}\Flutter Manager"; Filename: "{app}\flutter_manager.exe"; Ta
 
 [Run]
 Filename: "{app}\flutter_manager.exe"; WorkingDir: "{app}"; Description: "{cm:LaunchProgram,Flutter Manager}"; Flags: nowait postinstall skipifsilent shellexec runascurrentuser
+
+[Code]
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ExitCode: Integer;
+begin
+  Result := '';
+  ExtractTemporaryFile('stop_windows_app.ps1');
+  if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    '-NoProfile -ExecutionPolicy Bypass -File "' + ExpandConstant('{tmp}\stop_windows_app.ps1') +
+    '" -Executable "' + ExpandConstant('{app}\flutter_manager.exe') + '"',
+    '', SW_HIDE, ewWaitUntilTerminated, ExitCode) then
+    Result := '无法检查正在运行的 Flutter Manager，请退出程序后重试。'
+  else if ExitCode <> 0 then
+    Result := '无法退出正在运行的 Flutter Manager，已停止安装。请从托盘退出程序后重试。';
+end;
 "@ | Set-Content -LiteralPath $script -Encoding UTF8
 & $IsccPath /Qp $script
 if ($LASTEXITCODE -ne 0 -or !(Test-Path -LiteralPath $installer)) {
