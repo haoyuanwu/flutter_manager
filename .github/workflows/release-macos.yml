@@ -20,8 +20,6 @@ jobs:
         working-directory: fvm_manager
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -48,7 +46,11 @@ jobs:
         run: |
           version="$(sed -n 's/^version: \([^+]*\).*/\1/p' pubspec.yaml)"
           test "$RELEASE_TAG" = "v$version"
-          tag_body="$(git for-each-ref --format='%(contents:body)' "refs/tags/$RELEASE_TAG")"
+          # checkout can replace an annotated tag with its peeled commit.
+          metadata_ref="refs/release-metadata/$RELEASE_TAG"
+          git fetch --no-tags origin "refs/tags/$RELEASE_TAG:$metadata_ref"
+          test "$(git rev-parse "$metadata_ref^{commit}")" = "$(git rev-parse HEAD)"
+          tag_body="$(git for-each-ref --format='%(contents:body)' "$metadata_ref")"
           if grep -Fxq 'MacOS-Release: arm64-only' <<< "$tag_body"; then
             echo "MACOS_RELEASE_ARM64_ONLY=1" >> "$GITHUB_ENV"
           fi
