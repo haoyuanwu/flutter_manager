@@ -5,9 +5,12 @@ import 'dart:async';
 import 'dart:convert';
 import '../data/signing_preferences.dart';
 import 'dart:io';
+import '../data/startup_log.dart';
 import '../data/build_notification_service.dart';
 
 import 'package:archive/archive_io.dart';
+import 'package:desktop_multi_window/desktop_multi_window.dart'
+    show WindowChannelException;
 import 'package:dio/dio.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -459,76 +462,86 @@ class FvmController extends Notifier<FvmState> {
   FvmState build() => const FvmState();
 
   Future<void> initialize() async {
+    StartupLog.write('initialize.enter', {'loading': state.loading});
     if (state.loading) return;
+    state = state.copyWith(loading: true, errorMessage: null);
     await StatusMenuService.instance.initialize(
       _openConsoleWindow,
       onRunProjectAction: _runProjectActionFromConsole,
     );
     try {
-      await ConsoleWindowService.instance.registerMainHandler((call) async {
-        final arguments = call.arguments as Map<dynamic, dynamic>? ?? const {};
-        switch (call.method) {
-          case 'inspectStartupLock':
-            return (await inspectProjectStartupLock(
-              arguments['projectPath'] as String,
-            )).toJson();
-          case 'stopStartupLock':
-            return (await stopProjectStartupLock(
-              arguments['projectPath'] as String,
-              FlutterLockReport.fromJson(arguments['report'] as Map),
-              force: arguments['force'] == true,
-            )).toJson();
-          case 'stopCommand':
-            final taskId = arguments['taskId'] as String?;
-            if (taskId != null) {
-              await stopProjectCommand(taskId);
-              if (arguments['waitForExit'] == true) {
-                await waitForProjectCommandExit(taskId);
-              }
+      await ConsoleWindowService.instance
+          .registerMainHandler((call) async {
+            final arguments =
+                call.arguments as Map<dynamic, dynamic>? ?? const {};
+            switch (call.method) {
+              case 'inspectStartupLock':
+                return (await inspectProjectStartupLock(
+                  arguments['projectPath'] as String,
+                )).toJson();
+              case 'stopStartupLock':
+                return (await stopProjectStartupLock(
+                  arguments['projectPath'] as String,
+                  FlutterLockReport.fromJson(arguments['report'] as Map),
+                  force: arguments['force'] == true,
+                )).toJson();
+              case 'stopCommand':
+                final taskId = arguments['taskId'] as String?;
+                if (taskId != null) {
+                  await stopProjectCommand(taskId);
+                  if (arguments['waitForExit'] == true) {
+                    await waitForProjectCommandExit(taskId);
+                  }
+                }
+                return null;
+              case 'clearCommandLog':
+                final tabId =
+                    arguments['tabId'] as String? ??
+                    arguments['projectPath'] as String?;
+                if (tabId != null) {
+                  _clearCommandLogFor(
+                    state.consoleTabs.any((tab) => tab.id == tabId)
+                        ? tabId
+                        : _tabIdForProjectFallback(tabId),
+                  );
+                }
+                return null;
+              case 'runProjectAction':
+                final projectPath = arguments['projectPath'] as String?;
+                final action = arguments['action'] as String?;
+                if (projectPath != null && action != null) {
+                  await _runProjectActionFromConsole(
+                    projectPath,
+                    action,
+                    tabId: arguments['tabId'] as String?,
+                  );
+                }
+                return null;
+              case 'consoleReady':
+                final projectPath = arguments['projectPath'] as String?;
+                if (projectPath != null) {
+                  ConsoleWindowService.instance.markReady(
+                    projectPath,
+                    windowId: arguments['windowId'] as String?,
+                  );
+                }
+                return null;
             }
-            return null;
-          case 'clearCommandLog':
-            final tabId =
-                arguments['tabId'] as String? ??
-                arguments['projectPath'] as String?;
-            if (tabId != null) {
-              _clearCommandLogFor(
-                state.consoleTabs.any((tab) => tab.id == tabId)
-                    ? tabId
-                    : _tabIdForProjectFallback(tabId),
-              );
-            }
-            return null;
-          case 'runProjectAction':
-            final projectPath = arguments['projectPath'] as String?;
-            final action = arguments['action'] as String?;
-            if (projectPath != null && action != null) {
-              await _runProjectActionFromConsole(
-                projectPath,
-                action,
-                tabId: arguments['tabId'] as String?,
-              );
-            }
-            return null;
-          case 'consoleReady':
-            final projectPath = arguments['projectPath'] as String?;
-            if (projectPath != null) {
-              ConsoleWindowService.instance.markReady(
-                projectPath,
-                windowId: arguments['windowId'] as String?,
-              );
-            }
-            return null;
-        }
-      });
+          })
+          .timeout(const Duration(seconds: 3));
     } on MissingPluginException {
       // Widget tests do not load desktop window plugins.
+    } on WindowChannelException {
+      // 独立控制台通道失败不能阻断 FVM 配置加载与环境检测。
+    } on TimeoutException {
+      // 原生通道未响应时继续加载主界面，避免一直显示未安装 FVM。
     }
     state = state.copyWith(loading: true, errorMessage: null);
     final fvm = ref.read(fvmServiceProvider);
     try {
       final environment = ref.read(pubEnvironmentServiceProvider);
       await environment.load();
+      StartupLog.write('initialize.settings.loaded');
       try {
         await ref
             .read(buildHistoryRepositoryProvider)
@@ -564,6 +577,7 @@ class FvmController extends Notifier<FvmState> {
       );
       unawaited(_syncMcpControlServer());
       final version = await fvm.detect();
+      StartupLog.write('initialize.fvm.result', {'version': version});
       state = state.copyWith(
         fvmInstalled: version != null,
         fvmVersion: version,
@@ -575,6 +589,7 @@ class FvmController extends Notifier<FvmState> {
       }
       unawaited(_refreshReleaseMetadata(showNotice: true));
     } catch (error) {
+      StartupLog.write('initialize.error', {'error': error.toString()});
       state = state.copyWith(errorMessage: _message(error));
     } finally {
       state = state.copyWith(loading: false);

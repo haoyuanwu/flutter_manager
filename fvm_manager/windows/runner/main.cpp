@@ -22,6 +22,9 @@ bool ActivateRunningWindow() {
 
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
+  std::vector<std::string> command_line_arguments = GetCommandLineArguments();
+  const bool diagnostics = !command_line_arguments.empty() &&
+      command_line_arguments.front() == "--diagnose-fvm";
   // 在初始化 Flutter 和读写设置前占用互斥锁，避免双击时并发启动。
   const HANDLE handle = CreateMutexW(nullptr, FALSE,
                                     L"Local\\FlutterManager.SingleInstance");
@@ -33,8 +36,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     return EXIT_FAILURE;
   }
   // 同时兼容尚未使用互斥锁的已安装旧版本。
-  if (ActivateRunningWindow()) return EXIT_SUCCESS;
-  if (mutex_error == ERROR_ALREADY_EXISTS) {
+  if (!diagnostics && ActivateRunningWindow()) return EXIT_SUCCESS;
+  if (!diagnostics && mutex_error == ERROR_ALREADY_EXISTS) {
     // 首个进程可能仍在创建窗口；第二个进程只等待并激活，不初始化应用。
     for (int attempt = 0; attempt < 200; ++attempt) {
       Sleep(50);
@@ -53,9 +56,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 
   flutter::DartProject project(L"data");
-
-  std::vector<std::string> command_line_arguments =
-      GetCommandLineArguments();
 
   project.set_dart_entrypoint_arguments(std::move(command_line_arguments));
 

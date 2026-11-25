@@ -81,4 +81,25 @@ $result | ConvertTo-Json -Compress
   stdout.write(result.stdout);
   stderr.write(result.stderr);
   exitCode = result.exitCode;
+  if (result.exitCode == 0 && !arguments.contains('--version-only')) {
+    for (final command in ['context', 'list']) {
+      final api = await Process.run(
+        fvm,
+        ['api', command, '--compress'],
+        environment: service.processEnvironment,
+        includeParentEnvironment: false,
+        runInShell: true,
+      ).timeout(const Duration(seconds: 45));
+      if (api.exitCode != 0) {
+        stderr.writeln('api $command: ${api.stderr}');
+        continue;
+      }
+      final data = jsonDecode(api.stdout.toString()) as Map;
+      stdout.writeln(
+        command == 'context'
+            ? 'FVM 缓存目录：${(data['context'] as Map)['fvmDir']}'
+            : '已安装 SDK：${data['versions']}',
+      );
+    }
+  }
 }

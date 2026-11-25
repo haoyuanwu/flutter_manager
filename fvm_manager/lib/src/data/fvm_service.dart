@@ -5,6 +5,7 @@ import 'dart:io';
 import '../domain/models.dart';
 import 'external_opener.dart';
 import 'pub_environment_service.dart';
+import 'startup_log.dart';
 
 class FvmService {
   FvmService(this._environment, {this.onProgress});
@@ -28,6 +29,21 @@ class FvmService {
   }
 
   Future<String?> detect({bool allowRepair = true}) async {
+    StartupLog.write('fvm.detect', {
+      'custom': _environment.customFvmExecutable,
+      'cached': _environment.cachedFvmExecutable,
+      'environment': {
+        for (final entry in _environment.processEnvironment.entries)
+          if ([
+            'path',
+            'pathext',
+            'comspec',
+            'fvm_cache_path',
+            'pub_cache',
+          ].contains(entry.key.toLowerCase()))
+            entry.key: entry.value,
+      },
+    });
     // 0. 用户手动指定的路径优先：重装后首次选择必须立刻生效，不能被
     //    缓存探测失败清掉。
     final custom = _environment.customFvmExecutable;
@@ -122,6 +138,9 @@ class FvmService {
 
   /// 尝试运行指定路径的 FVM，成功返回版本号，失败返回 null。
   Future<String?> _tryExecutable(String candidate) async {
+    if (File(candidate).existsSync()) {
+      StartupLog.write('fvm.probe.start', {'candidate': candidate});
+    }
     for (final inherit in const [false, true]) {
       try {
         final result = await Process.run(
@@ -133,12 +152,23 @@ class FvmService {
           includeParentEnvironment: inherit,
           runInShell: Platform.isWindows,
         );
+        StartupLog.write('fvm.probe.result', {
+          'candidate': candidate,
+          'inherit': inherit,
+          'code': result.exitCode,
+          'stdout': result.stdout.toString(),
+          'stderr': result.stderr.toString(),
+        });
         if (result.exitCode == 0) {
           // 能跑通就视为可用。版本号解析失败时返回空串而不是 null，
           // 避免 detect() 误判失败并清掉用户刚选择的路径。
           return _extractVersion(result.stdout) ?? '';
         }
-      } on ProcessException {
+      } on ProcessException catch (error) {
+        StartupLog.write('fvm.probe.exception', {
+          'candidate': candidate,
+          'error': error.toString(),
+        });
         // 文件不存在或无法执行，继续尝试下一个
       }
     }
@@ -148,6 +178,7 @@ class FvmService {
   Future<({int exitCode, String output, String error})> _runVersionProbe(
     String candidate,
   ) async {
+    StartupLog.write('fvm.selected', {'candidate': candidate});
     for (final inherit in const [false, true]) {
       try {
         final result = await Process.run(
@@ -157,6 +188,12 @@ class FvmService {
           includeParentEnvironment: inherit,
           runInShell: Platform.isWindows,
         );
+        StartupLog.write('fvm.selected.result', {
+          'candidate': candidate,
+          'code': result.exitCode,
+          'stdout': result.stdout.toString(),
+          'stderr': result.stderr.toString(),
+        });
         if (result.exitCode == 0) {
           return (
             exitCode: result.exitCode,

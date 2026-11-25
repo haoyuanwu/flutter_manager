@@ -5,6 +5,7 @@ import 'dart:io';
 
 import 'windows_git_paths.dart';
 import 'windows_sdk_paths.dart';
+import 'windows_command_environment.dart';
 
 class MirrorOption {
   const MirrorOption({
@@ -294,6 +295,12 @@ class PubEnvironmentService {
     }
     if (mirror.storageUrl != null) {
       environment['FLUTTER_STORAGE_BASE_URL'] = mirror.storageUrl!;
+    }
+    if (Platform.isWindows) {
+      // 直接使用已验证存在的原生 Dart，避免过期 dart.bat 或空 PATHEXT。
+      final paths = resolvedPath.split(';');
+      final dartPaths = windowsSdkPaths(paths);
+      return windowsCommandEnvironment(environment, {...dartPaths, ...paths});
     }
     return environment;
   }
