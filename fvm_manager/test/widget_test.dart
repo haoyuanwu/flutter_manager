@@ -7,6 +7,7 @@ import 'package:flutter_manager/src/data/build_history_repository.dart';
 import 'package:flutter_manager/src/domain/build_history_models.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_manager/src/app.dart';
@@ -927,7 +928,7 @@ void main() {
 
     await tester.ensureVisible(find.text('项目 B · 构建'));
     await tester.tap(find.text('项目 B · 构建'));
-    await tester.pump();
+    await tester.pump(kDoubleTapTimeout);
 
     final container = ProviderScope.containerOf(
       tester.element(find.byType(FvmManagerApp)),

@@ -16,6 +16,7 @@ class ConsoleWindowService {
   );
 
   final Map<String, WindowController> _windows = {};
+  final Set<String> _openingWindows = {};
   final Map<String, String> _actionChannelNames = {};
   final Map<String, WindowMethodChannel> _actionChannels = {};
   final Map<String, Map<String, dynamic>> _latestPayloads = {};
@@ -60,50 +61,61 @@ class ConsoleWindowService {
     required String consoleMode,
     required String buildTarget,
   }) async {
-    final actionChannelName = await _actionChannelNameFor(windowKey);
-    final payload = _payload(
-      projectPath: projectPath,
-      projectTitle: projectTitle,
-      commandLog: commandLog,
-      tasks: tasks,
-      showQuickCommands: showQuickCommands,
-      consoleMode: consoleMode,
-      buildTarget: buildTarget,
-      actionChannelName: actionChannelName,
-    );
-    _latestPayloads[windowKey] = payload;
-    final existing = _windows[windowKey];
-    if (existing != null) {
-      try {
-        await existing.show();
-        await _syncWhenReady(windowKey, existing);
-        return;
-      } on Object {
-        _windows.remove(windowKey);
-      }
-    }
-
-    final ready = Completer<void>();
-    _readySignals[windowKey] = ready;
+    if (!_openingWindows.add(windowKey)) return;
     try {
-      final window = await WindowController.create(
-        WindowConfiguration(
-          arguments: jsonEncode(payload),
-          hiddenAtLaunch: true,
-        ),
+      final actionChannelName = await _actionChannelNameFor(windowKey);
+      final payload = _payload(
+        windowKey: windowKey,
+        projectPath: projectPath,
+        projectTitle: projectTitle,
+        commandLog: commandLog,
+        tasks: tasks,
+        showQuickCommands: showQuickCommands,
+        consoleMode: consoleMode,
+        buildTarget: buildTarget,
+        actionChannelName: actionChannelName,
       );
-      _windows[windowKey] = window;
+      _latestPayloads[windowKey] = payload;
+      final existing = _windows[windowKey];
+      if (existing != null) {
+        try {
+          await existing.show();
+          await _syncWhenReady(windowKey, existing);
+          return;
+        } on Object {
+          _windows.remove(windowKey);
+        }
+      }
+
+      final ready = Completer<void>();
+      _readySignals[windowKey] = ready;
       try {
-        await ready.future.timeout(const Duration(seconds: 5));
-      } on TimeoutException {
-        // Still show the window if a plugin delays the ready handshake.
+        final window = await WindowController.create(
+          WindowConfiguration(
+            arguments: jsonEncode(payload),
+            hiddenAtLaunch: true,
+          ),
+        );
+        if (!identical(_readySignals[windowKey], ready)) {
+          await window.hide();
+          return;
+        }
+        _windows[windowKey] = window;
+        try {
+          await ready.future.timeout(const Duration(seconds: 5));
+        } on TimeoutException {
+          // Still show the window if a plugin delays the ready handshake.
+        }
+        if (!identical(_windows[windowKey], window)) return;
+        await window.show();
+        await _syncWhenReady(windowKey, window);
+      } finally {
+        if (identical(_readySignals[windowKey], ready)) {
+          _readySignals.remove(windowKey);
+        }
       }
-      await window.show();
-      await _syncWhenReady(windowKey, window);
     } finally {
-      if (identical(_readySignals[windowKey], ready)) {
-        _readySignals.remove(windowKey);
-      }
+      _openingWindows.remove(windowKey);
     }
   }
 
@@ -119,6 +131,7 @@ class ConsoleWindowService {
   }) async {
     final actionChannelName = await _actionChannelNameFor(windowKey);
     final payload = _payload(
+      windowKey: windowKey,
       projectPath: projectPath,
       projectTitle: projectTitle,
       commandLog: commandLog,
@@ -185,19 +198,27 @@ class ConsoleWindowService {
     'waitForExit': waitForExit,
   });
 
-  Future<void> requestClear(String projectPath) => _commandChannel
-      .invokeMethod<void>('clearCommandLog', {'projectPath': projectPath});
+  Future<void> requestClear(String projectPath, {String? tabId}) =>
+      _commandChannel.invokeMethod<void>('clearCommandLog', {
+        'projectPath': projectPath,
+        'tabId': ?tabId,
+      });
 
-  Future<void> requestClearOn(String channelName, String projectPath) =>
-      _actionChannel(
-        channelName,
-      ).invokeMethod<void>('clearCommandLog', {'projectPath': projectPath});
+  Future<void> requestClearOn(
+    String channelName,
+    String projectPath, {
+    String? tabId,
+  }) => _actionChannel(channelName).invokeMethod<void>('clearCommandLog', {
+    'projectPath': projectPath,
+    'tabId': ?tabId,
+  });
 
   Future<void> close(String windowKey) async {
     final window = _windows.remove(windowKey);
     _latestPayloads.remove(windowKey);
     _pendingSync.remove(windowKey);
-    _readySignals.remove(windowKey);
+    final ready = _readySignals.remove(windowKey);
+    if (ready != null && !ready.isCompleted) ready.complete();
     final actionChannelName = _actionChannelNames.remove(windowKey);
     if (actionChannelName != null) {
       final actionChannel = _actionChannels.remove(actionChannelName);
@@ -211,11 +232,15 @@ class ConsoleWindowService {
     }
   }
 
-  Future<void> requestAction(String projectPath, String action) =>
-      _commandChannel.invokeMethod<void>('runProjectAction', {
-        'projectPath': projectPath,
-        'action': action,
-      });
+  Future<void> requestAction(
+    String projectPath,
+    String action, {
+    String? tabId,
+  }) => _commandChannel.invokeMethod<void>('runProjectAction', {
+    'projectPath': projectPath,
+    'action': action,
+    'tabId': ?tabId,
+  });
 
   Future<Map<dynamic, dynamic>> requestStartupLock(
     String channelName,
@@ -236,10 +261,12 @@ class ConsoleWindowService {
   Future<void> requestActionOn(
     String channelName,
     String projectPath,
-    String action,
-  ) => _actionChannel(channelName).invokeMethod<void>('runProjectAction', {
+    String action, {
+    String? tabId,
+  }) => _actionChannel(channelName).invokeMethod<void>('runProjectAction', {
     'projectPath': projectPath,
     'action': action,
+    'tabId': ?tabId,
   });
 
   Future<void> notifyReady(String projectPath, {String? windowId}) =>
@@ -301,6 +328,7 @@ class ConsoleWindowService {
       );
 
   Map<String, dynamic> _payload({
+    required String windowKey,
     required String projectPath,
     required String projectTitle,
     required String commandLog,
@@ -311,6 +339,7 @@ class ConsoleWindowService {
     required String actionChannelName,
   }) => {
     'windowType': 'console',
+    'tabId': windowKey,
     'themeMode': _themeMode,
     'projectPath': projectPath,
     'projectTitle': projectTitle,

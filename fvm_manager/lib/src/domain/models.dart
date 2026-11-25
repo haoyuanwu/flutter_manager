@@ -64,6 +64,8 @@ abstract class ConsoleTabInfo with _$ConsoleTabInfo {
     required String projectPath,
     required String title,
     @Default('run') String kind,
+    String? deviceId,
+    String? deviceName,
     @Default(false) bool running,
   }) = _ConsoleTabInfo;
 }

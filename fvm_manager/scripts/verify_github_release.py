@@ -8,15 +8,16 @@ import subprocess
 import urllib.request
 
 
-def verify(tag, metadata, fetch=urllib.request.urlopen):
+def verify(tag, metadata, fetch=urllib.request.urlopen, *, arm64_only=False):
     if not re.fullmatch(r'v\d+\.\d+\.\d+', tag):
         raise ValueError('Invalid release tag')
     if metadata['name'] != tag or metadata['tagName'] != tag or metadata['isDraft']:
         raise ValueError('Release title, tag or publication state does not match')
     assets = {asset['name']: asset['url'] for asset in metadata['assets']}
-    expected = {f'Flutter-Manager-{tag[1:]}-{arch}.dmg' for arch in ('arm64', 'x86_64')}
+    architectures = ('arm64',) if arm64_only else ('arm64', 'x86_64')
+    expected = {f'Flutter-Manager-{tag[1:]}-{arch}.dmg' for arch in architectures}
     if set(assets) != expected | {'SHA256SUMS.txt'}:
-        raise ValueError('Release attachments do not match the two expected architectures')
+        raise ValueError('Release attachments do not match the expected architectures')
     with fetch(assets['SHA256SUMS.txt'], timeout=60) as response:
         lines = response.read().decode().splitlines()
     checksums = {}
@@ -43,4 +44,4 @@ if __name__ == '__main__':
     metadata = json.loads(subprocess.check_output(
         ['gh', 'release', 'view', tag, '--json', 'name,tagName,assets,url,isDraft'],
         text=True, encoding='utf-8'))
-    verify(tag, metadata)
+    verify(tag, metadata, arm64_only=os.environ.get('MACOS_RELEASE_ARM64_ONLY') == '1')

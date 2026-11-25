@@ -57,6 +57,15 @@ class ReleaseTest(unittest.TestCase):
         self.assertEqual(len(refs.splitlines()), 2)
         self.assertEqual(len({line.split()[0] for line in refs.splitlines()}), 1)
 
+    def test_arm64_only_records_architecture_on_tag(self):
+        release.release(self.root, '1.2.8+14', ['更新'], publish=True, arm64_only=True)
+        self.assertEqual(
+            self.git('for-each-ref', '--format=%(contents:body)', 'refs/tags/v1.2.8'),
+            'MacOS-Release: arm64-only',
+        )
+        notes = (self.root / 'RELEASE_NOTES_v1.2.8.md').read_text(encoding='utf-8')
+        self.assertIn('提供 Apple Silicon DMG。', notes)
+
     def test_unstaged_changes_are_never_automatically_added(self):
         (self.root / 'pubspec.yaml').write_text('name: changed\nversion: 1.2.7+13\n', encoding='utf-8')
         with self.assertRaisesRegex(ValueError, '未暂存'):

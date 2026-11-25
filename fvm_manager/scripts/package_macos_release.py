@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Package both architectures without altering the original universal app."""
+"""Package the requested architectures without altering the original universal app."""
 import hashlib
+import os
 import pathlib
 import re
 import subprocess
@@ -21,7 +22,8 @@ assert run('plutil', '-extract', 'CFBundleVersion', 'raw', '-o', '-', str(plist)
 output = root / 'build/release'
 output.mkdir(parents=True, exist_ok=True)
 checksums = []
-for arch in ('arm64', 'x86_64'):
+architectures_to_package = ('arm64',) if os.environ.get('MACOS_RELEASE_ARM64_ONLY') == '1' else ('arm64', 'x86_64')
+for arch in architectures_to_package:
     destination = output / f'Flutter-Manager-{short_version}-{arch}.dmg'
     if destination.exists():
         raise FileExistsError(f'Refusing to overwrite {destination}')

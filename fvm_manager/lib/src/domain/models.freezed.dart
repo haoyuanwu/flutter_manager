@@ -555,7 +555,7 @@ as bool,
 /// @nodoc
 mixin _$ConsoleTabInfo {
 
- String get id; String get projectPath; String get title; String get kind; bool get running;
+ String get id; String get projectPath; String get title; String get kind; String? get deviceId; String? get deviceName; bool get running;
 /// Create a copy of ConsoleTabInfo
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -566,16 +566,16 @@ $ConsoleTabInfoCopyWith<ConsoleTabInfo> get copyWith => _$ConsoleTabInfoCopyWith
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConsoleTabInfo&&(identical(other.id, id) || other.id == id)&&(identical(other.projectPath, projectPath) || other.projectPath == projectPath)&&(identical(other.title, title) || other.title == title)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.running, running) || other.running == running));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConsoleTabInfo&&(identical(other.id, id) || other.id == id)&&(identical(other.projectPath, projectPath) || other.projectPath == projectPath)&&(identical(other.title, title) || other.title == title)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.deviceId, deviceId) || other.deviceId == deviceId)&&(identical(other.deviceName, deviceName) || other.deviceName == deviceName)&&(identical(other.running, running) || other.running == running));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,projectPath,title,kind,running);
+int get hashCode => Object.hash(runtimeType,id,projectPath,title,kind,deviceId,deviceName,running);
 
 @override
 String toString() {
-  return 'ConsoleTabInfo(id: $id, projectPath: $projectPath, title: $title, kind: $kind, running: $running)';
+  return 'ConsoleTabInfo(id: $id, projectPath: $projectPath, title: $title, kind: $kind, deviceId: $deviceId, deviceName: $deviceName, running: $running)';
 }
 
 
@@ -586,7 +586,7 @@ abstract mixin class $ConsoleTabInfoCopyWith<$Res>  {
   factory $ConsoleTabInfoCopyWith(ConsoleTabInfo value, $Res Function(ConsoleTabInfo) _then) = _$ConsoleTabInfoCopyWithImpl;
 @useResult
 $Res call({
- String id, String projectPath, String title, String kind, bool running
+ String id, String projectPath, String title, String kind, String? deviceId, String? deviceName, bool running
 });
 
 
@@ -603,13 +603,15 @@ class _$ConsoleTabInfoCopyWithImpl<$Res>
 
 /// Create a copy of ConsoleTabInfo
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? projectPath = null,Object? title = null,Object? kind = null,Object? running = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? projectPath = null,Object? title = null,Object? kind = null,Object? deviceId = freezed,Object? deviceName = freezed,Object? running = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,projectPath: null == projectPath ? _self.projectPath : projectPath // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
-as String,running: null == running ? _self.running : running // ignore: cast_nullable_to_non_nullable
+as String,deviceId: freezed == deviceId ? _self.deviceId : deviceId // ignore: cast_nullable_to_non_nullable
+as String?,deviceName: freezed == deviceName ? _self.deviceName : deviceName // ignore: cast_nullable_to_non_nullable
+as String?,running: null == running ? _self.running : running // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }
@@ -695,10 +697,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String projectPath,  String title,  String kind,  bool running)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String projectPath,  String title,  String kind,  String? deviceId,  String? deviceName,  bool running)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ConsoleTabInfo() when $default != null:
-return $default(_that.id,_that.projectPath,_that.title,_that.kind,_that.running);case _:
+return $default(_that.id,_that.projectPath,_that.title,_that.kind,_that.deviceId,_that.deviceName,_that.running);case _:
   return orElse();
 
 }
@@ -716,10 +718,10 @@ return $default(_that.id,_that.projectPath,_that.title,_that.kind,_that.running)
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String projectPath,  String title,  String kind,  bool running)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String projectPath,  String title,  String kind,  String? deviceId,  String? deviceName,  bool running)  $default,) {final _that = this;
 switch (_that) {
 case _ConsoleTabInfo():
-return $default(_that.id,_that.projectPath,_that.title,_that.kind,_that.running);case _:
+return $default(_that.id,_that.projectPath,_that.title,_that.kind,_that.deviceId,_that.deviceName,_that.running);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -736,10 +738,10 @@ return $default(_that.id,_that.projectPath,_that.title,_that.kind,_that.running)
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String projectPath,  String title,  String kind,  bool running)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String projectPath,  String title,  String kind,  String? deviceId,  String? deviceName,  bool running)?  $default,) {final _that = this;
 switch (_that) {
 case _ConsoleTabInfo() when $default != null:
-return $default(_that.id,_that.projectPath,_that.title,_that.kind,_that.running);case _:
+return $default(_that.id,_that.projectPath,_that.title,_that.kind,_that.deviceId,_that.deviceName,_that.running);case _:
   return null;
 
 }
@@ -751,13 +753,15 @@ return $default(_that.id,_that.projectPath,_that.title,_that.kind,_that.running)
 
 
 class _ConsoleTabInfo implements ConsoleTabInfo {
-  const _ConsoleTabInfo({required this.id, required this.projectPath, required this.title, this.kind = 'run', this.running = false});
+  const _ConsoleTabInfo({required this.id, required this.projectPath, required this.title, this.kind = 'run', this.deviceId, this.deviceName, this.running = false});
   
 
 @override final  String id;
 @override final  String projectPath;
 @override final  String title;
 @override@JsonKey() final  String kind;
+@override final  String? deviceId;
+@override final  String? deviceName;
 @override@JsonKey() final  bool running;
 
 /// Create a copy of ConsoleTabInfo
@@ -770,16 +774,16 @@ _$ConsoleTabInfoCopyWith<_ConsoleTabInfo> get copyWith => __$ConsoleTabInfoCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConsoleTabInfo&&(identical(other.id, id) || other.id == id)&&(identical(other.projectPath, projectPath) || other.projectPath == projectPath)&&(identical(other.title, title) || other.title == title)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.running, running) || other.running == running));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConsoleTabInfo&&(identical(other.id, id) || other.id == id)&&(identical(other.projectPath, projectPath) || other.projectPath == projectPath)&&(identical(other.title, title) || other.title == title)&&(identical(other.kind, kind) || other.kind == kind)&&(identical(other.deviceId, deviceId) || other.deviceId == deviceId)&&(identical(other.deviceName, deviceName) || other.deviceName == deviceName)&&(identical(other.running, running) || other.running == running));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,id,projectPath,title,kind,running);
+int get hashCode => Object.hash(runtimeType,id,projectPath,title,kind,deviceId,deviceName,running);
 
 @override
 String toString() {
-  return 'ConsoleTabInfo(id: $id, projectPath: $projectPath, title: $title, kind: $kind, running: $running)';
+  return 'ConsoleTabInfo(id: $id, projectPath: $projectPath, title: $title, kind: $kind, deviceId: $deviceId, deviceName: $deviceName, running: $running)';
 }
 
 
@@ -790,7 +794,7 @@ abstract mixin class _$ConsoleTabInfoCopyWith<$Res> implements $ConsoleTabInfoCo
   factory _$ConsoleTabInfoCopyWith(_ConsoleTabInfo value, $Res Function(_ConsoleTabInfo) _then) = __$ConsoleTabInfoCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String projectPath, String title, String kind, bool running
+ String id, String projectPath, String title, String kind, String? deviceId, String? deviceName, bool running
 });
 
 
@@ -807,13 +811,15 @@ class __$ConsoleTabInfoCopyWithImpl<$Res>
 
 /// Create a copy of ConsoleTabInfo
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? projectPath = null,Object? title = null,Object? kind = null,Object? running = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? projectPath = null,Object? title = null,Object? kind = null,Object? deviceId = freezed,Object? deviceName = freezed,Object? running = null,}) {
   return _then(_ConsoleTabInfo(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,projectPath: null == projectPath ? _self.projectPath : projectPath // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
 as String,kind: null == kind ? _self.kind : kind // ignore: cast_nullable_to_non_nullable
-as String,running: null == running ? _self.running : running // ignore: cast_nullable_to_non_nullable
+as String,deviceId: freezed == deviceId ? _self.deviceId : deviceId // ignore: cast_nullable_to_non_nullable
+as String?,deviceName: freezed == deviceName ? _self.deviceName : deviceName // ignore: cast_nullable_to_non_nullable
+as String?,running: null == running ? _self.running : running // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }

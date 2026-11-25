@@ -19,8 +19,17 @@ class VerifyReleaseTest(unittest.TestCase):
                          'url': 'https://example.invalid/release',
                          'assets': [{'name': name, 'url': name} for name in self.files]}
 
-    def verify(self):
-        verifier.verify('v1.2.8', self.metadata, fetch=lambda url, **_: io.BytesIO(self.files[url]))
+    def verify(self, *, arm64_only=False):
+        verifier.verify('v1.2.8', self.metadata, fetch=lambda url, **_: io.BytesIO(self.files[url]),
+                        arm64_only=arm64_only)
+
+    def test_arm64_only_requires_exactly_one_dmg(self):
+        with self.assertRaisesRegex(ValueError, 'attachments'):
+            self.verify(arm64_only=True)
+        self.metadata['assets'].pop(1)
+        self.files['SHA256SUMS.txt'] = self.files['SHA256SUMS.txt'].splitlines(keepends=True)[0]
+        self.verify(arm64_only=True)
+
 
     def test_all_downloads_and_checksums_pass(self):
         self.verify()

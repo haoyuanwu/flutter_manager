@@ -20,6 +20,8 @@ jobs:
         working-directory: fvm_manager
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
@@ -40,12 +42,16 @@ jobs:
           PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s scripts/tests
           flutter pub get
           flutter test --no-pub
-      - name: Check tag and application version
+      - name: Check tag, application version and architectures
         env:
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
           version="$(sed -n 's/^version: \([^+]*\).*/\1/p' pubspec.yaml)"
           test "$RELEASE_TAG" = "v$version"
+          tag_body="$(git for-each-ref --format='%(contents:body)' "refs/tags/$RELEASE_TAG")"
+          if grep -Fxq 'MacOS-Release: arm64-only' <<< "$tag_body"; then
+            echo "MACOS_RELEASE_ARM64_ONLY=1" >> "$GITHUB_ENV"
+          fi
       - name: Build macOS release
         run: flutter build macos --release --no-pub
       - name: Package DMG
@@ -56,7 +62,12 @@ jobs:
           GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ github.ref_name }}
         run: |
-          gh release create "$RELEASE_TAG" --verify-tag --title "$RELEASE_TAG" --notes-file "RELEASE_NOTES_$RELEASE_TAG.md" build/release/*.dmg build/release/SHA256SUMS.txt
+          package_base="build/release/Flutter-Manager-${RELEASE_TAG#v}"
+          packages=("$package_base-arm64.dmg")
+          if [[ "${MACOS_RELEASE_ARM64_ONLY:-}" != 1 ]]; then
+            packages+=("$package_base-x86_64.dmg")
+          fi
+          gh release create "$RELEASE_TAG" --verify-tag --title "$RELEASE_TAG" --notes-file "RELEASE_NOTES_$RELEASE_TAG.md" "${packages[@]}" build/release/SHA256SUMS.txt
       - name: Verify published release and downloads
         env:
           GH_TOKEN: ${{ github.token }}

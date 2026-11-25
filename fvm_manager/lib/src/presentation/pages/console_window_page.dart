@@ -19,6 +19,7 @@ class ConsoleWindowApp extends ConsumerWidget {
     super.key,
     required this.windowId,
     required this.projectTitle,
+    this.tabId,
     required this.projectPath,
     required this.initialCommandLog,
     required this.initialTasks,
@@ -30,6 +31,7 @@ class ConsoleWindowApp extends ConsumerWidget {
 
   final String windowId;
   final String projectTitle;
+  final String? tabId;
   final String projectPath;
   final String initialCommandLog;
   final List<Map<String, String>> initialTasks;
@@ -49,6 +51,7 @@ class ConsoleWindowApp extends ConsumerWidget {
         WindowAppearance(mode: ref.watch(appThemeModeProvider), child: child!),
     home: ConsoleWindowPage(
       windowId: windowId,
+      tabId: tabId,
       projectTitle: projectTitle,
       projectPath: projectPath,
       initialCommandLog: initialCommandLog,
@@ -67,6 +70,7 @@ class ConsoleWindowPage extends StatefulWidget {
   const ConsoleWindowPage({
     super.key,
     required this.projectTitle,
+    this.tabId,
     required this.projectPath,
     required this.initialCommandLog,
     required this.initialTasks,
@@ -79,6 +83,7 @@ class ConsoleWindowPage extends StatefulWidget {
   });
 
   final String projectTitle;
+  final String? tabId;
   final String projectPath;
   final String initialCommandLog;
   final List<Map<String, String>> initialTasks;
@@ -413,11 +418,13 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
         onGlobal: () => ConsoleWindowService.instance.requestAction(
           widget.projectPath,
           action,
+          tabId: widget.tabId,
         ),
         onChannel: () => ConsoleWindowService.instance.requestActionOn(
           _actionChannelName,
           widget.projectPath,
           action,
+          tabId: widget.tabId,
         ),
       );
     } on Object catch (error) {
@@ -531,18 +538,7 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
                     force: force,
                   ),
                 ),
-                rerun: () => _request(
-                  onGlobal: () => ConsoleWindowService.instance.requestAction(
-                    widget.projectPath,
-                    'rerun',
-                  ),
-                  onChannel: () =>
-                      ConsoleWindowService.instance.requestActionOn(
-                        _actionChannelName,
-                        widget.projectPath,
-                        'rerun',
-                      ),
-                ),
+                rerun: () => _runAction('rerun'),
               ),
               IconButton(
                 tooltip: '搜索输出',
@@ -636,16 +632,19 @@ class _ConsoleWindowPageState extends State<ConsoleWindowPage> {
     final confirmed = await confirmDeletion(
       context,
       title: '确认清空命令输出？',
-      message: '将清空当前项目打印台中的全部输出内容，此操作不可撤销。',
+      message: '将清空当前控制台中的全部输出内容，此操作不可撤销。',
       confirmLabel: '清空输出',
     );
     if (confirmed) {
       await _request(
-        onGlobal: () =>
-            ConsoleWindowService.instance.requestClear(widget.projectPath),
+        onGlobal: () => ConsoleWindowService.instance.requestClear(
+          widget.projectPath,
+          tabId: widget.tabId,
+        ),
         onChannel: () => ConsoleWindowService.instance.requestClearOn(
           _actionChannelName,
           widget.projectPath,
+          tabId: widget.tabId,
         ),
       );
     }

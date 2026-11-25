@@ -36,6 +36,7 @@ Future<void> main(List<String> args) async {
         ProviderScope(
           child: ConsoleWindowApp(
             windowId: windowId,
+            tabId: params['tabId'] as String?,
             projectTitle: projectTitle,
             projectPath: projectPath,
             initialCommandLog: commandLog,

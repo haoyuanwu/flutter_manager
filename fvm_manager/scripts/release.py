@@ -27,7 +27,7 @@ def parse_version(value):
     return tuple(map(int, match.groups()))
 
 
-def release(root, version, notes, publish=False):
+def release(root, version, notes, publish=False, *, arm64_only=False):
     wanted = parse_version(version)
     pubspec = root / 'pubspec.yaml'
     source = pubspec.read_text(encoding='utf-8')
@@ -54,7 +54,8 @@ def release(root, version, notes, publish=False):
     if notes_file.exists():
         raise ValueError('更新说明文件已存在，未覆盖：' + str(notes_file))
     body = f'# {tag}\n\n' + ''.join(f'{i}. {note.strip()}\n' for i, note in enumerate(notes, 1))
-    body += (f'\n应用版本：{short}（Build {wanted[3]}）。提供 Apple Silicon 和 Intel 两个 DMG。\n'
+    packages = '提供 Apple Silicon DMG。' if arm64_only else '提供 Apple Silicon 和 Intel 两个 DMG。'
+    body += (f'\n应用版本：{short}（Build {wanted[3]}）。{packages}\n'
              '\n安装包使用临时签名，未进行 Apple Developer ID 签名或公证。\n')
     message = f'发布 {tag}：' + notes[0].strip()
     print(f'版本：{current.group(1)} → {version}\n标签与 Release 标题：{tag}\n中文提交：{message}\n\n{body}', flush=True)
@@ -74,9 +75,10 @@ def release(root, version, notes, publish=False):
     git(root, 'add', '--', str(pubspec), str(notes_file))
     git(root, 'diff', '--cached', '--check')
     git(root, 'commit', '-m', message)
-    git(root, 'tag', '-a', tag, '-m', message)
+    tag_message = message + '\n\nMacOS-Release: arm64-only' if arm64_only else message
+    git(root, 'tag', '-a', tag, '-m', tag_message)
     git(root, 'push', '--atomic', 'origin', 'HEAD:refs/heads/main', 'refs/tags/' + tag)
-    print('已推送，GitHub Actions 将完成测试、双架构打包、上传和下载校验。\n'
+    print('已推送，GitHub Actions 将完成测试、打包、上传和下载校验。\n'
           '请在 Actions 成功后确认 Release；推送成功不代表发布已完成。', flush=True)
 
 
@@ -88,10 +90,12 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('version', help='经确认的新版本号，例如 1.2.8+14')
     parser.add_argument('--note', action='append', required=True, help='一条更新要点，可重复传入；自动编号')
+    parser.add_argument('--arm64-only', action='store_true', help='本次仅发布 Apple Silicon DMG')
     parser.add_argument('--publish', action='store_true', help='更新版本、中文提交、原子推送 main 和版本标签')
     args = parser.parse_args()
     try:
-        release(pathlib.Path(__file__).resolve().parents[1], args.version, args.note, args.publish)
+        release(pathlib.Path(__file__).resolve().parents[1], args.version, args.note, args.publish,
+                arm64_only=args.arm64_only)
     except (ValueError, OSError, subprocess.CalledProcessError) as error:
         print(f'发布已停止：{error}', file=sys.stderr)
         if isinstance(error, subprocess.CalledProcessError):

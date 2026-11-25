@@ -1340,7 +1340,14 @@ class _ProjectDetail extends ConsumerWidget {
                                       key: ValueKey(
                                         'run-device-${state.selectedManagedProjectPath}-${state.selectedDeviceId}',
                                       ),
-                                      initialValue: state.selectedDeviceId,
+                                      initialValue:
+                                          state.devices.any(
+                                            (device) =>
+                                                device['id'] ==
+                                                state.selectedDeviceId,
+                                          )
+                                          ? state.selectedDeviceId
+                                          : null,
                                       decoration: const InputDecoration(
                                         labelText: '运行设备（自动监听）',
                                         border: OutlineInputBorder(),
@@ -1362,10 +1369,7 @@ class _ProjectDetail extends ConsumerWidget {
                                           ),
                                         ),
                                       ],
-                                      onChanged:
-                                          controller.selectedTaskActive('run')
-                                          ? null
-                                          : controller.selectDevice,
+                                      onChanged: controller.selectDevice,
                                     )
                                   : InputDecorator(
                                       decoration: const InputDecoration(
@@ -1387,7 +1391,7 @@ class _ProjectDetail extends ConsumerWidget {
                               width: 36,
                               child: IconButton(
                                 tooltip: '重新连接设备监听',
-                                onPressed: state.commandRunning
+                                onPressed: state.devicesLoading
                                     ? null
                                     : controller.loadDevices,
                                 icon: const Icon(Icons.refresh),
@@ -3205,12 +3209,14 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
   Widget build(BuildContext context) {
     final controller = ref.read(fvmControllerProvider.notifier);
     final tasks = controller.activeTasksForSelectedProject;
-    final hasRunTask = tasks.any((t) => t.id.startsWith('run::'));
     final consoleTab = widget.state.consoleTabs
         .where((tab) => tab.id == widget.state.selectedConsoleTabId)
         .firstOrNull;
     final unlockProjectPath =
         consoleTab?.projectPath ?? widget.state.selectedManagedProjectPath;
+    final runTab = consoleTab?.id.startsWith('run::') == true
+        ? consoleTab
+        : null;
     return Card(
       color: AppColors.consoleBackground,
       child: Padding(
@@ -3243,13 +3249,18 @@ class _CommandConsoleState extends ConsumerState<_CommandConsole> {
                       report,
                       force: force,
                     ),
-                    rerun: () =>
-                        controller.rerunProjectAfterUnlock(unlockProjectPath),
+                    rerun: () => controller.rerunProjectAfterUnlock(
+                      unlockProjectPath,
+                      tabId: runTab?.id,
+                    ),
                   ),
-                if (hasRunTask) ...[
+                if (runTab?.running == true) ...[
                   IconButton(
                     tooltip: '清空并重新运行',
-                    onPressed: controller.rerunManagedProject,
+                    onPressed: () => controller.rerunProjectAfterUnlock(
+                      runTab!.projectPath,
+                      tabId: runTab.id,
+                    ),
                     icon: const Icon(Icons.replay, color: Color(0xff9fb0c2)),
                   ),
                 ],
@@ -3468,10 +3479,16 @@ class _ConsoleTabBarState extends State<_ConsoleTabBar> {
                 tab.projectPath.split(Platform.pathSeparator).last;
             return _ConsoleTabChip(
               key: ValueKey(tab.id),
-              title: '$projectName · ${tab.title}',
+              title: tab.deviceName == null
+                  ? '$projectName · ${tab.title}'
+                  : '${tab.deviceName} · $projectName',
               running: tab.running,
               selected: selected,
               onSelect: () => widget.controller.selectConsoleTab(tab.id),
+              onOpen: () {
+                widget.controller.selectConsoleTab(tab.id);
+                unawaited(widget.controller.openConsoleTabWindow(tab.id));
+              },
               onClose: () => widget.controller.closeConsoleTab(tab.id),
             );
           },
@@ -3488,6 +3505,7 @@ class _ConsoleTabChip extends StatefulWidget {
     required this.running,
     required this.selected,
     required this.onSelect,
+    required this.onOpen,
     required this.onClose,
   });
 
@@ -3495,6 +3513,7 @@ class _ConsoleTabChip extends StatefulWidget {
   final bool running;
   final bool selected;
   final VoidCallback onSelect;
+  final VoidCallback onOpen;
   final VoidCallback onClose;
 
   @override
@@ -3532,6 +3551,7 @@ class _ConsoleTabChipState extends State<_ConsoleTabChip> {
         color: Colors.transparent,
         child: InkWell(
           onTap: widget.onSelect,
+          onDoubleTap: widget.onOpen,
           borderRadius: BorderRadius.circular(7),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 120),
@@ -3558,7 +3578,7 @@ class _ConsoleTabChipState extends State<_ConsoleTabChip> {
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxWidth: 240),
                   child: Tooltip(
-                    message: widget.title,
+                    message: '${widget.title}\n双击打开独立控制台',
                     child: Text(
                       widget.title,
                       maxLines: 1,

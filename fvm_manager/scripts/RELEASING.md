@@ -15,6 +15,8 @@ python3 scripts/release.py 1.2.8+14 \
   --note "修复已知问题"
 ```
 
+只发 Apple Silicon 时，在预览和发布命令中都添加 `--arm64-only`。脚本会在该版本的标签注释中记录架构，CI 按该配置打包、上传并校验附件。
+
 预览只读取本地状态，不改文件、不提交、不推送。确认后，在同一命令末尾添加 `--publish`，脚本将：
 
 - 检查当前分支、暂存状态、版本递增和标签冲突；同步检查远程 main。
@@ -37,7 +39,7 @@ py -3 scripts/release.py 1.2.8+14 --note "新增功能说明" --note "优化操�
 
 上面的版本号仅为示例，请替换为本次确认的新版本。若没有 `py` 启动器，可改用 `python`，先确认 `python --version` 为 Python 3.9 或以上。需要发布代码改动时，先检查并显式暂存；确认预览后在发布命令末尾追加 `--publish`。
 
-Windows 执行此命令会推送标签，由 GitHub 的 macOS 云端 runner 打包两个架构的 DMG，不是在 Windows 本地构建 macOS 应用。目前该发布流程不生成 Windows 安装包；`package_macos_release.py` 仍只能在 macOS 本地使用。
+Windows 执行此命令会推送标签，由 GitHub 的 macOS 云端 runner 按发布参数打包 DMG，不是在 Windows 本地构建 macOS 应用。目前该发布流程不生成 Windows 安装包；`package_macos_release.py` 仍只能在 macOS 本地使用。
 
 ### 为已有版本补充 Windows 安装包
 
@@ -101,8 +103,8 @@ py -3 -m unittest discover -s scripts/tests -v
 ## 验证分工
 
 - 本地：仅做 Git / 版本 / 更新说明检查，通常数秒；不重复构建和运行全套测试。
-- CI：全量测试一次，构建一次，再提取 arm64 / x86_64，生成两个 DMG 和 SHA256SUMS.txt。
-- 上传后：自动确认版本号标题、附件列表，并实际下载两个安装包核对 SHA-256。
+- CI：全量测试一次，构建一次，默认提取 arm64 和 x86_64，并生成 DMG 和 SHA256SUMS.txt。指定 `--arm64-only` 时仅提取 arm64。
+- 上传后：自动确认版本号标题、附件列表，并实际下载本次发布的安装包核对 SHA-256。
 - Actions 成功后再向用户报告发布完成，附 Release 链接与编号更新要点。
 
 修改原生窗口逻辑等高风险功能时，仍建议额外进行本地实机冒烟测试。自动化校验不能证明所有运行交互都正确。
